@@ -22,12 +22,14 @@ class CameraPhoto extends StatefulWidget {
   final double? height;
 
   @override
-  _CameraPhotoState createState() => _CameraPhotoState();
+  State<CameraPhoto> createState() => _CameraPhotoState();
 }
 
 class _CameraPhotoState extends State<CameraPhoto> {
-  CameraController? controller;
+  CameraController? _controller;
   late Future<List<CameraDescription>> _cameras;
+  bool _initializing = false;
+  bool _shooting = false;
 
   @override
   void initState() {
@@ -38,31 +40,73 @@ class _CameraPhotoState extends State<CameraPhoto> {
   @override
   void didUpdateWidget(covariant CameraPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (FFAppState().makePhoto && controller != null && controller!.value.isInitialized) {
-      controller!.takePicture().then((file) async {
-        Uint8List fileAsBytes = await file.readAsBytes();
-        final base64 = base64Encode(fileAsBytes);
+    if (FFAppState().makePhoto == true &&
+        _controller != null &&
+        _controller!.value.isInitialized &&
+        !_shooting) {
+      _takePicture();
+    }
+  }
 
-        // salva base64 nello stato globale
-        FFAppState().update(() {
-          FFAppState().fileBase64 = base64;
-        });
+  Future<void> _initController(List<CameraDescription> cams) async {
+    if (_initializing) return;
+    _initializing = true;
+    try {
+      final back = cams.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cams.first,
+      );
 
-        // salva anche path per thumbnail
-        FFAppState().update(() {
-          FFAppState().lastPhotoPath = file.path;
-        });
+      final c = CameraController(
+        back,
+        ResolutionPreset.max,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      await c.initialize();
+      await c.lockCaptureOrientation(DeviceOrientation.portraitUp);
 
-        FFAppState().update(() {
-          FFAppState().makePhoto = false;
-        });
-      }).catchError((error) {});
+      final minZ = await c.getMinZoomLevel();
+      final maxZ = await c.getMaxZoomLevel();
+      await c.setZoomLevel(1.0.clamp(minZ, maxZ));
+
+      await c.setFocusMode(FocusMode.auto);
+      await c.setExposureMode(ExposureMode.auto);
+
+      if (!mounted) {
+        await c.dispose();
+        return;
+      }
+      setState(() => _controller = c);
+    } catch (e) {
+      debugPrint('Camera init error: $e');
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  Future<void> _takePicture() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    _shooting = true;
+    try {
+      final XFile file = await _controller!.takePicture();
+      final bytes = await file.readAsBytes();
+      final b64 = base64Encode(bytes);
+      FFAppState().update(() {
+        FFAppState().fileBase64 = b64;
+        FFAppState().makePhoto = false;
+      });
+    } catch (e) {
+      debugPrint('takePicture error: $e');
+      FFAppState().update(() => FFAppState().makePhoto = false);
+    } finally {
+      _shooting = false;
     }
   }
 
   @override
   void dispose() {
-    controller?.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -70,51 +114,37 @@ class _CameraPhotoState extends State<CameraPhoto> {
   Widget build(BuildContext context) {
     return FutureBuilder<List<CameraDescription>>(
       future: _cameras,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            if (controller == null) {
-              // prendi sempre la camera posteriore principale
-              final CameraDescription backCamera = snapshot.data!
-                  .firstWhere((cam) => cam.lensDirection == CameraLensDirection.back);
-
-              controller = CameraController(
-                backCamera,
-                ResolutionPreset.max,
-                enableAudio: false,
-              );
-
-              controller!.initialize().then((_) async {
-                if (!mounted) return;
-
-                // Blocca orientamento verticale
-                await controller!.lockCaptureOrientation(DeviceOrientation.portraitUp);
-
-                // Blocca zoom a 1x (evita ultra-grandangolo 0.5x)
-                final minZoom = await controller!.getMinZoomLevel();
-                final maxZoom = await controller!.getMaxZoomLevel();
-                await controller!.setZoomLevel(1.0.clamp(minZoom, maxZoom));
-
-                // Auto focus + esposizione
-                await controller!.setFocusMode(FocusMode.auto);
-                await controller!.setExposureMode(ExposureMode.auto);
-
-                setState(() {});
-              });
-            }
-
-            return controller!.value.isInitialized
-                ? AspectRatio(
-                    aspectRatio: controller!.value.aspectRatio,
-                    child: CameraPreview(controller!),
-                  )
-                : Container();
-          } else {
-            return const Center(child: Text('No cameras available.'));
-          }
-        } else {
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (!snap.hasData || snap.data!.isEmpty) {
+          return const Center(child: Text('No cameras available.'));
+        }
+
+        if (_controller == null && !_initializing) {
+          _initController(snap.data!);
+        }
+        if (_controller == null || !_controller!.value.isInitialized) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final previewSize = _controller!.value.previewSize;
+        final w = previewSize?.height ?? 1080; // iOS portrait swap
+        final h = previewSize?.width ?? 1920;
+
+        return SizedBox(
+          width: widget.width ?? double.infinity,
+          height: widget.height ?? double.infinity,
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: CameraPreview(_controller!),
+            ),
+          ),
+        );
       },
     );
   }
