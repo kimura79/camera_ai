@@ -11,8 +11,9 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// 📌 Import per salvataggio in galleria
+// 👉 aggiunte
 import 'package:gallery_saver/gallery_saver.dart';
+import 'package:image/image.dart' as img;
 import 'dart:io';
 
 class HomePageWidget extends StatefulWidget {
@@ -42,6 +43,43 @@ class _HomePageWidgetState extends State<HomePageWidget> {
     super.dispose();
   }
 
+  Future<FFUploadedFile?> _cropAndResizeTo1024(FFUploadedFile src) async {
+    try {
+      // 1) ottieni i bytes dell’immagine
+      final bytes = src.bytes;
+      if (bytes == null) return null;
+
+      // 2) decodifica
+      final original = img.decodeImage(bytes);
+      if (original == null) return null;
+
+      // 3) crop centrale quadrato
+      final size = original.width < original.height ? original.width : original.height;
+      final x = (original.width - size) ~/ 2;
+      final y = (original.height - size) ~/ 2;
+      final cropped = img.copyCrop(original, x: x, y: y, width: size, height: size);
+
+      // 4) resize a 1024x1024
+      final resized = img.copyResize(cropped, width: 1024, height: 1024, interpolation: img.Interpolation.cubic);
+
+      // 5) ricodifica (jpeg qualità max)
+      final outBytes = img.encodeJpg(resized, quality: 100);
+
+      // 6) ritorna come FFUploadedFile per il resto del flusso
+      return FFUploadedFile(bytes: outBytes, name: 'face_1024.jpg');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // salva su galleria usando un file temporaneo
+  Future<void> _saveBytesToGallery(List<int> bytes) async {
+    final tempPath = '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final f = File(tempPath);
+    await f.writeAsBytes(bytes, flush: true);
+    await GallerySaver.saveImage(f.path);
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<FFAppState>();
@@ -53,12 +91,12 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       },
       child: Scaffold(
         key: scaffoldKey,
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+        backgroundColor: Colors.black, // full screen preview su sfondo nero
         appBar: AppBar(
           backgroundColor: FlutterFlowTheme.of(context).primary,
           automaticallyImplyLeading: false,
           title: Text(
-            'Custom Camera ',
+            'Custom Camera',
             style: FlutterFlowTheme.of(context).headlineMedium.override(
                   font: GoogleFonts.interTight(
                     fontWeight:
@@ -80,96 +118,99 @@ class _HomePageWidgetState extends State<HomePageWidget> {
         ),
         body: SafeArea(
           top: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
+          child: Stack(
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      Padding(
-                        padding:
-                            EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 50.0),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: Container(
-                                width: 300.0,
-                                height: 400.0,
-                                child: custom_widgets.CameraPhoto(
-                                  width: 300.0,
-                                  height: 400.0,
-                                ),
-                              ),
-                            ),
-                          ],
+              // 🔴 PREVIEW FOTOCAMERA FULL SCREEN
+              Positioned.fill(
+                child: custom_widgets.CameraPhoto(
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+
+              // 🔳 RIQUADRO GUIDA 1:1 (solo bordo)
+              // è un quadrato centrato, dimensione massima possibile dentro lo schermo
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
+                  final size = w < h ? w : h; // lato del quadrato
+
+                  return IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        width: size * 0.9, // lascia un 5% di margine
+                        height: size * 0.9,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.white, width: 2),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              FFButtonWidget(
-                onPressed: () async {
-                  FFAppState().makePhoto = true;
-                  safeSetState(() {});
-                  await Future.delayed(
-                    Duration(milliseconds: 1000),
-                  );
-
-                  // File scattato dalla camera (convertito da base64)
-                  final takenFile =
-                      functions.base64toFile(FFAppState().fileBase64);
-
-                  // 📌 Salva in galleria
-                  if (takenFile != null && takenFile.bytes != null) {
-                    // Salvataggio temporaneo su file per passarlo a gallery_saver
-                    final tempPath =
-                        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                    final file = File(tempPath);
-                    await file.writeAsBytes(takenFile.bytes!);
-                    await GallerySaver.saveImage(file.path);
-                  }
-
-                  // Continua verso la pagina di anteprima
-                  context.pushNamed(
-                    BsImageWidget.routeName,
-                    queryParameters: {
-                      'imageparam': serializeParam(
-                        takenFile,
-                        ParamType.FFUploadedFile,
-                      ),
-                    }.withoutNulls,
+                    ),
                   );
                 },
-                text: 'Take Picture',
-                options: FFButtonOptions(
-                  height: 40.0,
-                  padding: EdgeInsetsDirectional.fromSTEB(16.0, 0.0, 16.0, 0.0),
-                  iconPadding:
-                      EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 0.0),
-                  color: FlutterFlowTheme.of(context).primary,
-                  textStyle: FlutterFlowTheme.of(context).titleSmall.override(
-                        font: GoogleFonts.interTight(
-                          fontWeight: FlutterFlowTheme.of(context)
-                              .titleSmall
-                              .fontWeight,
-                          fontStyle:
-                              FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                        ),
-                        color: Colors.white,
-                        letterSpacing: 0.0,
-                        fontWeight:
-                            FlutterFlowTheme.of(context).titleSmall.fontWeight,
-                        fontStyle:
-                            FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                      ),
-                  elevation: 0.0,
-                  borderRadius: BorderRadius.circular(8.0),
+              ),
+
+              // 🔘 PULSANTE SCATTO
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Center(
+                  child: FFButtonWidget(
+                    onPressed: () async {
+                      // attiva lo scatto nel tuo custom widget
+                      FFAppState().makePhoto = true;
+                      safeSetState(() {});
+                      await Future.delayed(const Duration(milliseconds: 1000));
+
+                      // recupera il file prodotto dal custom widget
+                      final rawTaken = functions.base64toFile(FFAppState().fileBase64);
+                      if (rawTaken == null || rawTaken.bytes == null) return;
+
+                      // crop + resize a 1024
+                      final processed = await _cropAndResizeTo1024(rawTaken);
+                      if (processed == null || processed.bytes == null) return;
+
+                      // salva in galleria
+                      await _saveBytesToGallery(processed.bytes!);
+
+                      // vai alla pagina di anteprima passando il file 1024x1024
+                      context.pushNamed(
+                        BsImageWidget.routeName,
+                        queryParameters: {
+                          'imageparam': serializeParam(
+                            processed,
+                            ParamType.FFUploadedFile,
+                          ),
+                        }.withoutNulls,
+                      );
+                    },
+                    text: 'Take Picture',
+                    options: FFButtonOptions(
+                      height: 58.0,
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      color: FlutterFlowTheme.of(context).primary,
+                      textStyle: FlutterFlowTheme.of(context).titleSmall.override(
+                            font: GoogleFonts.interTight(
+                              fontWeight: FlutterFlowTheme.of(context)
+                                  .titleSmall
+                                  .fontWeight,
+                              fontStyle: FlutterFlowTheme.of(context)
+                                  .titleSmall
+                                  .fontStyle,
+                            ),
+                            color: Colors.white,
+                            letterSpacing: 0.0,
+                            fontWeight:
+                                FlutterFlowTheme.of(context).titleSmall.fontWeight,
+                            fontStyle:
+                                FlutterFlowTheme.of(context).titleSmall.fontStyle,
+                          ),
+                      elevation: 0.0,
+                      borderRadius: BorderRadius.circular(32.0),
+                    ),
+                  ),
                 ),
               ),
             ],
