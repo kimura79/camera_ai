@@ -16,7 +16,7 @@ import 'package:image/image.dart' as img;
 import 'dart:io';
 
 // 📌 Costante per regolare altezza riquadro guida (da -1 = in alto a 1 = in basso)
-const double squareOffsetY = -0.3;
+const double squareOffsetY = -0.5;
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
