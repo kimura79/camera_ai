@@ -17,7 +17,7 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 
 // ====== PARAMETRI RAPIDI ======
-const double squareOffsetY = -0.2;   // -1 = su, 0 = centro, 1 = giù
+const double squareOffsetY = -0.4;   // -1 = su, 0 = centro, 1 = giù
 const bool showGrid = true;          // griglia 3x3 tipo nativa
 const double squareScale = 0.9;      // grandezza del riquadro 1:1 (0..1)
 const Color brandColor = Color(0xFF1F4E78); // colore richiesto
