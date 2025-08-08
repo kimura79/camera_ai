@@ -13,15 +13,16 @@ export 'home_page_model.dart';
 
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image/image.dart' as img;
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';     // Haptic
+import 'package:flutter/foundation.dart';   // compute()
 import 'dart:io';
 import 'dart:typed_data';
 
 // ====== PARAMETRI RAPIDI ======
-const double squareOffsetY = -0.4;   // -1 = su, 0 = centro, 1 = giù
-const bool showGrid = true;          // griglia 3x3 tipo nativa
-const double squareScale = 0.9;      // grandezza del riquadro 1:1 (0..1)
-const Color brandColor = Color(0xFF1F4E78); // colore richiesto
+const double squareOffsetY = -0.4;     // -1 = su, 0 = centro, 1 = giù
+const bool showGrid = true;            // griglia 3x3 tipo nativa
+const double squareScale = 0.9;        // grandezza del riquadro 1:1 (0..1)
+const Color brandColor = Color(0xFF1F4E78);
 // =================================
 
 class HomePageWidget extends StatefulWidget {
@@ -38,7 +39,8 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   late HomePageModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
-  bool _shutterBlink = false; // flash bianco breve
+  bool _shutterBlink = false;          // flash bianco breve
+  String? lastPhotoPath;               // path immagine salvata (per thumbnail)
 
   @override
   void initState() {
@@ -52,9 +54,28 @@ class _HomePageWidgetState extends State<HomePageWidget> {
     super.dispose();
   }
 
-  // ---- ATTESA DEL NUOVO SCATTO (evita foto precedente) ----
+  // ---------- WORKER in ISOLATE: crop + resize 1024 ----------
+  static Uint8List _cropResizeWorker(Uint8List srcBytes) {
+    final original = img.decodeImage(srcBytes);
+    if (original == null) return srcBytes;
+
+    final size = original.width < original.height ? original.width : original.height;
+    final x = (original.width - size) ~/ 2;
+    final y = (original.height - size) ~/ 2;
+    final cropped = img.copyCrop(original, x: x, y: y, width: size, height: size);
+
+    final resized = img.copyResize(
+      cropped,
+      width: 1024,
+      height: 1024,
+      interpolation: img.Interpolation.cubic,
+    );
+    return Uint8List.fromList(img.encodeJpg(resized, quality: 100));
+  }
+
+  // Attesa bytes NUOVI (evita la foto precedente)
   Future<Uint8List?> _waitForShotBytes({int timeoutMs = 3000}) async {
-    final prevB64 = FFAppState().fileBase64; // stato PRIMA dello scatto
+    final prevB64 = FFAppState().fileBase64;
     final sw = Stopwatch()..start();
     while (sw.elapsedMilliseconds < timeoutMs) {
       final b64 = FFAppState().fileBase64;
@@ -69,78 +90,51 @@ class _HomePageWidgetState extends State<HomePageWidget> {
     return null; // timeout
   }
 
-  Future<FFUploadedFile?> _cropAndResizeTo1024(FFUploadedFile src) async {
-    try {
-      final bytes = src.bytes;
-      if (bytes == null) return null;
-
-      final original = img.decodeImage(bytes);
-      if (original == null) return null;
-
-      final size = original.width < original.height ? original.width : original.height;
-      final x = (original.width - size) ~/ 2;
-      final y = (original.height - size) ~/ 2;
-      final cropped = img.copyCrop(original, x: x, y: y, width: size, height: size);
-
-      final resized = img.copyResize(
-        cropped,
-        width: 1024,
-        height: 1024,
-        interpolation: img.Interpolation.cubic,
-      );
-
-      final outBytes = img.encodeJpg(resized, quality: 100);
-      return FFUploadedFile(bytes: outBytes, name: 'face_1024.jpg');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _saveBytesToGallery(List<int> bytes) async {
+  Future<String?> _saveBytesToGallery(Uint8List bytes) async {
     final tempPath =
         '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final f = File(tempPath);
     await f.writeAsBytes(bytes, flush: true);
     await GallerySaver.saveImage(f.path);
+    return f.path;
   }
 
-  Future<void> _shoot() async {
+  // Effetto otturatore (blink) non bloccante
+  void _shutterFX() {
+    setState(() => _shutterBlink = true);
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (mounted) setState(() => _shutterBlink = false);
+    });
+  }
+
+  // Pipeline in background: aspetta i bytes, croppa in isolate, salva, aggiorna thumbnail
+  Future<void> _processAfterShot() async {
+    final srcBytes = await _waitForShotBytes();
+    if (srcBytes == null) return;
+
+    // Crop/resize in isolate (non blocca UI)
+    final outBytes = await compute<Uint8List, Uint8List>(_cropResizeWorker, srcBytes);
+
+    // Salva in Galleria e aggiorna thumbnail
+    final savedPath = await _saveBytesToGallery(outBytes);
+    if (!mounted || savedPath == null) return;
+    setState(() {
+      lastPhotoPath = savedPath; // mostra solo miniatura (nessuna navigazione)
+    });
+  }
+
+  // Tap: scatta SUBITO; l'elaborazione va in background
+  void _shoot() {
     HapticFeedback.lightImpact();
+    _shutterFX();
 
-    // 🔑 reset del buffer PRIMA di chiedere lo scatto (evita l'immagine precedente)
+    // reset buffer, poi comando scatto
     FFAppState().fileBase64 = '';
-
-    // comanda lo scatto al widget camera
     FFAppState().makePhoto = true;
     safeSetState(() {});
 
-    // effetto otturatore (blink) mentre attendiamo i bytes nuovi
-    setState(() => _shutterBlink = true);
-    await Future.delayed(const Duration(milliseconds: 80));
-    if (mounted) setState(() => _shutterBlink = false);
-
-    // aspetta i bytes del NUOVO scatto
-    final shotBytes = await _waitForShotBytes();
-    if (shotBytes == null) return;
-
-    // crea FFUploadedFile, poi crop+resize 1024
-    final rawTaken = FFUploadedFile(bytes: shotBytes, name: 'shot.jpg');
-    final processed = await _cropAndResizeTo1024(rawTaken);
-    if (processed == null || processed.bytes == null) return;
-
-    // salva in galleria (versione 1024x1024)
-    await _saveBytesToGallery(processed.bytes!);
-
-    if (!mounted) return;
-    context.pushNamed(
-      BsImageWidget.routeName,
-      queryParameters: {
-        'imageparam': serializeParam(
-          processed,
-          ParamType.FFUploadedFile,
-        ),
-      }.withoutNulls,
-    );
+    // non attendiamo: elaborazione in background
+    _processAfterShot();
   }
 
   @override
@@ -154,12 +148,12 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       },
       child: Scaffold(
         key: scaffoldKey,
-        backgroundColor: Colors.black, // sfondo della preview
+        backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: brandColor, // 1F4E78
+          backgroundColor: brandColor,
           automaticallyImplyLeading: false,
           title: Text(
-            'Epidermys', // nuovo titolo
+            'Epidermys',
             style: FlutterFlowTheme.of(context).headlineMedium.override(
                   font: GoogleFonts.interTight(
                     fontWeight:
@@ -187,7 +181,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 ),
               ),
 
-              // Griglia 3x3 tipo nativa (facoltativa)
+              // Griglia 3x3
               if (showGrid)
                 Positioned.fill(
                   child: LayoutBuilder(
@@ -206,7 +200,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                   ),
                 ),
 
-              // Riquadro guida 1:1 (solo bordo) regolabile
+              // Riquadro guida 1:1 (solo bordo)
               LayoutBuilder(
                 builder: (context, constraints) {
                   final w = constraints.maxWidth;
@@ -236,6 +230,22 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 child: Container(color: Colors.white),
               ),
 
+              // Thumbnail ultimo scatto (basso sinistra)
+              if (lastPhotoPath != null)
+                Positioned(
+                  bottom: 24,
+                  left: 24,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(lastPhotoPath!),
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+
               // Pulsante scatto rotondo stile nativo
               Positioned(
                 left: 0,
@@ -247,7 +257,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        // anello esterno con brandColor velato
                         Container(
                           width: 86,
                           height: 86,
@@ -257,7 +266,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                             border: Border.all(color: Colors.white, width: 4),
                           ),
                         ),
-                        // cerchio interno
                         Container(
                           width: 68,
                           height: 68,
