@@ -11,10 +11,12 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// 👉 aggiunte
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'dart:io';
+
+// 📌 Costante per regolare altezza riquadro guida (da -1 = in alto a 1 = in basso)
+const double squareOffsetY = -0.3;
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
@@ -45,34 +47,27 @@ class _HomePageWidgetState extends State<HomePageWidget> {
 
   Future<FFUploadedFile?> _cropAndResizeTo1024(FFUploadedFile src) async {
     try {
-      // 1) ottieni i bytes dell’immagine
       final bytes = src.bytes;
       if (bytes == null) return null;
 
-      // 2) decodifica
       final original = img.decodeImage(bytes);
       if (original == null) return null;
 
-      // 3) crop centrale quadrato
       final size = original.width < original.height ? original.width : original.height;
       final x = (original.width - size) ~/ 2;
       final y = (original.height - size) ~/ 2;
       final cropped = img.copyCrop(original, x: x, y: y, width: size, height: size);
 
-      // 4) resize a 1024x1024
       final resized = img.copyResize(cropped, width: 1024, height: 1024, interpolation: img.Interpolation.cubic);
 
-      // 5) ricodifica (jpeg qualità max)
       final outBytes = img.encodeJpg(resized, quality: 100);
 
-      // 6) ritorna come FFUploadedFile per il resto del flusso
       return FFUploadedFile(bytes: outBytes, name: 'face_1024.jpg');
     } catch (_) {
       return null;
     }
   }
 
-  // salva su galleria usando un file temporaneo
   Future<void> _saveBytesToGallery(List<int> bytes) async {
     final tempPath = '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final f = File(tempPath);
@@ -91,7 +86,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       },
       child: Scaffold(
         key: scaffoldKey,
-        backgroundColor: Colors.black, // full screen preview su sfondo nero
+        backgroundColor: Colors.black,
         appBar: AppBar(
           backgroundColor: FlutterFlowTheme.of(context).primary,
           automaticallyImplyLeading: false,
@@ -107,10 +102,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                   color: Colors.white,
                   fontSize: 22.0,
                   letterSpacing: 0.0,
-                  fontWeight:
-                      FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-                  fontStyle:
-                      FlutterFlowTheme.of(context).headlineMedium.fontStyle,
                 ),
           ),
           centerTitle: false,
@@ -120,7 +111,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
           top: true,
           child: Stack(
             children: [
-              // 🔴 PREVIEW FOTOCAMERA FULL SCREEN
+              // Preview camera full screen
               Positioned.fill(
                 child: custom_widgets.CameraPhoto(
                   width: double.infinity,
@@ -128,18 +119,18 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 ),
               ),
 
-              // 🔳 RIQUADRO GUIDA 1:1 (solo bordo)
-              // è un quadrato centrato, dimensione massima possibile dentro lo schermo
+              // Riquadro guida regolabile
               LayoutBuilder(
                 builder: (context, constraints) {
                   final w = constraints.maxWidth;
                   final h = constraints.maxHeight;
-                  final size = w < h ? w : h; // lato del quadrato
+                  final size = w < h ? w : h;
 
                   return IgnorePointer(
-                    child: Center(
+                    child: Align(
+                      alignment: Alignment(0, squareOffsetY),
                       child: Container(
-                        width: size * 0.9, // lascia un 5% di margine
+                        width: size * 0.9,
                         height: size * 0.9,
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white, width: 2),
@@ -151,7 +142,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 },
               ),
 
-              // 🔘 PULSANTE SCATTO
+              // Pulsante scatto reattivo
               Positioned(
                 left: 0,
                 right: 0,
@@ -159,23 +150,21 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 child: Center(
                   child: FFButtonWidget(
                     onPressed: () async {
-                      // attiva lo scatto nel tuo custom widget
                       FFAppState().makePhoto = true;
                       safeSetState(() {});
-                      await Future.delayed(const Duration(milliseconds: 1000));
 
-                      // recupera il file prodotto dal custom widget
+                      // Se il widget CameraPhoto ha bisogno di un attimo per scrivere fileBase64,
+                      // si può mettere un piccolo delay di sicurezza:
+                      await Future.delayed(const Duration(milliseconds: 100));
+
                       final rawTaken = functions.base64toFile(FFAppState().fileBase64);
                       if (rawTaken == null || rawTaken.bytes == null) return;
 
-                      // crop + resize a 1024
                       final processed = await _cropAndResizeTo1024(rawTaken);
                       if (processed == null || processed.bytes == null) return;
 
-                      // salva in galleria
                       await _saveBytesToGallery(processed.bytes!);
 
-                      // vai alla pagina di anteprima passando il file 1024x1024
                       context.pushNamed(
                         BsImageWidget.routeName,
                         queryParameters: {
@@ -202,10 +191,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                             ),
                             color: Colors.white,
                             letterSpacing: 0.0,
-                            fontWeight:
-                                FlutterFlowTheme.of(context).titleSmall.fontWeight,
-                            fontStyle:
-                                FlutterFlowTheme.of(context).titleSmall.fontStyle,
                           ),
                       elevation: 0.0,
                       borderRadius: BorderRadius.circular(32.0),
