@@ -13,10 +13,15 @@ export 'home_page_model.dart';
 
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter/services.dart';
 import 'dart:io';
 
-// 📌 Costante per regolare altezza riquadro guida (da -1 = in alto a 1 = in basso)
-const double squareOffsetY = -0.5;
+// ====== PARAMETRI RAPIDI ======
+const double squareOffsetY = -0.2;   // -1 = su, 0 = centro, 1 = giù
+const bool showGrid = true;          // griglia 3x3 tipo nativa
+const double squareScale = 0.9;      // grandezza del riquadro 1:1 (0..1)
+const Color brandColor = Color(0xFF1F4E78); // colore richiesto
+// =================================
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
@@ -30,8 +35,9 @@ class HomePageWidget extends StatefulWidget {
 
 class _HomePageWidgetState extends State<HomePageWidget> {
   late HomePageModel _model;
-
   final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  bool _shutterBlink = false; // flash bianco breve
 
   @override
   void initState() {
@@ -58,10 +64,14 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       final y = (original.height - size) ~/ 2;
       final cropped = img.copyCrop(original, x: x, y: y, width: size, height: size);
 
-      final resized = img.copyResize(cropped, width: 1024, height: 1024, interpolation: img.Interpolation.cubic);
+      final resized = img.copyResize(
+        cropped,
+        width: 1024,
+        height: 1024,
+        interpolation: img.Interpolation.cubic,
+      );
 
       final outBytes = img.encodeJpg(resized, quality: 100);
-
       return FFUploadedFile(bytes: outBytes, name: 'face_1024.jpg');
     } catch (_) {
       return null;
@@ -69,10 +79,42 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   }
 
   Future<void> _saveBytesToGallery(List<int> bytes) async {
-    final tempPath = '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final tempPath =
+        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final f = File(tempPath);
     await f.writeAsBytes(bytes, flush: true);
     await GallerySaver.saveImage(f.path);
+  }
+
+  Future<void> _shoot() async {
+    HapticFeedback.lightImpact();
+
+    FFAppState().makePhoto = true;
+    safeSetState(() {});
+    await Future.delayed(const Duration(milliseconds: 80));
+
+    setState(() => _shutterBlink = true);
+    await Future.delayed(const Duration(milliseconds: 80));
+    if (mounted) setState(() => _shutterBlink = false);
+
+    final rawTaken = functions.base64toFile(FFAppState().fileBase64);
+    if (rawTaken == null || rawTaken.bytes == null) return;
+
+    final processed = await _cropAndResizeTo1024(rawTaken);
+    if (processed == null || processed.bytes == null) return;
+
+    await _saveBytesToGallery(processed.bytes!);
+
+    if (!mounted) return;
+    context.pushNamed(
+      BsImageWidget.routeName,
+      queryParameters: {
+        'imageparam': serializeParam(
+          processed,
+          ParamType.FFUploadedFile,
+        ),
+      }.withoutNulls,
+    );
   }
 
   @override
@@ -86,12 +128,12 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       },
       child: Scaffold(
         key: scaffoldKey,
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.black, // sfondo della preview
         appBar: AppBar(
-          backgroundColor: FlutterFlowTheme.of(context).primary,
+          backgroundColor: brandColor, // 1F4E78
           automaticallyImplyLeading: false,
           title: Text(
-            'Custom Camera',
+            'Epidermys', // nuovo titolo
             style: FlutterFlowTheme.of(context).headlineMedium.override(
                   font: GoogleFonts.interTight(
                     fontWeight:
@@ -119,19 +161,38 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 ),
               ),
 
-              // Riquadro guida regolabile
+              // Griglia 3x3 tipo nativa (facoltativa)
+              if (showGrid)
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, c) {
+                      final w = c.maxWidth;
+                      final h = c.maxHeight;
+                      return Stack(
+                        children: [
+                          Positioned(left: w / 3, top: 0, bottom: 0, child: Container(width: 1, color: Colors.white24)),
+                          Positioned(left: 2 * w / 3, top: 0, bottom: 0, child: Container(width: 1, color: Colors.white24)),
+                          Positioned(top: h / 3, left: 0, right: 0, child: Container(height: 1, color: Colors.white24)),
+                          Positioned(top: 2 * h / 3, left: 0, right: 0, child: Container(height: 1, color: Colors.white24)),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+
+              // Riquadro guida 1:1 (solo bordo) regolabile
               LayoutBuilder(
                 builder: (context, constraints) {
                   final w = constraints.maxWidth;
                   final h = constraints.maxHeight;
-                  final size = w < h ? w : h;
+                  final size = (w < h ? w : h) * squareScale;
 
                   return IgnorePointer(
                     child: Align(
                       alignment: Alignment(0, squareOffsetY),
                       child: Container(
-                        width: size * 0.9,
-                        height: size * 0.9,
+                        width: size,
+                        height: size,
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white, width: 2),
                           borderRadius: BorderRadius.circular(8),
@@ -142,58 +203,44 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 },
               ),
 
-              // Pulsante scatto reattivo
+              // Blink bianco (otturatore)
+              AnimatedOpacity(
+                opacity: _shutterBlink ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 80),
+                child: Container(color: Colors.white),
+              ),
+
+              // Pulsante scatto rotondo stile nativo
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 24,
                 child: Center(
-                  child: FFButtonWidget(
-                    onPressed: () async {
-                      FFAppState().makePhoto = true;
-                      safeSetState(() {});
-
-                      // Se il widget CameraPhoto ha bisogno di un attimo per scrivere fileBase64,
-                      // si può mettere un piccolo delay di sicurezza:
-                      await Future.delayed(const Duration(milliseconds: 100));
-
-                      final rawTaken = functions.base64toFile(FFAppState().fileBase64);
-                      if (rawTaken == null || rawTaken.bytes == null) return;
-
-                      final processed = await _cropAndResizeTo1024(rawTaken);
-                      if (processed == null || processed.bytes == null) return;
-
-                      await _saveBytesToGallery(processed.bytes!);
-
-                      context.pushNamed(
-                        BsImageWidget.routeName,
-                        queryParameters: {
-                          'imageparam': serializeParam(
-                            processed,
-                            ParamType.FFUploadedFile,
+                  child: GestureDetector(
+                    onTap: _shoot,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // anello esterno con brandColor velato
+                        Container(
+                          width: 86,
+                          height: 86,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: brandColor.withOpacity(0.08),
+                            border: Border.all(color: Colors.white, width: 4),
                           ),
-                        }.withoutNulls,
-                      );
-                    },
-                    text: 'Take Picture',
-                    options: FFButtonOptions(
-                      height: 58.0,
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                      color: FlutterFlowTheme.of(context).primary,
-                      textStyle: FlutterFlowTheme.of(context).titleSmall.override(
-                            font: GoogleFonts.interTight(
-                              fontWeight: FlutterFlowTheme.of(context)
-                                  .titleSmall
-                                  .fontWeight,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .titleSmall
-                                  .fontStyle,
-                            ),
+                        ),
+                        // cerchio interno
+                        Container(
+                          width: 68,
+                          height: 68,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
                             color: Colors.white,
-                            letterSpacing: 0.0,
                           ),
-                      elevation: 0.0,
-                      borderRadius: BorderRadius.circular(32.0),
+                        ),
+                      ],
                     ),
                   ),
                 ),
