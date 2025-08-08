@@ -11,6 +11,10 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
+// 📌 Import per salvataggio in galleria
+import 'package:gallery_saver/gallery_saver.dart';
+import 'dart:io';
+
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
@@ -35,7 +39,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   @override
   void dispose() {
     _model.dispose();
-
     super.dispose();
   }
 
@@ -72,7 +75,6 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                       FlutterFlowTheme.of(context).headlineMedium.fontStyle,
                 ),
           ),
-          actions: [],
           centerTitle: false,
           elevation: 2.0,
         ),
@@ -116,16 +118,29 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                   FFAppState().makePhoto = true;
                   safeSetState(() {});
                   await Future.delayed(
-                    Duration(
-                      milliseconds: 1000,
-                    ),
+                    Duration(milliseconds: 1000),
                   );
 
+                  // File scattato dalla camera (convertito da base64)
+                  final takenFile =
+                      functions.base64toFile(FFAppState().fileBase64);
+
+                  // 📌 Salva in galleria
+                  if (takenFile != null && takenFile.bytes != null) {
+                    // Salvataggio temporaneo su file per passarlo a gallery_saver
+                    final tempPath =
+                        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                    final file = File(tempPath);
+                    await file.writeAsBytes(takenFile.bytes!);
+                    await GallerySaver.saveImage(file.path);
+                  }
+
+                  // Continua verso la pagina di anteprima
                   context.pushNamed(
                     BsImageWidget.routeName,
                     queryParameters: {
                       'imageparam': serializeParam(
-                        functions.base64toFile(FFAppState().fileBase64),
+                        takenFile,
                         ParamType.FFUploadedFile,
                       ),
                     }.withoutNulls,
