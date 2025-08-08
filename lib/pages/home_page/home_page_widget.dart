@@ -15,6 +15,7 @@ import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'dart:typed_data';
 
 // ====== PARAMETRI RAPIDI ======
 const double squareOffsetY = -0.4;   // -1 = su, 0 = centro, 1 = giù
@@ -49,6 +50,23 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   void dispose() {
     _model.dispose();
     super.dispose();
+  }
+
+  // ---- ATTESA DEL NUOVO SCATTO (evita foto precedente) ----
+  Future<Uint8List?> _waitForShotBytes({int timeoutMs = 3000}) async {
+    final prevB64 = FFAppState().fileBase64; // stato PRIMA dello scatto
+    final sw = Stopwatch()..start();
+    while (sw.elapsedMilliseconds < timeoutMs) {
+      final b64 = FFAppState().fileBase64;
+      if (b64.isNotEmpty && b64 != prevB64) {
+        final f = functions.base64toFile(b64);
+        if (f != null && f.bytes != null) {
+          return Uint8List.fromList(f.bytes!);
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 10));
+    }
+    return null; // timeout
   }
 
   Future<FFUploadedFile?> _cropAndResizeTo1024(FFUploadedFile src) async {
@@ -89,20 +107,28 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   Future<void> _shoot() async {
     HapticFeedback.lightImpact();
 
+    // 🔑 reset del buffer PRIMA di chiedere lo scatto (evita l'immagine precedente)
+    FFAppState().fileBase64 = '';
+
+    // comanda lo scatto al widget camera
     FFAppState().makePhoto = true;
     safeSetState(() {});
-    await Future.delayed(const Duration(milliseconds: 80));
 
+    // effetto otturatore (blink) mentre attendiamo i bytes nuovi
     setState(() => _shutterBlink = true);
     await Future.delayed(const Duration(milliseconds: 80));
     if (mounted) setState(() => _shutterBlink = false);
 
-    final rawTaken = functions.base64toFile(FFAppState().fileBase64);
-    if (rawTaken == null || rawTaken.bytes == null) return;
+    // aspetta i bytes del NUOVO scatto
+    final shotBytes = await _waitForShotBytes();
+    if (shotBytes == null) return;
 
+    // crea FFUploadedFile, poi crop+resize 1024
+    final rawTaken = FFUploadedFile(bytes: shotBytes, name: 'shot.jpg');
     final processed = await _cropAndResizeTo1024(rawTaken);
     if (processed == null || processed.bytes == null) return;
 
+    // salva in galleria (versione 1024x1024)
     await _saveBytesToGallery(processed.bytes!);
 
     if (!mounted) return;
