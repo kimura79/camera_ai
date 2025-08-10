@@ -8,7 +8,7 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👇 IMPORT pagina di debug
+// Pagina debug fotocamera
 import 'cam_debug_page.dart';
 
 void main() async {
@@ -41,8 +41,24 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  // 🔁 toggle rapido: true = avvia pagina di debug fotocamera
+  // 🔁 TRUE = forza pagina di debug fotocamera
   static const bool kUseCamDebug = true;
+
+  // === Richiesti da flutter_flow_util.dart ===
+  String getRoute([RouteMatch? routeMatch]) {
+    final RouteMatch lastMatch =
+        routeMatch ?? _router.routerDelegate.currentConfiguration.last;
+    final RouteMatchList matchList = lastMatch is ImperativeRouteMatch
+        ? lastMatch.matches
+        : _router.routerDelegate.currentConfiguration;
+    return matchList.uri.toString();
+  }
+
+  List<String> getRouteStack() => _router
+      .routerDelegate.currentConfiguration.matches
+      .map((e) => getRoute(e))
+      .toList();
+  // ===========================================
 
   @override
   void initState() {
@@ -58,15 +74,15 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Durante il debug fotocamera usiamo MaterialApp "semplice"
     if (kUseCamDebug) {
+      // Avvio diretto pagina di debug (nessun router)
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: CamDebugPageStandalone(),
       );
     }
 
-    // 👉 Quando vuoi tornare al router normale, metti kUseCamDebug = false
+    // Normale avvio con router FlutterFlow
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Custom Camera Component',
