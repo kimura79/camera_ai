@@ -23,7 +23,7 @@
   <key>CFBundleVersion</key>
   <string>$(FLUTTER_BUILD_NUMBER)</string>
 
-  <!-- URL Schemes (se ti servono deep link) -->
+  <!-- URL Schemes (opzionali per deep link) -->
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
@@ -47,12 +47,8 @@
   <!-- 📸 Permessi iOS -->
   <key>NSCameraUsageDescription</key>
   <string>Questa app utilizza la fotocamera per scattare foto.</string>
-
-  <!-- 🎤 Solo se registri video; altrimenti puoi rimuoverlo -->
   <key>NSMicrophoneUsageDescription</key>
   <string>Il microfono è usato solo per registrare video.</string>
-
-  <!-- 🖼️ Lettura/scrittura libreria foto -->
   <key>NSPhotoLibraryUsageDescription</key>
   <string>Questa app accede alla libreria foto per selezionare immagini.</string>
   <key>NSPhotoLibraryAddUsageDescription</key>
@@ -62,11 +58,7 @@
   <key>UILaunchStoryboardName</key>
   <string>LaunchScreen</string>
 
-  <!-- ❌ Rimosso: Flutter non usa un Main storyboard -->
-  <!-- <key>UIMainStoryboardFile</key><string>Main</string> -->
-
-  <!-- 🔒 Orientamenti: iPhone solo Portrait per allineamento viso;
-       iPad mantiene tutti gli orientamenti -->
+  <!-- Orientamenti -->
   <key>UISupportedInterfaceOrientations</key>
   <array>
     <string>UIInterfaceOrientationPortrait</string>
@@ -79,12 +71,33 @@
     <string>UIInterfaceOrientationLandscapeRight</string>
   </array>
 
-  <!-- Status bar gestita da sistema -->
   <key>UIViewControllerBasedStatusBarAppearance</key>
   <false/>
 
-  <!-- 🏎️ Anteprima più fluida (consente >30 fps su device compatibili) -->
   <key>CADisableMinimumFrameDurationOnPhone</key>
+  <true/>
+
+  <!-- 🔹 Scene Manifest richiesto da Flutter -->
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key>
+    <false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+      <key>UIWindowSceneSessionRoleApplication</key>
+      <array>
+        <dict>
+          <key>UISceneConfigurationName</key>
+          <string>Default Configuration</string>
+          <key>UISceneDelegateClassName</key>
+          <string>FlutterSceneDelegate</string>
+        </dict>
+      </array>
+    </dict>
+  </dict>
+
+  <!-- Supporto input indiretto (gesture, Apple Pencil ecc.) -->
+  <key>UIApplicationSupportsIndirectInputEvents</key>
   <true/>
 </dict>
 </plist>
