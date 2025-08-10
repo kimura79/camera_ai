@@ -3,26 +3,29 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/flutter_flow/flutter_flow_widgets.dart';
 import 'dart:ui';
-import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/custom_functions.dart' as functions;
-import 'package:custom_camera_component/index.dart'; // <-- usa il nome nel pubspec
+import 'package:custom_camera_component/index.dart'; // puoi lasciarlo, ma qui non lo usiamo
 
-import 'dart:async'; // ✅ per StreamSubscription
+import 'dart:async'; // ✅ StreamSubscription
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
-
-// === EXTRA ===
-import 'package:gallery_saver/gallery_saver.dart';
-import 'package:image/image.dart' as img;
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'; // compute
-import 'package:sensors_plus/sensors_plus.dart'; // <-- per pitch/roll
-import 'dart:io';
-import 'dart:typed_data';
-import 'dart:math' as math;
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:sensors_plus/sensors_plus.dart'; // pitch/roll
+import 'package:image/image.dart' as img;
+import 'package:gallery_saver/gallery_saver.dart';
+
+// ✅ CAMERA plugin ufficiale
+import 'package:camera/camera.dart';
+import 'package:path_provider/path_provider.dart';
+
+import 'home_page_model.dart';
+export 'home_page_model.dart';
 
 // ====== PARAMETRI RAPIDI ======
 const double squareOffsetY = -0.25;  // -1 su, 0 centro, 1 giù
@@ -41,50 +44,105 @@ class HomePageWidget extends StatefulWidget {
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> {
+class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObserver {
   late HomePageModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Stato scatto/anteprima
   bool _shutterBlink = false;
-  String? _lastPhotoPath; // solo locale alla pagina
+  String? _lastPhotoPath;
 
-  // sensori
-  double _pitch = 0.0; // avanti/indietro (+ su, - giù)
-  double _roll  = 0.0; // sinistra/destra (+ dx, - sx)
-  StreamSubscription<AccelerometerEvent>? _accSub; // ✅ tipizzato
+  // Sensori
+  double _pitch = 0.0;
+  double _roll  = 0.0;
+  StreamSubscription<AccelerometerEvent>? _accSub;
+
+  // ✅ Camera
+  CameraController? _controller;
+  List<CameraDescription> _cameras = [];
+  bool _initError = false;
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => HomePageModel());
+    WidgetsBinding.instance.addObserver(this);
 
-    // stream accelerometro -> calcolo pitch/roll semplici
+    // Sensori per livella
     _accSub = accelerometerEventStream().listen((e) {
       final ax = e.x.toDouble();
       final ay = e.y.toDouble();
       final az = e.z.toDouble();
       final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)) * 180 / math.pi;
       final roll  = math.atan2(ay, az) * 180 / math.pi;
-      if (mounted) {
-        setState(() {
-          _pitch = pitch;
-          _roll  = roll;
-        });
-      }
+      if (mounted) setState(() { _pitch = pitch; _roll = roll; });
     });
+
+    _initCamera(); // avvio camera
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _accSub?.cancel();
+    _disposeCamera();
     _model.dispose();
     super.dispose();
+  }
+
+  // Gestione lifecycle (pausa/ripresa camera)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _reinitCamera();
+    }
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      _cameras = await availableCameras();
+      // Preferisci selfie/frontale se c'è
+      final front = _cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => _cameras.first,
+      );
+      _controller = CameraController(
+        front,
+        ResolutionPreset.max,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+      await _controller!.initialize();
+      if (!mounted) return;
+      setState(() {});
+    } catch (e) {
+      _initError = true;
+      if (!mounted) return;
+      setState(() {});
+    }
+  }
+
+  Future<void> _reinitCamera() async {
+    await _disposeCamera();
+    await _initCamera();
+  }
+
+  Future<void> _disposeCamera() async {
+    try {
+      await _controller?.dispose();
+    } catch (_) {}
+    _controller = null;
   }
 
   // ---- worker isolate: crop 1:1 centrale + resize 1024 ----
   static Uint8List _cropResizeWorker(Uint8List srcBytes) {
     final original = img.decodeImage(srcBytes);
     if (original == null) return srcBytes;
+    // crop centrale 1:1
     final side = original.width < original.height ? original.width : original.height;
     final x = (original.width - side) ~/ 2;
     final y = (original.height - side) ~/ 2;
@@ -94,196 +152,218 @@ class _HomePageWidgetState extends State<HomePageWidget> {
     return Uint8List.fromList(img.encodeJpg(resized, quality: 100));
   }
 
-  // attende bytes NUOVI dal widget camera
-  Future<Uint8List?> _waitForShotBytes({int timeoutMs = 4000}) async {
-    final prev = FFAppState().fileBase64;
-    final sw = Stopwatch()..start();
-    while (sw.elapsedMilliseconds < timeoutMs) {
-      final b64 = FFAppState().fileBase64;
-      if (b64.isNotEmpty && b64 != prev) {
-        final f = functions.base64toFile(b64);
-        if (f != null && f.bytes != null) return Uint8List.fromList(f.bytes!);
-      }
-      await Future.delayed(const Duration(milliseconds: 10));
-    }
-    return null;
-  }
+  Future<void> _shoot() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
 
-  Future<String?> _saveBytesToGallery(Uint8List bytes) async {
-    final path = '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final f = File(path);
-    await f.writeAsBytes(bytes, flush: true);
-    await GallerySaver.saveImage(f.path);
-    return f.path;
-  }
-
-  void _blinkShutter() {
+    HapticFeedback.lightImpact();
     setState(() => _shutterBlink = true);
     Future.delayed(const Duration(milliseconds: 80), () {
       if (mounted) setState(() => _shutterBlink = false);
     });
-  }
 
-  Future<void> _processAfterShot() async {
-    final srcBytes = await _waitForShotBytes();
-    if (srcBytes == null) return;
+    try {
+      final xfile = await _controller!.takePicture();
+      final bytes = await File(xfile.path).readAsBytes();
+      final outBytes = await compute<Uint8List, Uint8List>(_cropResizeWorker, bytes);
 
-    final outBytes = await compute<Uint8List, Uint8List>(_cropResizeWorker, srcBytes);
-    final saved = await _saveBytesToGallery(outBytes);
-    if (!mounted) return;
-    setState(() => _lastPhotoPath = saved);
-  }
+      // Salva in galleria
+      final tmpPath = '${(await getTemporaryDirectory()).path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final f = File(tmpPath);
+      await f.writeAsBytes(outBytes, flush: true);
+      await GallerySaver.saveImage(f.path);
 
-  void _shoot() {
-    HapticFeedback.lightImpact();
-    _blinkShutter();
-    FFAppState().fileBase64 = '';   // reset prima dello scatto
-    FFAppState().makePhoto = true;  // trigger al widget camera
-    setState(() {});                // notifica
-    _processAfterShot();            // background
+      if (!mounted) return;
+      setState(() => _lastPhotoPath = f.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore scatto: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     context.watch<FFAppState>();
 
+    final themeTitle = Text(
+      'Epidermys',
+      style: FlutterFlowTheme.of(context).headlineMedium.override(
+        font: GoogleFonts.interTight(
+          fontWeight: FlutterFlowTheme.of(context).headlineMedium.fontWeight,
+          fontStyle: FlutterFlowTheme.of(context).headlineMedium.fontStyle,
+        ),
+        color: Colors.white,
+        fontSize: 22,
+      ),
+    );
+
     return Scaffold(
       key: scaffoldKey,
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: brandColor,
-        title: Text(
-          'Epidermys',
-          style: FlutterFlowTheme.of(context).headlineMedium.override(
-            font: GoogleFonts.interTight(
-              fontWeight: FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-              fontStyle: FlutterFlowTheme.of(context).headlineMedium.fontStyle,
-            ),
-            color: Colors.white,
-            fontSize: 22,
-          ),
-        ),
+        title: themeTitle,
         elevation: 2,
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth, h = c.maxHeight;
-            final side = (w < h ? w : h) * squareScale;
-            final squareLeft = (w - side) / 2;
-            final squareTop  = (h - side) / 2 + (h * squareOffsetY / 2);
+        child: _buildBody(),
+      ),
+    );
+  }
 
-            return Stack(
-              children: [
-                // === 1) PREVIEW FOTOCAMERA FULL SCREEN ===
-                Positioned.fill(
-                  child: custom_widgets.CameraPhoto(
-                    width: double.infinity,
-                    height: double.infinity,
+  Widget _buildBody() {
+    if (_initError) {
+      return _CenteredText('Impossibile inizializzare la fotocamera.\n'
+          'Controlla i permessi in Impostazioni > ${Platform.isIOS ? "Privacy > Fotocamera" : "App > Permessi"}');
+    }
+    if (_controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (!_controller!.value.isInitialized) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth, h = c.maxHeight;
+        final side = (w < h ? w : h) * squareScale;
+        final squareLeft = (w - side) / 2;
+        final squareTop  = (h - side) / 2 + (h * squareOffsetY / 2);
+
+        // Selfie: anteprima specchiata per coerenza con app nativa
+        final preview = _controller!.description.lensDirection == CameraLensDirection.front
+            ? Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+                child: CameraPreview(_controller!),
+              )
+            : CameraPreview(_controller!);
+
+        return Stack(
+          children: [
+            // === 1) PREVIEW FOTOCAMERA FULL SCREEN ===
+            Positioned.fill(child: preview),
+
+            // === 2) OVERLAY TRASPARENTE (solo linee/bolle) ===
+            // BORDO + GUIDE OCCHI
+            Positioned(
+              left: squareLeft, top: squareTop, width: side, height: side,
+              child: CustomPaint(
+                painter: _SquarePainter(
+                  ok: _pitch.abs() <= phoneAngleTol && _roll.abs() <= phoneAngleTol,
+                ),
+              ),
+            ),
+
+            // CHIP NUMERICI PITCH/ROLL
+            Positioned(
+              left: squareLeft + 8,
+              right: (w - (squareLeft + side)) + 8,
+              top: squareTop + 8,
+              child: _LevelBar(
+                pitch: _pitch, roll: _roll, tol: phoneAngleTol,
+              ),
+            ),
+
+            // BOLLA ORIZZONTALE (ROLL)
+            Positioned(
+              left: squareLeft + 16,
+              width: side - 32,
+              top: squareTop + side / 2 - 10,
+              height: 20,
+              child: _BubbleLevelHorizontal(
+                rollDeg: _roll, tol: phoneAngleTol,
+              ),
+            ),
+
+            // BOLLA VERTICALE (PITCH)
+            Positioned(
+              left: squareLeft + side / 2 - 10,
+              top: squareTop + 16,
+              height: side - 32,
+              width: 20,
+              child: _BubbleLevelVertical(
+                pitchDeg: _pitch, tol: phoneAngleTol,
+              ),
+            ),
+
+            // === 3) FLASH SENZA OPACITY (niente black screen) ===
+            Visibility(
+              visible: _shutterBlink,
+              child: Container(color: Colors.white),
+            ),
+
+            // === 4) THUMBNAIL (basso sinistra)
+            if (_lastPhotoPath != null)
+              Positioned(
+                left: 24,
+                bottom: 24,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    File(_lastPhotoPath!),
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
                   ),
                 ),
+              ),
 
-                // === 2) OVERLAY TRASPARENTE (solo linee/bolle) ===
-                // BORDO + GUIDE OCCHI
-                Positioned(
-                  left: squareLeft, top: squareTop, width: side, height: side,
-                  child: CustomPaint(
-                    painter: _SquarePainter(
-                      ok: _pitch.abs() <= phoneAngleTol && _roll.abs() <= phoneAngleTol,
-                    ),
-                  ),
-                ),
-
-                // CHIP NUMERICI PITCH/ROLL
-                Positioned(
-                  left: squareLeft + 8,
-                  right: (w - (squareLeft + side)) + 8,
-                  top: squareTop + 8,
-                  child: _LevelBar(
-                    pitch: _pitch, roll: _roll, tol: phoneAngleTol,
-                  ),
-                ),
-
-                // BOLLA ORIZZONTALE (ROLL)
-                Positioned(
-                  left: squareLeft + 16,
-                  width: side - 32,
-                  top: squareTop + side / 2 - 10,
-                  height: 20,
-                  child: _BubbleLevelHorizontal(
-                    rollDeg: _roll, tol: phoneAngleTol,
-                  ),
-                ),
-
-                // BOLLA VERTICALE (PITCH)
-                Positioned(
-                  left: squareLeft + side / 2 - 10,
-                  top: squareTop + 16,
-                  height: side - 32,
-                  width: 20,
-                  child: _BubbleLevelVertical(
-                    pitchDeg: _pitch, tol: phoneAngleTol,
-                  ),
-                ),
-
-                // === 3) FLASH SENZA OPACITY (niente black screen) ===
-                Visibility(
-                  visible: _shutterBlink,
-                  child: Container(color: Colors.white),
-                ),
-
-                // === 4) THUMBNAIL (basso sinistra)
-                if (_lastPhotoPath != null)
-                  Positioned(
-                    left: 24,
-                    bottom: 24,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(_lastPhotoPath!),
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
+            // === 5) PULSANTE SCATTO ===
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 24,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _shoot,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: brandColor.withOpacity(0.08),
+                          border: Border.all(color: Colors.white, width: 4),
+                        ),
                       ),
-                    ),
-                  ),
-
-                // === 5) PULSANTE SCATTO ===
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 24,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _shoot,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 86,
-                            height: 86,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: brandColor.withOpacity(0.08),
-                              border: Border.all(color: Colors.white, width: 4),
-                            ),
-                          ),
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/* ================= WIDGET DI SUPPORTO ================= */
+
+class _CenteredText extends StatelessWidget {
+  final String text;
+  const _CenteredText(this.text);
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, fontSize: 16),
         ),
       ),
     );
