@@ -9,6 +9,9 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
+// 👇 AGGIUNTO: import pagina fotocamera guidata
+import 'camera_ai/guided_capture_page.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -39,6 +42,7 @@ class _MyAppState extends State<MyApp> {
 
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
+
   String getRoute([RouteMatch? routeMatch]) {
     final RouteMatch lastMatch =
         routeMatch ?? _router.routerDelegate.currentConfiguration.last;
@@ -52,10 +56,10 @@ class _MyAppState extends State<MyApp> {
       _router.routerDelegate.currentConfiguration.matches
           .map((e) => getRoute(e))
           .toList();
+
   @override
   void initState() {
     super.initState();
-
     _appStateNotifier = AppStateNotifier.instance;
     _router = createRouter(_appStateNotifier);
   }
@@ -70,12 +74,15 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Custom Camera Component',
-      localizationsDelegates: [
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [Locale('en', '')],
+      supportedLocales: const [
+        Locale('en', ''),
+        Locale('it', ''), // 👈 (opzionale) aggiungo italiano
+      ],
       theme: ThemeData(
         brightness: Brightness.light,
         useMaterial3: false,
@@ -88,4 +95,16 @@ class _MyAppState extends State<MyApp> {
       routerConfig: _router,
     );
   }
+}
+
+/// ===== Helper globale per aprire la Camera guidata =====
+/// Puoi chiamarlo da qualunque widget:
+///   await openGuidedCamera(context);
+Future<void> openGuidedCamera(BuildContext context) async {
+  await Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute(
+      builder: (_) => const GuidedCapturePage(),
+      fullscreenDialog: true,
+    ),
+  );
 }
