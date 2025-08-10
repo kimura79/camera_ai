@@ -63,10 +63,10 @@ class GuideOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final faceOk = _faceAnglesOk && _faceScaleOk && _faceCenterOk;
 
-    // NIENTE MASCHERA SCURA: la camera resta visibile full-screen
+    // Overlay totalmente TRASPARENTE: nessun riempimento, solo linee/elementi UI
     return Stack(
       children: [
-        // Cornice quadrato + tacche occhi (sempre visibile)
+        // Cornice quadrato + tacche occhi
         Positioned.fromRect(
           rect: square,
           child: CustomPaint(
@@ -74,7 +74,7 @@ class GuideOverlay extends StatelessWidget {
           ),
         ),
 
-        // Livella (numeri) dentro al quadrato
+        // Valori numerici pitch/roll (tipo FaceID feedback)
         Positioned(
           top: square.top + 8,
           left: square.left + 8,
@@ -98,7 +98,7 @@ class GuideOverlay extends StatelessWidget {
           ),
         ),
 
-        // Bolla VERTICALE (pitch) al centro del quadrato (colonna verticale)
+        // Bolla VERTICALE (pitch) al centro del quadrato
         Positioned(
           top: square.top + 16,
           bottom: square.bottom - 16,
@@ -110,7 +110,7 @@ class GuideOverlay extends StatelessWidget {
           ),
         ),
 
-        // Bbox volto + suggerimenti (se presente)
+        // Bbox volto + suggerimenti
         if (faceRect != null)
           Positioned.fromRect(
             rect: faceRect!,
