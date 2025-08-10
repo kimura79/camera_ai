@@ -6,6 +6,8 @@ import 'dart:ui';
 import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/custom_functions.dart' as functions;
 import 'package:custom_camera_component/index.dart'; // <-- usa il nome nel pubspec
+
+import 'dart:async'; // ✅ per StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -49,7 +51,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   // sensori
   double _pitch = 0.0; // avanti/indietro (+ su, - giù)
   double _roll  = 0.0; // sinistra/destra (+ dx, - sx)
-  StreamSubscription? _accSub;
+  StreamSubscription<AccelerometerEvent>? _accSub; // ✅ tipizzato
 
   @override
   void initState() {
