@@ -1,13 +1,15 @@
 import 'package:provider/provider.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+
 import '/flutter_flow/flutter_flow_theme.dart';
 import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
+
+// 👇 IMPORT pagina di debug
+import 'cam_debug_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +18,7 @@ void main() async {
 
   await FlutterFlowTheme.initialize();
 
-  final appState = FFAppState(); // Initialize FFAppState
+  final appState = FFAppState();
   await appState.initializePersistedState();
 
   runApp(ChangeNotifierProvider(
@@ -39,19 +41,8 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  String getRoute([RouteMatch? routeMatch]) {
-    final RouteMatch lastMatch =
-        routeMatch ?? _router.routerDelegate.currentConfiguration.last;
-    final RouteMatchList matchList = lastMatch is ImperativeRouteMatch
-        ? lastMatch.matches
-        : _router.routerDelegate.currentConfiguration;
-    return matchList.uri.toString();
-  }
-
-  List<String> getRouteStack() =>
-      _router.routerDelegate.currentConfiguration.matches
-          .map((e) => getRoute(e))
-          .toList();
+  // 🔁 toggle rapido: true = avvia pagina di debug fotocamera
+  static const bool kUseCamDebug = true;
 
   @override
   void initState() {
@@ -67,6 +58,15 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // 👉 Durante il debug fotocamera usiamo MaterialApp "semplice"
+    if (kUseCamDebug) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: CamDebugPageStandalone(),
+      );
+    }
+
+    // 👉 Quando vuoi tornare al router normale, metti kUseCamDebug = false
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Custom Camera Component',
@@ -77,7 +77,7 @@ class _MyAppState extends State<MyApp> {
       ],
       supportedLocales: const [
         Locale('en', ''),
-        Locale('it', ''), // opzionale: italiano
+        Locale('it', ''),
       ],
       theme: ThemeData(
         brightness: Brightness.light,
