@@ -9,9 +9,6 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👇 AGGIUNTO: import pagina fotocamera guidata
-import 'camera_ai/guided_capture_page.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -29,7 +26,6 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  // This widget is the root of your application.
   @override
   State<MyApp> createState() => _MyAppState();
 
@@ -81,7 +77,7 @@ class _MyAppState extends State<MyApp> {
       ],
       supportedLocales: const [
         Locale('en', ''),
-        Locale('it', ''), // 👈 (opzionale) aggiungo italiano
+        Locale('it', ''), // opzionale: italiano
       ],
       theme: ThemeData(
         brightness: Brightness.light,
@@ -95,16 +91,4 @@ class _MyAppState extends State<MyApp> {
       routerConfig: _router,
     );
   }
-}
-
-/// ===== Helper globale per aprire la Camera guidata =====
-/// Puoi chiamarlo da qualunque widget:
-///   await openGuidedCamera(context);
-Future<void> openGuidedCamera(BuildContext context) async {
-  await Navigator.of(context, rootNavigator: true).push(
-    MaterialPageRoute(
-      builder: (_) => const GuidedCapturePage(),
-      fullscreenDialog: true,
-    ),
-  );
 }
