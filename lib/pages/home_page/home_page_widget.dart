@@ -223,6 +223,28 @@ class _HomePageWidgetState extends State<HomePageWidget>
             // 1) PREVIEW FULL SCREEN
             Positioned.fill(child: preview),
 
+            // === DIAGNOSTICA in alto ===
+            Positioned(
+              left: 8, top: 8, right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  [
+                    'cams: ${_cameras.length}',
+                    'inited: ${_controller?.value.isInitialized == true}',
+                    'hasErr: ${_controller?.value.hasError == true}',
+                    'err: ${_controller?.value.errorDescription ?? '-'}',
+                    'lens: ${_controller?.description.lensDirection.name ?? '-'}',
+                  ].join(' | '),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+
             // 2) QUADRATO 1:1 SOLO BORDO (nessun riempimento!)
             Positioned(
               left: left,
