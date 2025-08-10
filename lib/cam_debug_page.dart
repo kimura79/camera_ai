@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
-class CamDebugPage extends StatefulWidget {
-  const CamDebugPage({super.key});
+class CamDebugPageStandalone extends StatefulWidget {
+  const CamDebugPageStandalone({super.key});
+
   @override
-  State<CamDebugPage> createState() => _CamDebugPageState();
+  State<CamDebugPageStandalone> createState() => _CamDebugPageStandaloneState();
 }
 
-class _CamDebugPageState extends State<CamDebugPage> {
+class _CamDebugPageStandaloneState extends State<CamDebugPageStandalone> {
   CameraController? c;
   List<CameraDescription> cams = [];
-  String? err;
+  String status = 'init...';
 
   @override
   void initState() {
@@ -20,17 +21,22 @@ class _CamDebugPageState extends State<CamDebugPage> {
 
   Future<void> _init() async {
     try {
+      status = 'widgets ready';
+      WidgetsFlutterBinding.ensureInitialized();
+      status = 'asking cameras...';
       cams = await availableCameras();
-      if (cams.isEmpty) { setState(() => err = 'Nessuna camera'); return; }
+      if (cams.isEmpty) { setState(() => status = 'Nessuna camera'); return; }
+      status = 'creating controller...';
       c = CameraController(
         cams.first, ResolutionPreset.medium,
         enableAudio: false, imageFormatGroup: ImageFormatGroup.yuv420,
       );
+      status = 'initializing controller...';
       await c!.initialize();
       if (!mounted) return;
-      setState(() {});
+      setState(() => status = 'ok');
     } catch (e) {
-      setState(() => err = '$e');
+      setState(() => status = 'ERRORE: $e');
     }
   }
 
@@ -39,18 +45,48 @@ class _CamDebugPageState extends State<CamDebugPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (err != null) {
-      return Scaffold(body: Center(child: Text('ERRORE: $err')));
-    }
+    final diag = Container(
+      color: Colors.black54,
+      padding: const EdgeInsets.all(8),
+      child: Text(
+        'diag: $status | '
+        'cams:${cams.length} | '
+        'inited:${c?.value.isInitialized == true} | '
+        'hasErr:${c?.value.hasError == true} | '
+        'err:${c?.value.errorDescription ?? '-'}',
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+    );
+
     if (c == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(title: const Text('CamDebug')),
+        body: Center(child: diag),
+      );
     }
     if (!c!.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(title: const Text('CamDebug')),
+        body: Column(
+          children: [
+            diag,
+            const Expanded(child: Center(child: CircularProgressIndicator())),
+          ],
+        ),
+      );
     }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('CamDebugPage')),
-      body: CameraPreview(c!),
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('CamDebug')),
+      body: Stack(
+        children: [
+          Positioned.fill(child: CameraPreview(c!)),
+          Positioned(top: 0, left: 0, right: 0, child: diag),
+        ],
+      ),
     );
   }
 }
