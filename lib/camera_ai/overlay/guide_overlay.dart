@@ -20,10 +20,10 @@ class GuideThresholds {
 
 class GuideOverlay extends StatelessWidget {
   final Rect square;
-  final double phonePitch;
-  final double phoneRoll;
+  final double phonePitch; // avanti/indietro (+ su, - giù)
+  final double phoneRoll;  // sinistra/destra (+ dx, - sx)
   final Rect? faceRect;
-  final (double?, double?, double?) faceAngles; // (pitch, yaw, roll)
+  final (double?, double?, double?) faceAngles; // (pitch, yaw, roll) del volto
   final GuideThresholds thresholds;
 
   const GuideOverlay({
@@ -63,72 +63,72 @@ class GuideOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final faceOk = _faceAnglesOk && _faceScaleOk && _faceCenterOk;
 
-    return CustomPaint(
-      painter: _MaskPainter(square: square),
-      child: Stack(
-        children: [
-          // Cornice quadrato + tacche occhi
+    // NIENTE MASCHERA SCURA: la camera resta visibile full-screen
+    return Stack(
+      children: [
+        // Cornice quadrato + tacche occhi (sempre visibile)
+        Positioned.fromRect(
+          rect: square,
+          child: CustomPaint(
+            painter: _SquarePainter(ok: _phoneOk && faceOk),
+          ),
+        ),
+
+        // Livella (numeri) dentro al quadrato
+        Positioned(
+          top: square.top + 8,
+          left: square.left + 8,
+          right: square.right - 8,
+          child: _LevelBar(
+            pitch: phonePitch,
+            roll: phoneRoll,
+            tol: thresholds.phoneAngleTol,
+          ),
+        ),
+
+        // Bolla ORIZZONTALE (roll) al centro del quadrato
+        Positioned(
+          left: square.left + 16,
+          right: square.right - 16,
+          top: square.center.dy - 10,
+          height: 20,
+          child: _BubbleLevelHorizontal(
+            rollDeg: phoneRoll,
+            tol: thresholds.phoneAngleTol,
+          ),
+        ),
+
+        // Bolla VERTICALE (pitch) al centro del quadrato (colonna verticale)
+        Positioned(
+          top: square.top + 16,
+          bottom: square.bottom - 16,
+          left: square.center.dx - 10,
+          width: 20,
+          child: _BubbleLevelVertical(
+            pitchDeg: phonePitch,
+            tol: thresholds.phoneAngleTol,
+          ),
+        ),
+
+        // Bbox volto + suggerimenti (se presente)
+        if (faceRect != null)
           Positioned.fromRect(
-            rect: square,
+            rect: faceRect!,
             child: CustomPaint(
-              painter: _SquarePainter(
-                ok: _phoneOk && faceOk,
+              painter: _FacePainter(
+                faceRect: faceRect!,
+                inCenter: _faceCenterOk,
+                inScale: _faceScaleOk,
+                anglesOk: _faceAnglesOk,
               ),
             ),
           ),
-
-          // Livella sempre visibile (spostata DENTRO il quadrato)
-          Positioned(
-            top: square.top + 8,
-            left: square.left + 8,
-            right: square.right - 8,
-            child: _LevelBar(
-              pitch: phonePitch,
-              roll: phoneRoll,
-              tol: thresholds.phoneAngleTol,
-            ),
-          ),
-
-          // Bbox volto e suggerimenti
-          if (faceRect != null)
-            Positioned.fromRect(
-              rect: faceRect!,
-              child: CustomPaint(
-                painter: _FacePainter(
-                  faceRect: faceRect!,
-                  inCenter: _faceCenterOk,
-                  inScale: _faceScaleOk,
-                  anglesOk: _faceAnglesOk,
-                ),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
 
-class _MaskPainter extends CustomPainter {
-  final Rect square;
-  _MaskPainter({required this.square});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = Colors.black.withOpacity(0.45);
-    final clear = Paint()..blendMode = BlendMode.clear;
-
-    // oscurare tutto
-    canvas.drawRect(Offset.zero & size, bg);
-    // foro quadrato
-    canvas.saveLayer(Offset.zero & size, Paint());
-    canvas.drawRect(square, clear);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _MaskPainter oldDelegate) =>
-      oldDelegate.square != square;
-}
+/* -------------------- PITTORI E WIDGET GRAFICI -------------------- */
 
 class _SquarePainter extends CustomPainter {
   final bool ok;
@@ -137,15 +137,15 @@ class _SquarePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
+
+    // bordo del quadrato (verde quando tutto ok)
     final border = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = ok ? Colors.greenAccent : Colors.white;
-
-    // bordo
     canvas.drawRect(rect, border);
 
-    // linea occhi (40–55% dell’altezza)
+    // banda "occhi" (40–55% dell’altezza)
     final y1 = rect.top + rect.height * 0.40;
     final y2 = rect.top + rect.height * 0.55;
     final guide = Paint()
@@ -162,7 +162,8 @@ class _SquarePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SquarePainter oldDelegate) => oldDelegate.ok != ok;
+  bool shouldRepaint(covariant _SquarePainter oldDelegate) =>
+      oldDelegate.ok != ok;
 }
 
 class _FacePainter extends CustomPainter {
@@ -188,7 +189,7 @@ class _FacePainter extends CustomPainter {
 
     canvas.drawRect(Offset.zero & size, p);
 
-    // suggerimenti semplici
+    // suggerimenti
     final textPainter = (String t) {
       final tp = TextPainter(
         text: TextSpan(
@@ -219,6 +220,8 @@ class _FacePainter extends CustomPainter {
       oldDelegate.faceRect != faceRect;
 }
 
+/* ---------- Livella numerica (chip Pitch/Roll) ---------- */
+
 class _LevelBar extends StatelessWidget {
   final double pitch;
   final double roll;
@@ -244,7 +247,7 @@ class _LevelBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55), // più visibile
+        color: Colors.black.withOpacity(0.55),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: ok ? Colors.greenAccent : Colors.white54),
       ),
@@ -258,4 +261,143 @@ class _LevelBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/* ---------- Livella a bolla: ORIZZONTALE (ROLL) ---------- */
+
+class _BubbleLevelHorizontal extends StatelessWidget {
+  final double rollDeg; // negativo=sinistra, positivo=destra
+  final double tol;
+
+  const _BubbleLevelHorizontal({required this.rollDeg, required this.tol});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _BubbleLevelHorizontalPainter(rollDeg: rollDeg, tol: tol),
+    );
+  }
+}
+
+class _BubbleLevelHorizontalPainter extends CustomPainter {
+  final double rollDeg;
+  final double tol;
+
+  _BubbleLevelHorizontalPainter({required this.rollDeg, required this.tol});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barHeight = 6.0;
+    final radius = 10.0; // raggio bolla
+    final barRect = RRect.fromRectXY(
+      Rect.fromLTWH(0, (size.height - barHeight) / 2, size.width, barHeight),
+      3, 3,
+    );
+
+    final ok = rollDeg.abs() <= tol;
+    final barPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = ok ? Colors.greenAccent.withOpacity(0.75) : Colors.white70;
+
+    // barra
+    canvas.drawRRect(barRect, barPaint);
+
+    // mappa gradi -> x bolla (clamp a ±15°)
+    const maxDeg = 15.0;
+    final clamped = rollDeg.clamp(-maxDeg, maxDeg);
+    final t = (clamped + maxDeg) / (2 * maxDeg); // 0..1
+    final cx = t * size.width;
+    final cy = size.height / 2;
+
+    final bubble = Paint()..color = Colors.black.withOpacity(0.65);
+    final border = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = ok ? Colors.greenAccent : Colors.white;
+
+    canvas.drawCircle(Offset(cx, cy), radius, bubble);
+    canvas.drawCircle(Offset(cx, cy), radius, border);
+
+    // tacca centrale (target)
+    final tick = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.black.withOpacity(0.7);
+    final midX = size.width / 2;
+    canvas.drawLine(Offset(midX, cy - 10), Offset(midX, cy + 10), tick);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleLevelHorizontalPainter oldDelegate) =>
+      oldDelegate.rollDeg != rollDeg || oldDelegate.tol != tol;
+}
+
+/* ---------- Livella a bolla: VERTICALE (PITCH) ---------- */
+
+class _BubbleLevelVertical extends StatelessWidget {
+  final double pitchDeg; // negativo=giù, positivo=su
+  final double tol;
+
+  const _BubbleLevelVertical({required this.pitchDeg, required this.tol});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _BubbleLevelVerticalPainter(pitchDeg: pitchDeg, tol: tol),
+    );
+  }
+}
+
+class _BubbleLevelVerticalPainter extends CustomPainter {
+  final double pitchDeg;
+  final double tol;
+
+  _BubbleLevelVerticalPainter({required this.pitchDeg, required this.tol});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barWidth = 6.0;
+    final radius = 10.0; // raggio bolla
+    final barRect = RRect.fromRectXY(
+      Rect.fromLTWH((size.width - barWidth) / 2, 0, barWidth, size.height),
+      3, 3,
+    );
+
+    final ok = pitchDeg.abs() <= tol;
+    final barPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = ok ? Colors.greenAccent.withOpacity(0.75) : Colors.white70;
+
+    // barra verticale
+    canvas.drawRRect(barRect, barPaint);
+
+    // mappa gradi -> y bolla (clamp a ±15°)
+    const maxDeg = 15.0;
+    final clamped = pitchDeg.clamp(-maxDeg, maxDeg);
+    // 0..1: 0 in alto (positivo su), 1 in basso
+    final t = (maxDeg - clamped) / (2 * maxDeg);
+    final cx = size.width / 2;
+    final cy = t * size.height;
+
+    final bubble = Paint()..color = Colors.black.withOpacity(0.65);
+    final border = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = ok ? Colors.greenAccent : Colors.white;
+
+    canvas.drawCircle(Offset(cx, cy), radius, bubble);
+    canvas.drawCircle(Offset(cx, cy), radius, border);
+
+    // tacca centrale (target)
+    final tick = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.black.withOpacity(0.7);
+    final midY = size.height / 2;
+    canvas.drawLine(Offset(cx - 10, midY), Offset(cx + 10, midY), tick);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleLevelVerticalPainter oldDelegate) =>
+      oldDelegate.pitchDeg != pitchDeg || oldDelegate.tol != tol;
 }
