@@ -77,11 +77,11 @@ class GuideOverlay extends StatelessWidget {
             ),
           ),
 
-          // Livella semplice in alto
+          // Livella sempre visibile (spostata DENTRO il quadrato)
           Positioned(
-            top: square.top - 36,
-            left: square.left,
-            right: square.right,
+            top: square.top + 8,
+            left: square.left + 8,
+            right: square.right - 8,
             child: _LevelBar(
               pitch: phonePitch,
               roll: phoneRoll,
@@ -244,9 +244,9 @@ class _LevelBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: ok ? Colors.green.withOpacity(0.25) : Colors.black45,
+        color: Colors.black.withOpacity(0.55), // più visibile
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ok ? Colors.greenAccent : Colors.white30),
+        border: Border.all(color: ok ? Colors.greenAccent : Colors.white54),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
