@@ -1,124 +1,99 @@
-// === IMPORT FLUTTERFLOW ===
+// === IMPORT FLUTTERFLOW (lasciamo solo quelli che servono a stile/titolo) ===
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
-import '/flutter_flow/custom_functions.dart' as functions;
-import 'package:custom_camera_component/index.dart'; // puoi lasciarlo, ma qui non lo usiamo
-
-import 'dart:async'; // ✅ StreamSubscription
-import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
-
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart'; // compute
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'package:sensors_plus/sensors_plus.dart'; // pitch/roll
-import 'package:image/image.dart' as img;
-import 'package:gallery_saver/gallery_saver.dart';
 
-// ✅ CAMERA plugin ufficiale
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+// CAMERA ufficiale
 import 'package:camera/camera.dart';
+
+// Per la mini anteprima: salviamo in temp e mostriamo con Image.file
+import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// ====== PARAMETRI RAPIDI ======
-const double squareOffsetY = -0.25;  // -1 su, 0 centro, 1 giù
-const double squareScale   = 0.9;    // grandezza riquadro guida
-const Color  brandColor    = Color(0xFF1F4E78);
-
-// TOLLERANZE (stile Face ID)
-const double phoneAngleTol = 3.0; // gradi pitch/roll ok
-// =================================
+// ================== PARAMETRI MINIMI ==================
+const Color brandColor = Color(0xFF1F4E78);
+const double squareScale = 0.86;   // grandezza bordo guida rispetto al lato min
+const double squareOffsetY = 0.0; // 0 = centro, valori negativi = più in alto
+// ======================================================
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
   static String routeName = 'HomePage';
   static String routePath  = '/homePage';
+
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObserver {
+class _HomePageWidgetState extends State<HomePageWidget>
+    with WidgetsBindingObserver {
   late HomePageModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Stato scatto/anteprima
-  bool _shutterBlink = false;
-  String? _lastPhotoPath;
-
-  // Sensori
-  double _pitch = 0.0;
-  double _roll  = 0.0;
-  StreamSubscription<AccelerometerEvent>? _accSub;
-
-  // ✅ Camera
-  CameraController? _controller;
+  // Camera
   List<CameraDescription> _cameras = [];
+  CameraController? _controller;
   bool _initError = false;
+
+  // Thumbnail ultimo scatto
+  String? _lastPhotoPath;
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => HomePageModel());
     WidgetsBinding.instance.addObserver(this);
-
-    // Sensori per livella
-    _accSub = accelerometerEventStream().listen((e) {
-      final ax = e.x.toDouble();
-      final ay = e.y.toDouble();
-      final az = e.z.toDouble();
-      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)) * 180 / math.pi;
-      final roll  = math.atan2(ay, az) * 180 / math.pi;
-      if (mounted) setState(() { _pitch = pitch; _roll = roll; });
-    });
-
-    _initCamera(); // avvio camera
+    _initCamera();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _accSub?.cancel();
     _disposeCamera();
     _model.dispose();
     super.dispose();
   }
 
-  // Gestione lifecycle (pausa/ripresa camera)
+  // Lifecycle: evita schermate nere al rientro
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
     final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
+    if (controller == null) return;
     if (state == AppLifecycleState.inactive) {
-      controller.dispose();
+      await controller.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      _reinitCamera();
+      await _reinitCamera();
     }
   }
 
   Future<void> _initCamera() async {
     try {
       _cameras = await availableCameras();
-      // Preferisci selfie/frontale se c'è
-      final front = _cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => _cameras.first,
-      );
+      final CameraDescription cam = _cameras.isEmpty
+          ? throw 'Nessuna camera trovata'
+          : // preferisci frontale per selfie
+          (_cameras.any((c) => c.lensDirection == CameraLensDirection.front)
+              ? _cameras.firstWhere((c) =>
+                  c.lensDirection == CameraLensDirection.front)
+              : _cameras.first);
+
       _controller = CameraController(
-        front,
+        cam,
         ResolutionPreset.max,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
       await _controller!.initialize();
       if (!mounted) return;
-      setState(() {});
+      setState(() => _initError = false);
     } catch (e) {
       _initError = true;
       if (!mounted) return;
@@ -138,47 +113,51 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     _controller = null;
   }
 
-  // ---- worker isolate: crop 1:1 centrale + resize 1024 ----
-  static Uint8List _cropResizeWorker(Uint8List srcBytes) {
-    final original = img.decodeImage(srcBytes);
-    if (original == null) return srcBytes;
-    // crop centrale 1:1
-    final side = original.width < original.height ? original.width : original.height;
-    final x = (original.width - side) ~/ 2;
-    final y = (original.height - side) ~/ 2;
-    final cropped = img.copyCrop(original, x: x, y: y, width: side, height: side);
-    final resized = img.copyResize(
-      cropped, width: 1024, height: 1024, interpolation: img.Interpolation.cubic);
-    return Uint8List.fromList(img.encodeJpg(resized, quality: 100));
+  Future<void> _switchCamera() async {
+    if (_cameras.isEmpty || _controller == null) return;
+    final current = _controller!.description;
+    CameraDescription next;
+
+    if (_cameras.length == 1) return; // niente da switchare
+
+    if (current.lensDirection == CameraLensDirection.front) {
+      next = _cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => current,
+      );
+    } else {
+      next = _cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => current,
+      );
+    }
+
+    await _controller?.dispose();
+    _controller = CameraController(
+      next,
+      ResolutionPreset.max,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420,
+    );
+    await _controller!.initialize();
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _shoot() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-
-    HapticFeedback.lightImpact();
-    setState(() => _shutterBlink = true);
-    Future.delayed(const Duration(milliseconds: 80), () {
-      if (mounted) setState(() => _shutterBlink = false);
-    });
-
     try {
       final xfile = await _controller!.takePicture();
-      final bytes = await File(xfile.path).readAsBytes();
-      final outBytes = await compute<Uint8List, Uint8List>(_cropResizeWorker, bytes);
-
-      // Salva in galleria
-      final tmpPath = '${(await getTemporaryDirectory()).path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final f = File(tmpPath);
-      await f.writeAsBytes(outBytes, flush: true);
-      await GallerySaver.saveImage(f.path);
-
+      // salviamo in temp e mostriamo thumbnail
+      final dir = await getTemporaryDirectory();
+      final outPath = '${dir.path}/last_shot.jpg';
+      await File(xfile.path).copy(outPath);
       if (!mounted) return;
-      setState(() => _lastPhotoPath = f.path);
+      setState(() => _lastPhotoPath = outPath);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore scatto: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Errore scatto: $e')));
     }
   }
 
@@ -186,52 +165,51 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   Widget build(BuildContext context) {
     context.watch<FFAppState>();
 
-    final themeTitle = Text(
-      'Epidermys',
-      style: FlutterFlowTheme.of(context).headlineMedium.override(
-        font: GoogleFonts.interTight(
-          fontWeight: FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-          fontStyle: FlutterFlowTheme.of(context).headlineMedium.fontStyle,
-        ),
-        color: Colors.white,
-        fontSize: 22,
-      ),
-    );
-
     return Scaffold(
       key: scaffoldKey,
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: brandColor,
-        title: themeTitle,
+        title: Text(
+          'Epidermys (STEP MINIMO)',
+          style: FlutterFlowTheme.of(context).headlineMedium.override(
+                font: GoogleFonts.interTight(
+                  fontWeight:
+                      FlutterFlowTheme.of(context).headlineMedium.fontWeight,
+                  fontStyle:
+                      FlutterFlowTheme.of(context).headlineMedium.fontStyle,
+                ),
+                color: Colors.white,
+                fontSize: 20,
+              ),
+        ),
         elevation: 2,
       ),
-      body: SafeArea(
-        child: _buildBody(),
-      ),
+      body: SafeArea(child: _body()),
     );
   }
 
-  Widget _buildBody() {
+  Widget _body() {
     if (_initError) {
-      return _CenteredText('Impossibile inizializzare la fotocamera.\n'
-          'Controlla i permessi in Impostazioni > ${Platform.isIOS ? "Privacy > Fotocamera" : "App > Permessi"}');
+      return _centerText(
+        'Impossibile inizializzare la fotocamera.\n'
+        'Controlla i permessi in Impostazioni > ${Platform.isIOS ? "Privacy > Fotocamera" : "App > Permessi"}',
+      );
     }
-    if (_controller == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (!_controller!.value.isInitialized) {
+    if (_controller == null || !_controller!.value.isInitialized) {
       return const Center(child: CircularProgressIndicator());
     }
 
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth, h = c.maxHeight;
-        final side = (w < h ? w : h) * squareScale;
-        final squareLeft = (w - side) / 2;
-        final squareTop  = (h - side) / 2 + (h * squareOffsetY / 2);
 
-        // Selfie: anteprima specchiata per coerenza con app nativa
+        // === Quadrato 1:1 (solo bordo, nessuna maschera) ===
+        final side = (w < h ? w : h) * squareScale;
+        final left = (w - side) / 2;
+        final top  = (h - side) / 2 + (h * squareOffsetY / 2);
+
+        // Selfie: anteprima specchiata per coerenza con camera nativa
         final preview = _controller!.description.lensDirection == CameraLensDirection.front
             ? Transform(
                 alignment: Alignment.center,
@@ -242,79 +220,59 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
         return Stack(
           children: [
-            // === 1) PREVIEW FOTOCAMERA FULL SCREEN ===
+            // 1) PREVIEW FULL SCREEN
             Positioned.fill(child: preview),
 
-            // === 2) OVERLAY TRASPARENTE (solo linee/bolle) ===
-            // BORDO + GUIDE OCCHI
+            // 2) QUADRATO 1:1 SOLO BORDO (nessun riempimento!)
             Positioned(
-              left: squareLeft, top: squareTop, width: side, height: side,
-              child: CustomPaint(
-                painter: _SquarePainter(
-                  ok: _pitch.abs() <= phoneAngleTol && _roll.abs() <= phoneAngleTol,
+              left: left,
+              top: top,
+              width: side,
+              height: side,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
 
-            // CHIP NUMERICI PITCH/ROLL
-            Positioned(
-              left: squareLeft + 8,
-              right: (w - (squareLeft + side)) + 8,
-              top: squareTop + 8,
-              child: _LevelBar(
-                pitch: _pitch, roll: _roll, tol: phoneAngleTol,
-              ),
-            ),
-
-            // BOLLA ORIZZONTALE (ROLL)
-            Positioned(
-              left: squareLeft + 16,
-              width: side - 32,
-              top: squareTop + side / 2 - 10,
-              height: 20,
-              child: _BubbleLevelHorizontal(
-                rollDeg: _roll, tol: phoneAngleTol,
-              ),
-            ),
-
-            // BOLLA VERTICALE (PITCH)
-            Positioned(
-              left: squareLeft + side / 2 - 10,
-              top: squareTop + 16,
-              height: side - 32,
-              width: 20,
-              child: _BubbleLevelVertical(
-                pitchDeg: _pitch, tol: phoneAngleTol,
-              ),
-            ),
-
-            // === 3) FLASH SENZA OPACITY (niente black screen) ===
-            Visibility(
-              visible: _shutterBlink,
-              child: Container(color: Colors.white),
-            ),
-
-            // === 4) THUMBNAIL (basso sinistra)
+            // 3) THUMBNAIL in basso a sinistra
             if (_lastPhotoPath != null)
               Positioned(
-                left: 24,
+                left: 16,
                 bottom: 24,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
                     File(_lastPhotoPath!),
-                    width: 60,
-                    height: 60,
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
 
-            // === 5) PULSANTE SCATTO ===
+            // 4) SWITCH CAMERA in basso a destra
+            Positioned(
+              right: 16,
+              bottom: 24,
+              child: FloatingActionButton(
+                heroTag: 'switchCam',
+                mini: true,
+                backgroundColor: Colors.black54,
+                onPressed: _switchCamera,
+                child: const Icon(Icons.cameraswitch, color: Colors.white),
+              ),
+            ),
+
+            // 5) PULSANTE SCATTO al centro in basso
             Positioned(
               left: 0,
               right: 0,
-              bottom: 24,
+              bottom: 16,
               child: Center(
                 child: GestureDetector(
                   onTap: _shoot,
@@ -322,17 +280,17 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     alignment: Alignment.center,
                     children: [
                       Container(
-                        width: 86,
-                        height: 86,
+                        width: 84,
+                        height: 84,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: brandColor.withOpacity(0.08),
+                          color: Colors.white.withOpacity(0.06),
                           border: Border.all(color: Colors.white, width: 4),
                         ),
                       ),
                       Container(
-                        width: 68,
-                        height: 68,
+                        width: 66,
+                        height: 66,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white,
@@ -348,236 +306,15 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       },
     );
   }
-}
 
-/* ================= WIDGET DI SUPPORTO ================= */
-
-class _CenteredText extends StatelessWidget {
-  final String text;
-  const _CenteredText(this.text);
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white70, fontSize: 16),
+  Widget _centerText(String s) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            s,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
         ),
-      ),
-    );
-  }
-}
-
-/* ================= PITTORI/OVERLAY ================= */
-
-class _SquarePainter extends CustomPainter {
-  final bool ok;
-  _SquarePainter({required this.ok});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    // bordo quadrato (verde quando ok)
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = ok ? Colors.greenAccent : Colors.white;
-    canvas.drawRect(rect, border);
-
-    // bande "occhi" (40% e 55%)
-    final y1 = rect.top + rect.height * 0.40;
-    final y2 = rect.top + rect.height * 0.55;
-    final guide = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = Colors.white70;
-    canvas.drawLine(Offset(rect.left, y1), Offset(rect.right, y1), guide);
-    canvas.drawLine(Offset(rect.left, y2), Offset(rect.right, y2), guide);
-
-    // crocetta al centro
-    final c = rect.center;
-    canvas.drawLine(Offset(c.dx - 12, c.dy), Offset(c.dx + 12, c.dy), guide);
-    canvas.drawLine(Offset(c.dx, c.dy - 12), Offset(c.dx, c.dy + 12), guide);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SquarePainter oldDelegate) => oldDelegate.ok != ok;
-}
-
-/* ---------- Livella numerica (chip Pitch/Roll) ---------- */
-
-class _LevelBar extends StatelessWidget {
-  final double pitch;
-  final double roll;
-  final double tol;
-
-  const _LevelBar({required this.pitch, required this.roll, required this.tol});
-
-  @override
-  Widget build(BuildContext context) {
-    final ok = pitch.abs() <= tol && roll.abs() <= tol;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _chip('Pitch', pitch, ok),
-        const SizedBox(width: 8),
-        _chip('Roll', roll, ok),
-      ],
-    );
-  }
-
-  Widget _chip(String label, double val, bool ok) {
-    final txt = '${val.toStringAsFixed(1)}°';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ok ? Colors.greenAccent : Colors.white54),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(width: 6),
-          Text(txt, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
-
-/* ---------- Livella a bolla: ORIZZONTALE (ROLL) ---------- */
-
-class _BubbleLevelHorizontal extends StatelessWidget {
-  final double rollDeg; // negativo=sinistra, positivo=destra
-  final double tol;
-
-  const _BubbleLevelHorizontal({required this.rollDeg, required this.tol});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _BubbleLevelHorizontalPainter(rollDeg: rollDeg, tol: tol),
-    );
-  }
-}
-
-class _BubbleLevelHorizontalPainter extends CustomPainter {
-  final double rollDeg;
-  final double tol;
-
-  _BubbleLevelHorizontalPainter({required this.rollDeg, required this.tol});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final barHeight = 6.0;
-    final radius = 10.0;
-    final barRect = RRect.fromRectXY(
-      Rect.fromLTWH(0, (size.height - barHeight) / 2, size.width, barHeight),
-      3, 3,
-    );
-
-    final ok = rollDeg.abs() <= tol;
-    final barPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = ok ? Colors.greenAccent.withOpacity(0.75) : Colors.white70;
-
-    canvas.drawRRect(barRect, barPaint);
-
-    const maxDeg = 15.0;
-    final clamped = rollDeg.clamp(-maxDeg, maxDeg);
-    final t = (clamped + maxDeg) / (2 * maxDeg); // 0..1
-    final cx = t * size.width;
-    final cy = size.height / 2;
-
-    final bubble = Paint()..color = Colors.black.withOpacity(0.65);
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = ok ? Colors.greenAccent : Colors.white;
-
-    canvas.drawCircle(Offset(cx, cy), radius, bubble);
-    canvas.drawCircle(Offset(cx, cy), radius, border);
-
-    final tick = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = Colors.black.withOpacity(0.7);
-    final midX = size.width / 2;
-    canvas.drawLine(Offset(midX, cy - 10), Offset(midX, cy + 10), tick);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BubbleLevelHorizontalPainter oldDelegate) =>
-      oldDelegate.rollDeg != rollDeg || oldDelegate.tol != tol;
-}
-
-/* ---------- Livella a bolla: VERTICALE (PITCH) ---------- */
-
-class _BubbleLevelVertical extends StatelessWidget {
-  final double pitchDeg; // negativo=giù, positivo=su
-  final double tol;
-
-  const _BubbleLevelVertical({required this.pitchDeg, required this.tol});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _BubbleLevelVerticalPainter(pitchDeg: pitchDeg, tol: tol),
-    );
-  }
-}
-
-class _BubbleLevelVerticalPainter extends CustomPainter {
-  final double pitchDeg;
-  final double tol;
-
-  _BubbleLevelVerticalPainter({required this.pitchDeg, required this.tol});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final barWidth = 6.0;
-    final radius = 10.0;
-    final barRect = RRect.fromRectXY(
-      Rect.fromLTWH((size.width - barWidth) / 2, 0, barWidth, size.height),
-      3, 3,
-    );
-
-    final ok = pitchDeg.abs() <= tol;
-    final barPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = ok ? Colors.greenAccent.withOpacity(0.75) : Colors.white70;
-
-    canvas.drawRRect(barRect, barPaint);
-
-    const maxDeg = 15.0;
-    final clamped = pitchDeg.clamp(-maxDeg, maxDeg);
-    final t = (maxDeg - clamped) / (2 * maxDeg); // 0..1 (0 alto, 1 basso)
-    final cx = size.width / 2;
-    final cy = t * size.height;
-
-    final bubble = Paint()..color = Colors.black.withOpacity(0.65);
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = ok ? Colors.greenAccent : Colors.white;
-
-    canvas.drawCircle(Offset(cx, cy), radius, bubble);
-    canvas.drawCircle(Offset(cx, cy), radius, border);
-
-    final tick = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = Colors.black.withOpacity(0.7);
-    final midY = size.height / 2;
-    canvas.drawLine(Offset(cx - 10, midY), Offset(cx + 10, midY), tick);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BubbleLevelVerticalPainter oldDelegate) =>
-      oldDelegate.pitchDeg != pitchDeg || oldDelegate.tol != tol;
+      );
 }
