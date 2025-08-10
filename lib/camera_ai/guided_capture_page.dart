@@ -180,15 +180,11 @@ class _GuidedCapturePageState extends State<GuidedCapturePage> {
     }
   }
 
+  // ✅ Corretto per google_mlkit_face_detection 0.11.x (niente planeData)
   InputImage _toInputImage(CameraImage image, int sensorOrientation) {
-    final format = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
-    final planeData = image.planes.map((Plane p) {
-      return InputImagePlaneMetadata(
-        bytesPerRow: p.bytesPerRow,
-        height: p.height,
-        width: p.width,
-      );
-    }).toList();
+    final format =
+        InputImageFormatValue.fromRawValue(image.format.raw) ??
+        InputImageFormat.nv21;
 
     final bytes = WriteBuffer();
     for (final plane in image.planes) {
@@ -196,16 +192,19 @@ class _GuidedCapturePageState extends State<GuidedCapturePage> {
     }
     final bytesAll = bytes.done().buffer.asUint8List();
 
-    final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+    final Size imageSize = Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
 
     return InputImage.fromBytes(
       bytes: bytesAll,
       metadata: InputImageMetadata(
         size: imageSize,
-        rotation: InputImageRotationValue.fromRawValue(sensorOrientation) ?? InputImageRotation.rotation0deg,
+        rotation: InputImageRotationValue.fromRawValue(sensorOrientation) ??
+            InputImageRotation.rotation0deg,
         format: format,
         bytesPerRow: image.planes.first.bytesPerRow,
-        planeData: planeData,
       ),
     );
   }
