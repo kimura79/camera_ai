@@ -1,20 +1,18 @@
-import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
-import '/custom_code/widgets/index.dart' as custom_widgets;
-import '/flutter_flow/custom_functions.dart' as functions;
-import '/index.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
-
-// 📌 Salvataggio in galleria (compatibile con google_fonts 6.x)
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:image/image.dart' as img;
+import 'package:provider/provider.dart';
+
+import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
+import 'home_page_model.dart';
+export 'home_page_model.dart';
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
@@ -26,27 +24,296 @@ class HomePageWidget extends StatefulWidget {
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> {
+class _HomePageWidgetState extends State<HomePageWidget>
+    with WidgetsBindingObserver {
   late HomePageModel _model;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  List<CameraDescription> _cameras = const [];
+  CameraController? _controller;
+  int _cameraIndex = 0;
+  bool _initializing = true;
+  bool _shooting = false;
+
+  String? _lastShotPath;
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => HomePageModel());
+    WidgetsBinding.instance.addObserver(this);
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        setState(() => _initializing = false);
+        return;
+      }
+      final backIndex = _cameras.indexWhere(
+          (c) => c.lensDirection == CameraLensDirection.back);
+      _cameraIndex = backIndex >= 0 ? backIndex : 0;
+      await _startController(_cameras[_cameraIndex]);
+    } catch (e) {
+      debugPrint('Camera init error: $e');
+      setState(() => _initializing = false);
+    }
+  }
+
+  Future<void> _startController(CameraDescription desc) async {
+    final ctrl = CameraController(
+      desc,
+      ResolutionPreset.max,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    try {
+      await ctrl.initialize();
+      await ctrl.setFlashMode(FlashMode.off);
+      setState(() {
+        _controller = ctrl;
+        _initializing = false;
+      });
+    } catch (e) {
+      debugPrint('Controller start error: $e');
+      await ctrl.dispose();
+      setState(() => _initializing = false);
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) return;
+    setState(() => _initializing = true);
+    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+    final old = _controller;
+    _controller = null;
+    await old?.dispose();
+    await _startController(_cameras[_cameraIndex]);
+  }
+
+  Future<void> _takeAndSavePicture() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
+
+    setState(() => _shooting = true);
+    try {
+      final XFile shot = await ctrl.takePicture();
+      _lastShotPath = shot.path;
+
+      final Uint8List origBytes = await File(shot.path).readAsBytes();
+
+      // --- Ritaglio 1:1 1024×1024 ---
+      final img.Image? original = img.decodeImage(origBytes);
+      if (original != null) {
+        final int side = original.width < original.height
+            ? original.width
+            : original.height;
+        final int x = (original.width - side) ~/ 2;
+        final int y = (original.height - side) ~/ 2;
+
+        final img.Image square = img.copyCrop(
+          original,
+          x: x,
+          y: y,
+          width: side,
+          height: side,
+        );
+        final img.Image resized =
+            img.copyResize(square, width: 1024, height: 1024);
+
+        final Uint8List croppedBytes =
+            Uint8List.fromList(img.encodeJpg(resized, quality: 95));
+
+        await ImageGallerySaver.saveImage(
+          croppedBytes,
+          name:
+              'photo_cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
+      }
+
+      // Salva anche l'originale
+      await ImageGallerySaver.saveImage(
+        origBytes,
+        name: 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Foto salvata (originale + ritaglio 1024x1024)')),
+        );
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Take/save error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore salvataggio: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _shooting = false);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    if (state == AppLifecycleState.inactive) {
+      ctrl.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _startController(_cameras[_cameraIndex]);
+    }
   }
 
   @override
   void dispose() {
     _model.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
     super.dispose();
+  }
+
+  Widget _buildCameraPreview() {
+    final ctrl = _controller;
+    if (_initializing) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (ctrl == null || !ctrl.value.isInitialized) {
+      return const Center(child: Text('Fotocamera non disponibile'));
+    }
+
+    final preview = AspectRatio(
+      aspectRatio: ctrl.value.aspectRatio,
+      child: CameraPreview(ctrl),
+    );
+
+    final overlay = LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxW = constraints.maxWidth;
+        final double maxH = constraints.maxHeight;
+        final double size = (maxW < maxH) ? maxW : maxH;
+        return IgnorePointer(
+          child: Center(
+            child: Container(
+              width: size,
+              height: size,
+              alignment: Alignment.center,
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.85),
+                      width: 2,
+                    ),
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Center(child: preview),
+        overlay,
+      ],
+    );
+  }
+
+  Widget _buildBottomBar() {
+    final canShoot =
+        _controller != null && _controller!.value.isInitialized && !_shooting;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: (_lastShotPath != null)
+                  ? () async {
+                      final p = _lastShotPath!;
+                      await showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.9),
+                        builder: (_) => GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: InteractiveViewer(
+                            child: Center(child: Image.file(File(p))),
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (_lastShotPath != null)
+                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
+                    : const Icon(Icons.image, color: Colors.white70),
+              ),
+            ),
+            GestureDetector(
+              onTap: canShoot ? _takeAndSavePicture : null,
+              child: Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              iconSize: 30,
+              onPressed: (_cameras.length >= 2) ? _switchCamera : null,
+              icon: const Icon(Icons.cameraswitch_rounded, color: Colors.white),
+              style: ButtonStyle(
+                backgroundColor:
+                    WidgetStatePropertyAll(Colors.black26),
+                padding: const WidgetStatePropertyAll(EdgeInsets.all(10)),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     context.watch<FFAppState>();
-
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -54,12 +321,13 @@ class _HomePageWidgetState extends State<HomePageWidget> {
       },
       child: Scaffold(
         key: scaffoldKey,
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+        backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: FlutterFlowTheme.of(context).primary,
+          backgroundColor: Colors.black,
           automaticallyImplyLeading: false,
+          elevation: 0,
           title: Text(
-            'Custom Camera ',
+            'Custom Camera',
             style: FlutterFlowTheme.of(context).headlineMedium.override(
                   font: GoogleFonts.interTight(
                     fontWeight:
@@ -68,114 +336,19 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                         FlutterFlowTheme.of(context).headlineMedium.fontStyle,
                   ),
                   color: Colors.white,
-                  fontSize: 22.0,
-                  letterSpacing: 0.0,
-                  fontWeight:
-                      FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-                  fontStyle:
-                      FlutterFlowTheme.of(context).headlineMedium.fontStyle,
+                  fontSize: 20,
                 ),
           ),
-          centerTitle: false,
-          elevation: 2.0,
         ),
         body: SafeArea(
           top: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
+          bottom: false,
+          child: Stack(
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      Padding(
-                        padding:
-                            const EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 50.0),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(20.0),
-                              child: SizedBox(
-                                width: 300.0,
-                                height: 400.0,
-                                child: custom_widgets.CameraPhoto(
-                                  width: 300.0,
-                                  height: 400.0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              FFButtonWidget(
-                onPressed: () async {
-                  FFAppState().makePhoto = true;
-                  safeSetState(() {});
-                  await Future.delayed(const Duration(milliseconds: 1000));
-
-                  // File scattato dalla camera (convertito da base64)
-                  final takenFile =
-                      functions.base64toFile(FFAppState().fileBase64);
-
-                  // 📌 Salva in galleria (iOS/Android)
-                  if (takenFile != null && takenFile.bytes != null) {
-                    final tempPath =
-                        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                    final file = File(tempPath);
-                    await file.writeAsBytes(takenFile.bytes!);
-
-                    final Uint8List bytes = await file.readAsBytes();
-                    await ImageGallerySaver.saveImage(
-                      Uint8List.fromList(bytes),
-                      name:
-                          'photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
-                    );
-                  }
-
-                  // Continua verso la pagina di anteprima
-                  context.pushNamed(
-                    BsImageWidget.routeName,
-                    queryParameters: {
-                      'imageparam': serializeParam(
-                        takenFile,
-                        ParamType.FFUploadedFile,
-                      ),
-                    }.withoutNulls,
-                  );
-                },
-                text: 'Take Picture',
-                options: FFButtonOptions(
-                  height: 40.0,
-                  padding:
-                      const EdgeInsetsDirectional.fromSTEB(16.0, 0.0, 16.0, 0.0),
-                  iconPadding:
-                      const EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 0.0),
-                  color: FlutterFlowTheme.of(context).primary,
-                  textStyle: FlutterFlowTheme.of(context).titleSmall.override(
-                        font: GoogleFonts.interTight(
-                          fontWeight: FlutterFlowTheme.of(context)
-                              .titleSmall
-                              .fontWeight,
-                          fontStyle:
-                              FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                        ),
-                        color: Colors.white,
-                        letterSpacing: 0.0,
-                        fontWeight:
-                            FlutterFlowTheme.of(context).titleSmall.fontWeight,
-                        fontStyle:
-                            FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                      ),
-                  elevation: 0.0,
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
+              Positioned.fill(child: _buildCameraPreview()),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _buildBottomBar(),
               ),
             ],
           ),
