@@ -180,7 +180,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     });
   }
 
-  // ====== helpers: conversione CameraImage -> InputImage (NO WriteBuffer) ======
+  // ====== helpers: conversione CameraImage -> InputImage (API older: niente planeData) ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -211,21 +211,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
       image.height.toDouble(),
     );
 
-    final planeData = image.planes
-        .map(
-          (Plane plane) => InputImagePlaneMetadata(
-            bytesPerRow: plane.bytesPerRow,
-            height: plane.height,
-            width: plane.width,
-          ),
-        )
-        .toList();
-
+    // 🔧 Vecchio costruttore di InputImageMetadata: usa bytesPerRow del primo plane
     final metadata = InputImageMetadata(
       size: size,
       rotation: rotation,
       format: InputImageFormat.yuv420,
-      planeData: planeData,
+      bytesPerRow: image.planes.first.bytesPerRow,
     );
 
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
@@ -440,8 +431,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 
   Widget _buildBottomBar() {
-    final canShoot =
-        _controller != null && _controller!.value.isInitialized && !_shooting && _scaleOk;
+    final canShoot = _controller != null &&
+        _controller!.value.isInitialized &&
+        !_shooting &&
+        _scaleOk;
 
     return SafeArea(
       top: false,
