@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: 'none'
 
-version: 1.0.0+2   # ↑ alza sempre il build number quando ricompili iOS
+version: 1.0.0+3   # ↑ alza sempre il build number quando ricompili iOS
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -16,7 +16,7 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
 
-  # UI / utilità comuni (già presenti)
+  # UI / utilità comuni
   auto_size_text: 3.0.0
   cached_network_image: 3.4.1
   cached_network_image_platform_interface: 4.1.1
@@ -61,9 +61,12 @@ dependencies:
   path_provider_platform_interface: 2.1.2
   path_provider_windows: 2.3.0
 
-  # ✅ NOVITÀ per salvataggio in Galleria e permessi
+  # ✅ Salvataggio in Galleria e permessi
   image_gallery_saver: ^2.0.3
   permission_handler: ^11.4.0
+
+  # 🖼️ Libreria per ritaglio e resize immagini
+  image: ^4.2.0
 
 dependency_overrides:
   http: 1.4.0
