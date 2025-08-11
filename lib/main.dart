@@ -9,8 +9,11 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👉 Pagina camera aggiornata (livelle + 1:1 1024)
+// 👉 Pagina camera aggiornata
 import 'pages/home_page/home_page_widget.dart';
+
+// 📌 Import libreria salvataggio galleria (usata nella HomePage)
+import 'package:gallery_saver/gallery_saver.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +38,6 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // 👇 FlutterFlow si aspetta questo
   static _MyAppState of(BuildContext context) =>
       context.findAncestorStateOfType<_MyAppState>()!;
 
@@ -49,8 +51,8 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  /// 🔁 TRUE = avvia direttamente la camera (comodo per test su Codemagic / device)
-  ///     FALSE = usa il router FlutterFlow (produzione)
+  /// TRUE = avvia direttamente la camera (test)
+  /// FALSE = usa il router FlutterFlow (produzione)
   static const bool kLaunchDirectHome = true;
 
   // ==== Richiesti da flutter_flow_util.dart ====
@@ -73,7 +75,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _appStateNotifier = AppStateNotifier.instance;
-    _router = createRouter(_appStateNotifier); // inizializzato anche se non usato
+    _router = createRouter(_appStateNotifier);
   }
 
   void setThemeMode(ThemeMode mode) => safeSetState(() {
