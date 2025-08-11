@@ -11,9 +11,10 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// 📌 Import per salvataggio in galleria
-import 'package:gallery_saver/gallery_saver.dart';
+// 📌 Import per salvataggio in galleria (compatibile con google_fonts 6.x)
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
@@ -118,7 +119,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                   FFAppState().makePhoto = true;
                   safeSetState(() {});
                   await Future.delayed(
-                    Duration(milliseconds: 1000),
+                    const Duration(milliseconds: 1000),
                   );
 
                   // File scattato dalla camera (convertito da base64)
@@ -127,12 +128,17 @@ class _HomePageWidgetState extends State<HomePageWidget> {
 
                   // 📌 Salva in galleria
                   if (takenFile != null && takenFile.bytes != null) {
-                    // Salvataggio temporaneo su file per passarlo a gallery_saver
                     final tempPath =
                         '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
                     final file = File(tempPath);
                     await file.writeAsBytes(takenFile.bytes!);
-                    await GallerySaver.saveImage(file.path);
+
+                    final Uint8List bytes = await file.readAsBytes();
+                    await ImageGallerySaver.saveImage(
+                      Uint8List.fromList(bytes),
+                      name:
+                          'photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                    );
                   }
 
                   // Continua verso la pagina di anteprima
@@ -149,9 +155,10 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 text: 'Take Picture',
                 options: FFButtonOptions(
                   height: 40.0,
-                  padding: EdgeInsetsDirectional.fromSTEB(16.0, 0.0, 16.0, 0.0),
+                  padding:
+                      const EdgeInsetsDirectional.fromSTEB(16.0, 0.0, 16.0, 0.0),
                   iconPadding:
-                      EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 0.0),
+                      const EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 0.0),
                   color: FlutterFlowTheme.of(context).primary,
                   textStyle: FlutterFlowTheme.of(context).titleSmall.override(
                         font: GoogleFonts.interTight(
