@@ -12,7 +12,7 @@ import 'package:gallery_saver/gallery_saver.dart';
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
-  // 🔗 Richiesti da FlutterFlow / nav.dart
+  // Richiesti da FlutterFlow / nav.dart
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
 
@@ -27,8 +27,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
   // Livelle
   StreamSubscription<AccelerometerEvent>? _accSub;
-  double _pitchDeg = 0;   // “verticale”
-  double _rollDeg = 0;    // “orizzontale”
+  double _pitchDeg = 0;   // verticale
+  double _rollDeg = 0;    // orizzontale
   static const double _levelToleranceDeg = 2.0; // soglia “in bolla”
 
   // Thumbnail
@@ -52,7 +52,6 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     super.dispose();
   }
 
-  // Gestisce resume/pause camera su app lifecycle
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final ctrl = _controller;
@@ -108,11 +107,10 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
   void _listenAccelerometer() {
     _accSub = accelerometerEvents.listen((e) {
-      // Calcolo pitch/roll in gradi “semplici” da accelerometro (feedback livella, non AR).
+      // feedback livella (non AR)
       final ax = e.x, ay = e.y, az = e.z;
-      final roll = math.atan2(ay, az); // orizzontale
-      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)); // verticale
-
+      final roll = math.atan2(ay, az);                              // orizzontale
+      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az));  // verticale
       setState(() {
         _rollDeg = roll * 180.0 / math.pi;
         _pitchDeg = pitch * 180.0 / math.pi;
@@ -133,9 +131,9 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     try {
       final xFile = await _controller!.takePicture();
 
-      // Carica JPEG in memoria
+      // Carica JPEG
       final bytes = await File(xFile.path).readAsBytes();
-      img.Image? raw = img.decodeImage(bytes);
+      final img.Image? raw = img.decodeImage(bytes);
       if (raw == null) throw 'Immagine non valida';
 
       // Crop centrale 1:1
@@ -144,7 +142,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       final int top = (raw.height - side) ~/ 2;
       final img.Image cropped = img.copyCrop(raw, x: left, y: top, width: side, height: side);
 
-      // Resize a 1024x1024 (senza distorsione)
+      // Resize 1024x1024
       final img.Image resized = img.copyResize(
         cropped,
         width: 1024,
@@ -152,22 +150,20 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
         interpolation: img.Interpolation.average,
       );
 
-      // Salva su file (PNG per lossless — se vuoi JPEG, cambiamo encoder)
+      // Salva su file temporaneo
       final dir = await getTemporaryDirectory();
       final outPath = '${dir.path}/epidermys_${DateTime.now().millisecondsSinceEpoch}.png';
       final outBytes = img.encodePng(resized);
       final outFile = File(outPath)..writeAsBytesSync(outBytes);
 
-      setState(() {
-        _lastPhotoPath = outFile.path;
-      });
+      setState(() => _lastPhotoPath = outFile.path);
 
-      // 👉 Salvataggio AUTOMATICO in galleria (album "Epidermys")
+      // Salvataggio automatico in galleria (album "Epidermys")
       try {
-        final ok = await GallerySaver.saveImage(outFile.path, albumName: 'Epidermys', toDcim: true);
+        await GallerySaver.saveImage(outFile.path, albumName: 'Epidermys', toDcim: true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(ok == true ? 'Salvata nel Rullino' : 'Impossibile salvare nel Rullino')),
+            const SnackBar(content: Text('Foto salvata nel Rullino')),
           );
         }
       } catch (e) {
@@ -178,10 +174,11 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
         }
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore scatto: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore scatto: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isTakingPicture = false);
     }
@@ -199,12 +196,12 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
             ? const Center(child: CircularProgressIndicator())
             : Stack(
                 children: [
-                  // PREVIEW A TUTTO SCHERMO (cover)
+                  // Preview full screen (cover)
                   Positioned.fill(
                     child: _FullScreenCameraPreview(controller: controller),
                   ),
 
-                  // FRAME 1:1 (guida visiva del crop)
+                  // Guida 1:1
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -213,7 +210,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     ),
                   ),
 
-                  // LIVELLE ORIZZONTALE & VERTICALE
+                  // Livelle H/V
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -226,7 +223,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     ),
                   ),
 
-                  // TOP BAR (thumbnail, titolo, switch camera)
+                  // Top bar
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 8,
                     left: 12,
@@ -250,9 +247,9 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     ),
                   ),
 
-                  // BOTTOM: solo shutter stile iPhone
+                  // Bottom: shutter iPhone style
                   Positioned(
-                    bottom: MediaReposito ry.of(context).padding.bottom + 24, // typo fixed below
+                    bottom: MediaQuery.of(context).padding.bottom + 24,
                     left: 0,
                     right: 0,
                     child: Center(
@@ -269,7 +266,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   }
 }
 
-/// Preview che riempie tutto lo schermo **senza distorcere** (cover).
+/// Preview full screen senza distorsione (cover)
 class _FullScreenCameraPreview extends StatelessWidget {
   final CameraController controller;
   const _FullScreenCameraPreview({required this.controller});
@@ -296,11 +293,11 @@ class _FullScreenCameraPreview extends StatelessWidget {
   }
 }
 
-/// Frame quadrato 1:1 centrato (solo guida).
+/// Frame quadrato 1:1 centrato (guida)
 class _SquareFramePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final side = math.min(size.width, size.height) * 0.8; // 80% lato schermo
+    final side = math.min(size.width, size.height) * 0.8; // 80% lato
     final left = (size.width - side) / 2;
     final top = (size.height - side) / 2;
 
@@ -311,14 +308,13 @@ class _SquareFramePainter extends CustomPainter {
       ..color = Colors.white.withOpacity(0.8);
     canvas.drawRect(rect, paint);
 
-    // Angoli (stile “L”)
-    final corner = 24.0;
+    // Angoli “L”
+    const corner = 24.0;
     final cw = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = Colors.white;
 
-    // quattro L agli angoli
     canvas.drawLine(Offset(rect.left, rect.top), Offset(rect.left + corner, rect.top), cw);
     canvas.drawLine(Offset(rect.left, rect.top), Offset(rect.left, rect.top + corner), cw);
 
@@ -336,7 +332,7 @@ class _SquareFramePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Livelle “pittori”: orizzontale (roll) + verticale (pitch).
+/// Livelle “pittori”: H=roll, V=pitch
 class _LevelPainter extends CustomPainter {
   final double rollDeg;
   final double pitchDeg;
@@ -353,15 +349,15 @@ class _LevelPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final lineLen = math.min(size.width, size.height) * 0.35;
 
-    final bool rollOk = rollDeg.abs() <= tolDeg;
-    final bool pitchOk = pitchDeg.abs() <= tolDeg;
+    final rollOk = rollDeg.abs() <= tolDeg;
+    final pitchOk = pitchDeg.abs() <= tolDeg;
 
-    final Paint pBase = Paint()
+    final pBase = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = Colors.white.withOpacity(0.7);
 
-    final Paint pOk = Paint()
+    final pOk = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..color = Colors.greenAccent;
@@ -370,15 +366,13 @@ class _LevelPainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(-rollDeg * math.pi / 180.0);
-    final Paint pH = rollOk ? pOk : pBase;
-    canvas.drawLine(Offset(-lineLen, 0), Offset(lineLen, 0), pH);
+    canvas.drawLine(Offset(-lineLen, 0), Offset(lineLen, 0), rollOk ? pOk : pBase);
     canvas.restore();
 
     // Verticale (feedback colore)
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    final Paint pV = pitchOk ? pOk : pBase;
-    canvas.drawLine(Offset(0, -lineLen), Offset(0, lineLen), pV);
+    canvas.drawLine(Offset(0, -lineLen), Offset(0, lineLen), pitchOk ? pOk : pBase);
     canvas.restore();
 
     // Etichetta angoli
@@ -398,7 +392,7 @@ class _LevelPainter extends CustomPainter {
   }
 }
 
-/// Shutter stile iPhone: anello esterno + cerchio interno animato.
+/// Shutter stile iPhone: anello esterno + cerchio interno animato
 class _IOSShutterButton extends StatefulWidget {
   final VoidCallback onTap;
   final bool isBusy;
@@ -413,8 +407,8 @@ class _IOSShutterButtonState extends State<_IOSShutterButton> {
 
   @override
   Widget build(BuildContext context) {
-    final double outerSize = 84;
-    final double innerSize = _pressed || widget.isBusy ? 58 : 64;
+    const outerSize = 84.0;
+    final innerSize = _pressed || widget.isBusy ? 58.0 : 64.0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -428,7 +422,6 @@ class _IOSShutterButtonState extends State<_IOSShutterButton> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Anello esterno
             Container(
               width: outerSize,
               height: outerSize,
@@ -437,7 +430,6 @@ class _IOSShutterButtonState extends State<_IOSShutterButton> {
                 border: Border.all(color: Colors.white, width: 6),
               ),
             ),
-            // Cerchio interno (animato)
             AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               curve: Curves.easeOut,
@@ -452,18 +444,6 @@ class _IOSShutterButtonState extends State<_IOSShutterButton> {
         ),
       ),
     );
-  }
-}
-
-class _ShutterButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final bool isBusy;
-  const _ShutterButton({required this.onTap, required this.isBusy});
-
-  @override
-  Widget build(BuildContext context) {
-    // Non usato più (lasciato se vuoi tornare allo stile precedente)
-    return const SizedBox.shrink();
   }
 }
 
