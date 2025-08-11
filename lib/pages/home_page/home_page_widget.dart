@@ -1,179 +1,442 @@
-import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
-import '/custom_code/widgets/index.dart' as custom_widgets;
-import '/flutter_flow/custom_functions.dart' as functions;
-import '/index.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
-
-// 📌 Import per salvataggio in galleria
-import 'package:gallery_saver/gallery_saver.dart';
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
-
-  static String routeName = 'HomePage';
-  static String routePath = '/homePage';
 
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> {
-  late HomePageModel _model;
+class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObserver {
+  List<CameraDescription> _cameras = [];
+  CameraController? _controller;
+  int _cameraIndex = 0;
 
-  final scaffoldKey = GlobalKey<ScaffoldState>();
+  // Livelle
+  StreamSubscription<AccelerometerEvent>? _accSub;
+  double _pitchDeg = 0;   // “verticale”
+  double _rollDeg = 0;    // “orizzontale”
+  static const double _levelToleranceDeg = 2.0; // soglia “in bolla”
+
+  // Thumbnail
+  String? _lastPhotoPath;
+
+  bool _isTakingPicture = false;
 
   @override
   void initState() {
     super.initState();
-    _model = createModel(context, () => HomePageModel());
+    WidgetsBinding.instance.addObserver(this);
+    _initCameras();
+    _listenAccelerometer();
   }
 
   @override
   void dispose() {
-    _model.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _accSub?.cancel();
+    _controller?.dispose();
     super.dispose();
+  }
+
+  // Gestisce resume/pause camera su app lifecycle
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      ctrl.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _reinitializeController();
+    }
+  }
+
+  Future<void> _initCameras() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nessuna fotocamera disponibile')),
+          );
+        }
+        return;
+    }
+      await _initController(_cameras[_cameraIndex]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore inizializzazione camera: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _reinitializeController() async {
+    if (_cameras.isEmpty) return;
+    await _initController(_cameras[_cameraIndex]);
+  }
+
+  Future<void> _initController(CameraDescription description) async {
+    final controller = CameraController(
+      description,
+      ResolutionPreset.max,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    await controller.initialize();
+    if (!mounted) return;
+
+    setState(() {
+      _controller?.dispose();
+      _controller = controller;
+    });
+  }
+
+  void _listenAccelerometer() {
+    _accSub = accelerometerEvents.listen((e) {
+      // Calcolo pitch/roll in gradi “semplici” da accelerometro
+      // Nota: è una stima valida per livella visuale (non per AR).
+      final ax = e.x, ay = e.y, az = e.z;
+      // roll: rotazione intorno a x (orizzontale bolla)
+      final roll = math.atan2(ay, az);
+      // pitch: rotazione intorno a y (verticale bolla)
+      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az));
+
+      setState(() {
+        _rollDeg = roll * 180.0 / math.pi;
+        _pitchDeg = pitch * 180.0 / math.pi;
+      });
+    });
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) return;
+    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+    await _initController(_cameras[_cameraIndex]);
+  }
+
+  Future<void> _takeSquare1024() async {
+    if (_controller == null || !_controller!.value.isInitialized || _isTakingPicture) return;
+    setState(() => _isTakingPicture = true);
+
+    try {
+      final xFile = await _controller!.takePicture();
+
+      // Carica JPEG in memoria
+      final bytes = await File(xFile.path).readAsBytes();
+      img.Image? raw = img.decodeImage(bytes);
+      if (raw == null) throw 'Immagine non valida';
+
+      // Crop centrale 1:1
+      final int side = math.min(raw.width, raw.height);
+      final int left = (raw.width - side) ~/ 2;
+      final int top = (raw.height - side) ~/ 2;
+      final img.Image cropped = img.copyCrop(raw, x: left, y: top, width: side, height: side);
+
+      // Resize a 1024x1024 (senza distorsione)
+      final img.Image resized = img.copyResize(cropped, width: 1024, height: 1024, interpolation: img.Interpolation.average);
+
+      // Salva su file (PNG per lossless — se vuoi JPEG, cambiamo encoder)
+      final dir = await getTemporaryDirectory();
+      final outPath = '${dir.path}/epidermys_${DateTime.now().millisecondsSinceEpoch}.png';
+      final outBytes = img.encodePng(resized);
+      final outFile = File(outPath)..writeAsBytesSync(outBytes);
+
+      setState(() {
+        _lastPhotoPath = outFile.path;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Foto salvata 1024x1024')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore scatto: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isTakingPicture = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    context.watch<FFAppState>();
-
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        FocusManager.instance.primaryFocus?.unfocus();
-      },
-      child: Scaffold(
-        key: scaffoldKey,
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        appBar: AppBar(
-          backgroundColor: FlutterFlowTheme.of(context).primary,
-          automaticallyImplyLeading: false,
-          title: Text(
-            'Custom Camera ',
-            style: FlutterFlowTheme.of(context).headlineMedium.override(
-                  font: GoogleFonts.interTight(
-                    fontWeight:
-                        FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-                    fontStyle:
-                        FlutterFlowTheme.of(context).headlineMedium.fontStyle,
-                  ),
-                  color: Colors.white,
-                  fontSize: 22.0,
-                  letterSpacing: 0.0,
-                  fontWeight:
-                      FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-                  fontStyle:
-                      FlutterFlowTheme.of(context).headlineMedium.fontStyle,
-                ),
-          ),
-          centerTitle: false,
-          elevation: 2.0,
-        ),
-        body: SafeArea(
-          top: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
+    final controller = _controller;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: controller == null || !controller.value.isInitialized
+            ? const Center(child: CircularProgressIndicator())
+            : Stack(
                 children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      Padding(
-                        padding:
-                            EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 50.0),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: Container(
-                                width: 300.0,
-                                height: 400.0,
-                                child: custom_widgets.CameraPhoto(
-                                  width: 300.0,
-                                  height: 400.0,
-                                ),
-                              ),
-                            ),
-                          ],
+                  // PREVIEW A TUTTO SCHERMO (cover)
+                  Positioned.fill(
+                    child: _FullScreenCameraPreview(controller: controller),
+                  ),
+
+                  // FRAME 1:1 (guida visiva del crop)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _SquareFramePainter(),
+                      ),
+                    ),
+                  ),
+
+                  // LIVELLE ORIZZONTALE & VERTICALE
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _LevelPainter(
+                          rollDeg: _rollDeg,
+                          pitchDeg: _pitchDeg,
+                          tolDeg: _levelToleranceDeg,
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+
+                  // TOP BAR (semplice)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    left: 12,
+                    right: 12,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _lastPhotoPath == null
+                            ? const SizedBox(width: 44, height: 44)
+                            : _Thumb(path: _lastPhotoPath!),
+                        const Text(
+                          'Epidermys',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                        IconButton(
+                          onPressed: _switchCamera,
+                          icon: const Icon(Icons.cameraswitch_rounded, color: Colors.white, size: 28),
+                          tooltip: 'Cambia fotocamera',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // BOTTOM: SHUTTER
+                  Positioned(
+                    bottom: MediaQuery.of(context).padding.bottom + 24,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _ShutterButton(
+                          isBusy: _isTakingPicture,
+                          onTap: _takeSquare1024,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              FFButtonWidget(
-                onPressed: () async {
-                  FFAppState().makePhoto = true;
-                  safeSetState(() {});
-                  await Future.delayed(
-                    Duration(milliseconds: 1000),
-                  );
+      ),
+    );
+  }
+}
 
-                  // File scattato dalla camera (convertito da base64)
-                  final takenFile =
-                      functions.base64toFile(FFAppState().fileBase64);
+/// Preview che riempie tutto lo schermo **senza distorcere**.
+/// Usiamo FittedBox + SizedBox per coprire l’area (cover).
+class _FullScreenCameraPreview extends StatelessWidget {
+  final CameraController controller;
+  const _FullScreenCameraPreview({required this.controller});
 
-                  // 📌 Salva in galleria
-                  if (takenFile != null && takenFile.bytes != null) {
-                    // Salvataggio temporaneo su file per passarlo a gallery_saver
-                    final tempPath =
-                        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                    final file = File(tempPath);
-                    await file.writeAsBytes(takenFile.bytes!);
-                    await GallerySaver.saveImage(file.path);
-                  }
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
 
-                  // Continua verso la pagina di anteprima
-                  context.pushNamed(
-                    BsImageWidget.routeName,
-                    queryParameters: {
-                      'imageparam': serializeParam(
-                        takenFile,
-                        ParamType.FFUploadedFile,
-                      ),
-                    }.withoutNulls,
-                  );
-                },
-                text: 'Take Picture',
-                options: FFButtonOptions(
-                  height: 40.0,
-                  padding: EdgeInsetsDirectional.fromSTEB(16.0, 0.0, 16.0, 0.0),
-                  iconPadding:
-                      EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 0.0),
-                  color: FlutterFlowTheme.of(context).primary,
-                  textStyle: FlutterFlowTheme.of(context).titleSmall.override(
-                        font: GoogleFonts.interTight(
-                          fontWeight: FlutterFlowTheme.of(context)
-                              .titleSmall
-                              .fontWeight,
-                          fontStyle:
-                              FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                        ),
-                        color: Colors.white,
-                        letterSpacing: 0.0,
-                        fontWeight:
-                            FlutterFlowTheme.of(context).titleSmall.fontWeight,
-                        fontStyle:
-                            FlutterFlowTheme.of(context).titleSmall.fontStyle,
-                      ),
-                  elevation: 0.0,
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-            ],
+    // Rapporto nativo della preview
+    final previewSize = controller.value.previewSize;
+    if (previewSize == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final previewAspect = previewSize.width / previewSize.height;
+    final screenAspect = size.width / size.height;
+
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: screenAspect > previewAspect ? size.width : size.height * previewAspect,
+        height: screenAspect > previewAspect ? size.width / previewAspect : size.height,
+        child: CameraPreview(controller),
+      ),
+    );
+  }
+}
+
+/// Frame quadrato 1:1 centrato (solo guida).
+class _SquareFramePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final side = math.min(size.width, size.height) * 0.8; // 80% lato schermo
+    final left = (size.width - side) / 2;
+    final top = (size.height - side) / 2;
+
+    final rect = Rect.fromLTWH(left, top, side, side);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = Colors.white.withOpacity(0.8);
+    canvas.drawRect(rect, paint);
+
+    // angoli
+    final corner = 24.0;
+    final cw = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.white;
+
+    // quattro L agli angoli
+    canvas.drawLine(Offset(rect.left, rect.top), Offset(rect.left + corner, rect.top), cw);
+    canvas.drawLine(Offset(rect.left, rect.top), Offset(rect.left, rect.top + corner), cw);
+
+    canvas.drawLine(Offset(rect.right, rect.top), Offset(rect.right - corner, rect.top), cw);
+    canvas.drawLine(Offset(rect.right, rect.top), Offset(rect.right, rect.top + corner), cw);
+
+    canvas.drawLine(Offset(rect.left, rect.bottom), Offset(rect.left + corner, rect.bottom), cw);
+    canvas.drawLine(Offset(rect.left, rect.bottom), Offset(rect.left, rect.bottom - corner), cw);
+
+    canvas.drawLine(Offset(rect.right, rect.bottom), Offset(rect.right - corner, rect.bottom), cw);
+    canvas.drawLine(Offset(rect.right, rect.bottom), Offset(rect.right, rect.bottom - corner), cw);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Livelle “pittori”: orizzontale (roll) + verticale (pitch).
+/// Le linee diventano verdi quando l’angolo è entro la tolleranza.
+class _LevelPainter extends CustomPainter {
+  final double rollDeg;
+  final double pitchDeg;
+  final double tolDeg;
+
+  _LevelPainter({
+    required this.rollDeg,
+    required this.pitchDeg,
+    required this.tolDeg,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final lineLen = math.min(size.width, size.height) * 0.35;
+
+    // Colori: in bolla = verde, altrimenti bianco semi
+    final bool rollOk = rollDeg.abs() <= tolDeg;
+    final bool pitchOk = pitchDeg.abs() <= tolDeg;
+
+    final Paint pBase = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.white.withOpacity(0.7);
+
+    final Paint pOk = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = Colors.greenAccent;
+
+    // Linea orizzontale (ruotata di roll)
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-rollDeg * math.pi / 180.0);
+    final Paint pH = rollOk ? pOk : pBase;
+    canvas.drawLine(Offset(-lineLen, 0), Offset(lineLen, 0), pH);
+    canvas.restore();
+
+    // Linea verticale (ruotata di pitch) – concettualmente mostriamo “verticalità”
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(pitchOk ? 0 : 0); // visuale dritta; usiamo il colore per feedback
+    final Paint pV = pitchOk ? pOk : pBase;
+    canvas.drawLine(Offset(0, -lineLen), Offset(0, lineLen), pV);
+    canvas.restore();
+
+    // Piccola etichetta angoli (facoltativa)
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'H ${rollDeg.toStringAsFixed(1)}°  •  V ${pitchDeg.toStringAsFixed(1)}°',
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(canvas, Offset(center.dx - textPainter.width / 2, center.dy + lineLen + 12));
+  }
+
+  @override
+  bool shouldRepaint(covariant _LevelPainter old) {
+    return old.rollDeg != rollDeg || old.pitchDeg != pitchDeg || old.tolDeg != tolDeg;
+  }
+}
+
+class _ShutterButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final bool isBusy;
+  const _ShutterButton({required this.onTap, required this.isBusy});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isBusy ? null : onTap,
+      child: Container(
+        width: 76,
+        height: 76,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 6),
+          color: isBusy ? Colors.white24 : Colors.transparent,
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  final String path;
+  const _Thumb({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          barrierColor: Colors.black.withOpacity(0.9),
+          builder: (_) => Dialog(
+            backgroundColor: Colors.black,
+            insetPadding: const EdgeInsets.all(12),
+            child: InteractiveViewer(
+              child: Image.file(File(path), fit: BoxFit.contain),
+            ),
           ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(path),
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
         ),
       ),
     );
