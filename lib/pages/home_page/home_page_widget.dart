@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' as ui; // ✅ per WriteBuffer
+import 'dart:ui' as ui; // ✅ serve per WriteBuffer
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -45,7 +45,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== Calibrazione landmark occhi ======
   final double _targetMmPerPx = 0.117; // obiettivo scala
-  double _ipdMm = 63.0; // IPD di riferimento (puoi renderlo configurabile)
+  double _ipdMm = 63.0; // IPD di riferimento
   double get _targetPx => _ipdMm / _targetMmPerPx; // ~539 px
   double _lastIpdPx = 0.0;
   bool _scaleOk = false;
@@ -94,7 +94,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
-      // avvia stream per landmark (throttled)
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -157,9 +156,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final distPx = math.sqrt(dx * dx + dy * dy);
 
       _updateScale(distPx);
-    } catch (e) {
-      // in caso di frame non valido / conversione fallita
-      // silenzioso per non disturbare lo scatto
+    } catch (_) {
+      // silenzioso
     }
   }
 
@@ -202,7 +200,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     InputImageRotation rotation,
   ) {
     // Concatena i piani YUV420
-    final ui.WriteBuffer allBytes = ui.WriteBuffer(); // ✅ fix
+    final ui.WriteBuffer allBytes = ui.WriteBuffer(); // ✅ usa dart:ui
     for (final Plane plane in image.planes) {
       allBytes.putUint8List(plane.bytes);
     }
@@ -235,7 +233,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     setState(() => _shooting = true);
     try {
-      // stop stream prima dello scatto
       if (_streamRunning) {
         await ctrl.stopImageStream();
         _streamRunning = false;
@@ -268,7 +265,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
       }
 
-      // Salva anche l'originale
       await ImageGallerySaver.saveImage(
         origBytes,
         name: 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
@@ -289,7 +285,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
       }
     } finally {
-      // riavvia stream dopo lo scatto
       try {
         if (!ctrl.value.isStreamingImages) {
           await ctrl.startImageStream(_processCameraImage);
@@ -334,7 +329,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== UI ======
   Widget _buildScaleChip() {
-    // badge stato scala (rosso/giallo/verde)
     final tgt = _targetPx;
     final minT = tgt * 0.95;
     final maxT = tgt * 1.05;
@@ -375,13 +369,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
       return const Center(child: Text('Fotocamera non disponibile'));
     }
 
-    // Preview nativa (no deformazioni)
     final preview = AspectRatio(
       aspectRatio: ctrl.value.aspectRatio,
       child: CameraPreview(ctrl),
     );
 
-    // Riquadro guida 1:1 spostato in alto
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
@@ -391,13 +383,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         return IgnorePointer(
           child: Stack(
             children: [
-              // badge scala
-              Positioned(
-                top: 12,
-                left: 12,
-                child: _buildScaleChip(),
-              ),
-              // quadrato guida
+              Positioned(top: 12, left: 12, child: _buildScaleChip()),
               Positioned(
                 top: maxH * 0.18,
                 left: (maxW - size) / 2,
@@ -448,7 +434,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Thumbnail sinistra
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -479,8 +464,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
-
-            // Pulsante scatto (stile iPhone)
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -522,8 +505,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
-
-            // Switch camera
             IconButton(
               iconSize: 30,
               onPressed: (_cameras.length >= 2) ? _switchCamera : null,
