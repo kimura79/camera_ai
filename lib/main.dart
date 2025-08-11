@@ -8,11 +8,13 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👉 la tua pagina con la camera
+// 👉 pagina camera
 import 'pages/home_page/home_page_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // richiesto da FlutterFlow + web
   GoRouter.optionURLReflectsImperativeAPIs = true;
   usePathUrlStrategy();
 
@@ -21,19 +23,23 @@ void main() async {
   final appState = FFAppState();
   await appState.initializePersistedState();
 
-  runApp(ChangeNotifierProvider(
-    create: (context) => appState,
-    child: MyApp(),
-  ));
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => appState,
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
-  @override
-  State<MyApp> createState() => _MyAppState();
+  const MyApp({super.key});
 
   // 👇 FlutterFlow si aspetta questo
   static _MyAppState of(BuildContext context) =>
       context.findAncestorStateOfType<_MyAppState>()!;
+
+  @override
+  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -41,6 +47,10 @@ class _MyAppState extends State<MyApp> {
 
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
+
+  // 🔁 Toggle: TRUE = avvia direttamente HomePageWidget (test Codemagic / device)
+  //            FALSE = usa il router FlutterFlow
+  static const bool kLaunchDirectHome = true;
 
   // ==== Richiesti da flutter_flow_util.dart ====
   String getRoute([RouteMatch? routeMatch]) {
@@ -62,7 +72,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _appStateNotifier = AppStateNotifier.instance;
-    _router = createRouter(_appStateNotifier); // lo inizializziamo comunque
+    _router = createRouter(_appStateNotifier); // inizializzato anche se non usato
   }
 
   void setThemeMode(ThemeMode mode) => safeSetState(() {
@@ -72,8 +82,29 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // ⚠️ Avvio diretto della pagina camera per test (senza router)
-    return MaterialApp(
+    // 👉 Avvio diretto HomePage (test semplice: niente router)
+    if (kLaunchDirectHome) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Custom Camera Component',
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', ''),
+          Locale('it', ''),
+        ],
+        theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
+        darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
+        themeMode: _themeMode,
+        home: const HomePageWidget(),
+      );
+    }
+
+    // 👉 Versione con router FlutterFlow (produzione)
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Custom Camera Component',
       localizationsDelegates: const [
@@ -88,23 +119,7 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
       darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
       themeMode: _themeMode,
-      home: const HomePageWidget(),
+      routerConfig: _router,
     );
-
-    // 👉 quando vuoi tornare al router, sostituisci con:
-    // return MaterialApp.router(
-    //   debugShowCheckedModeBanner: false,
-    //   title: 'Custom Camera Component',
-    //   localizationsDelegates: const [
-    //     GlobalMaterialLocalizations.delegate,
-    //     GlobalWidgetsLocalizations.delegate,
-    //     GlobalCupertinoLocalizations.delegate,
-    //   ],
-    //   supportedLocales: const [Locale('en', ''), Locale('it', '')],
-    //   theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
-    //   darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
-    //   themeMode: _themeMode,
-    //   routerConfig: _router,
-    // );
   }
 }
