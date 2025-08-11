@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// 📌 Import per salvataggio in galleria (compatibile con google_fonts 6.x)
+// 📌 Salvataggio in galleria (compatibile con google_fonts 6.x)
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
@@ -93,12 +93,12 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                     children: [
                       Padding(
                         padding:
-                            EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 50.0),
+                            const EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 50.0),
                         child: Stack(
                           children: [
                             Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: Container(
+                              padding: const EdgeInsets.all(20.0),
+                              child: SizedBox(
                                 width: 300.0,
                                 height: 400.0,
                                 child: custom_widgets.CameraPhoto(
@@ -118,15 +118,13 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 onPressed: () async {
                   FFAppState().makePhoto = true;
                   safeSetState(() {});
-                  await Future.delayed(
-                    const Duration(milliseconds: 1000),
-                  );
+                  await Future.delayed(const Duration(milliseconds: 1000));
 
                   // File scattato dalla camera (convertito da base64)
                   final takenFile =
                       functions.base64toFile(FFAppState().fileBase64);
 
-                  // 📌 Salva in galleria
+                  // 📌 Salva in galleria (iOS/Android)
                   if (takenFile != null && takenFile.bytes != null) {
                     final tempPath =
                         '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
