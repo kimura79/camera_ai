@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// 📌 Import aggiunto per salvataggio in galleria
+// 📌 Import per salvataggio in galleria
 import 'package:gallery_saver/gallery_saver.dart';
 import 'dart:io';
 
@@ -121,19 +121,21 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                     Duration(milliseconds: 1000),
                   );
 
-                  // File scattato
+                  // File scattato dalla camera (convertito da base64)
                   final takenFile =
                       functions.base64toFile(FFAppState().fileBase64);
 
                   // 📌 Salva in galleria
                   if (takenFile != null && takenFile.bytes != null) {
                     // Salvataggio temporaneo su file per passarlo a gallery_saver
-                    final tempPath = '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                    final tempPath =
+                        '${Directory.systemTemp.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
                     final file = File(tempPath);
                     await file.writeAsBytes(takenFile.bytes!);
                     await GallerySaver.saveImage(file.path);
                   }
 
+                  // Continua verso la pagina di anteprima
                   context.pushNamed(
                     BsImageWidget.routeName,
                     queryParameters: {
