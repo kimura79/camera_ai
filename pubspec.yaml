@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: 'none'
 
-version: 1.0.0+3   # ↑ alza sempre il build number quando ricompili iOS
+version: 1.0.0+4   # ↑ alza sempre il build number quando ricompili iOS
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -67,6 +67,9 @@ dependencies:
 
   # 🖼️ Libreria per ritaglio e resize immagini
   image: ^4.2.0
+
+  # 👁️ Landmark occhi (ML Kit)
+  google_mlkit_face_detection: ^0.10.0
 
 dependency_overrides:
   http: 1.4.0
