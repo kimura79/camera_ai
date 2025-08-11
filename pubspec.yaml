@@ -22,13 +22,13 @@ dependencies:
   provider: ^6.1.5
   shared_preferences: ^2.2.3
 
-  # 🎨 Font personalizzati
+  # 🎨 Font personalizzati (resta su 6.x)
   google_fonts: ^6.3.0
 
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
 
-  # 💾 Salvataggio in Galleria (iOS/Android) - compatibile con google_fonts 6.x
+  # 💾 Salvataggio in Galleria (compatibile con http 1.x)
   image_gallery_saver: ^2.0.3
 
   # (opzionale) Icone iOS
