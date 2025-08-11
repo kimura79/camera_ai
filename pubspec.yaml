@@ -3,7 +3,7 @@ description: A new Flutter project.
 publish_to: 'none'
 
 # ↑ alza sempre il build number quando ricompili iOS
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -20,6 +20,7 @@ dependencies:
 
   # 🧩 Stato
   provider: ^6.1.5
+  shared_preferences: ^2.2.3
 
   # 🎨 Font personalizzati
   google_fonts: ^6.3.0
