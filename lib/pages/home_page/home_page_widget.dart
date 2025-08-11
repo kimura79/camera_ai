@@ -108,19 +108,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
       // --- Ritaglio 1:1 1024×1024 ---
       final img.Image? original = img.decodeImage(origBytes);
       if (original != null) {
-        final int side = original.width < original.height
-            ? original.width
-            : original.height;
+        final int side =
+            original.width < original.height ? original.width : original.height;
         final int x = (original.width - side) ~/ 2;
         final int y = (original.height - side) ~/ 2;
 
-        final img.Image square = img.copyCrop(
-          original,
-          x: x,
-          y: y,
-          width: side,
-          height: side,
-        );
+        final img.Image square =
+            img.copyCrop(original, x: x, y: y, width: side, height: side);
         final img.Image resized =
             img.copyResize(square, width: 1024, height: 1024);
 
@@ -129,8 +123,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         await ImageGallerySaver.saveImage(
           croppedBytes,
-          name:
-              'photo_cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          name: 'photo_cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
       }
 
@@ -143,8 +136,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text(
-                  'Foto salvata (originale + ritaglio 1024x1024)')),
+              content: Text('Foto salvata (originale + ritaglio 1024x1024)')),
         );
         setState(() {});
       }
@@ -189,36 +181,48 @@ class _HomePageWidgetState extends State<HomePageWidget>
       return const Center(child: Text('Fotocamera non disponibile'));
     }
 
+    // Preview nativa
     final preview = AspectRatio(
       aspectRatio: ctrl.value.aspectRatio,
       child: CameraPreview(ctrl),
     );
 
+    // *** Riquadro 1:1 spostato IN ALTO (circa 30% dall'alto) ***
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
         final double maxH = constraints.maxHeight;
         final double size = (maxW < maxH) ? maxW : maxH;
+
         return IgnorePointer(
-          child: Center(
-            child: Container(
-              width: size,
-              height: size,
-              alignment: Alignment.center,
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.85),
-                      width: 2,
+          child: Stack(
+            children: [
+              // quadrato guida posizionato in alto
+              Positioned(
+                top: maxH * 0.18, // sposta più/meno in alto (regola se vuoi)
+                left: (maxW - size) / 2,
+                width: size,
+                child: Center(
+                  child: SizedBox(
+                    width: size * 0.70, // leggermente più piccolo del pieno
+                    height: size * 0.70,
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.yellow.withOpacity(0.95),
+                            width: 2,
+                          ),
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
                     ),
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         );
       },
@@ -233,6 +237,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
+  // === Pulsante scatto stile iPhone + thumbnail + switch ===
   Widget _buildBottomBar() {
     final canShoot =
         _controller != null && _controller!.value.isInitialized && !_shooting;
@@ -244,6 +249,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Thumbnail sinistra
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -261,11 +267,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
                     }
                   : null,
               child: Container(
-                width: 52,
-                height: 52,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   color: Colors.black26,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.white24),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -274,31 +280,60 @@ class _HomePageWidgetState extends State<HomePageWidget>
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
+
+            // **Pulsante scatto stile iPhone**
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
-              child: Container(
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 8,
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                width: 86,
+                height: 86,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // anello esterno
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.10),
+                      ),
+                    ),
+                    // bordo bianco spesso (anello)
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                    ),
+                    // disco interno bianco
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      width: _shooting ? 58 : 64, // leggero feedback
+                      height: _shooting ? 58 : 64,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
+            // Switch camera destra
             IconButton(
               iconSize: 30,
               onPressed: (_cameras.length >= 2) ? _switchCamera : null,
               icon: const Icon(Icons.cameraswitch_rounded, color: Colors.white),
               style: ButtonStyle(
                 backgroundColor:
-                    WidgetStatePropertyAll(Colors.black26),
-                padding: const WidgetStatePropertyAll(EdgeInsets.all(10)),
+                    const WidgetStatePropertyAll(Colors.black26),
+                padding:
+                    const WidgetStatePropertyAll(EdgeInsets.all(10)),
                 shape: WidgetStatePropertyAll(
                   RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
