@@ -2,79 +2,83 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleDisplayName</key>
-	<string>Custom Camera Component</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>Custom Camera Component</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>$(DEVELOPMENT_LANGUAGE)</string>
+  <key>CFBundleDisplayName</key>
+  <string>Custom Camera Component</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Custom Camera Component</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$(FLUTTER_BUILD_NAME)</string>
+  <key>CFBundleVersion</key>
+  <string>$(FLUTTER_BUILD_NUMBER)</string>
 
-	<!-- Schemi URL (se li usi, puoi lasciarli) -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>customcameracomponent.com</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>customcameracomponent</string>
-			</array>
-		</dict>
-	</array>
+  <!-- (Facoltativo) URL Schemes -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>CFBundleURLName</key>
+      <string>customcameracomponent.com</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>customcameracomponent</string>
+      </array>
+    </dict>
+  </array>
 
-	<!-- Flutter -->
-	<key>FlutterDeepLinkingEnabled</key>
-	<true/>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
+  <!-- Flutter -->
+  <key>FlutterDeepLinkingEnabled</key>
+  <true/>
+  <key>LSRequiresIPhoneOS</key>
+  <true/>
 
-	<!-- 📸 Permessi iOS: fotocamera / microfono / libreria foto -->
-	<key>NSCameraUsageDescription</key>
-	<string>Questa app utilizza la fotocamera per scattare foto.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Il microfono è usato solo per registrare video.</string>
-	<!-- Lettura libreria (per selezionare immagini) -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Questa app accede alla libreria foto per selezionare immagini.</string>
-	<!-- ✅ Scrittura in libreria (salvataggio nel Rullino) -->
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Questa app salva le foto scattate nella libreria.</string>
+  <!-- 📸 Permessi -->
+  <key>NSCameraUsageDescription</key>
+  <string>Questa app utilizza la fotocamera per scattare foto.</string>
 
-	<!-- UI -->
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
+  <!-- 👉 Lascia questo solo se registri video -->
+  <!--
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Il microfono è usato solo per registrare video.</string>
+  -->
+
+  <!-- Lettura libreria (necessaria solo se apri il picker) -->
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Questa app accede alla libreria foto per selezionare immagini.</string>
+  <!-- Scrittura in libreria (salva nel Rullino) -->
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Questa app salva le foto scattate nella libreria.</string>
+
+  <!-- UI -->
+  <key>UILaunchStoryboardName</key>
+  <string>LaunchScreen</string>
+
+  <!-- ❌ RIMOSSO: UIMainStoryboardFile -->
+
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UIViewControllerBasedStatusBarAppearance</key>
+  <false/>
 </dict>
 </plist>
