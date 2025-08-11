@@ -7,9 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:gallery_saver/gallery_saver.dart';
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
+
+  // 🔗 Richiesti da FlutterFlow / nav.dart
+  static String routeName = 'HomePage';
+  static String routePath = '/homePage';
 
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
@@ -69,7 +74,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
           );
         }
         return;
-    }
+      }
       await _initController(_cameras[_cameraIndex]);
     } catch (e) {
       if (mounted) {
@@ -103,13 +108,10 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
   void _listenAccelerometer() {
     _accSub = accelerometerEvents.listen((e) {
-      // Calcolo pitch/roll in gradi “semplici” da accelerometro
-      // Nota: è una stima valida per livella visuale (non per AR).
+      // Calcolo pitch/roll in gradi “semplici” da accelerometro (feedback livella, non AR).
       final ax = e.x, ay = e.y, az = e.z;
-      // roll: rotazione intorno a x (orizzontale bolla)
-      final roll = math.atan2(ay, az);
-      // pitch: rotazione intorno a y (verticale bolla)
-      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az));
+      final roll = math.atan2(ay, az); // orizzontale
+      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)); // verticale
 
       setState(() {
         _rollDeg = roll * 180.0 / math.pi;
@@ -143,7 +145,12 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       final img.Image cropped = img.copyCrop(raw, x: left, y: top, width: side, height: side);
 
       // Resize a 1024x1024 (senza distorsione)
-      final img.Image resized = img.copyResize(cropped, width: 1024, height: 1024, interpolation: img.Interpolation.average);
+      final img.Image resized = img.copyResize(
+        cropped,
+        width: 1024,
+        height: 1024,
+        interpolation: img.Interpolation.average,
+      );
 
       // Salva su file (PNG per lossless — se vuoi JPEG, cambiamo encoder)
       final dir = await getTemporaryDirectory();
@@ -155,10 +162,21 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
         _lastPhotoPath = outFile.path;
       });
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto salvata 1024x1024')),
-      );
+      // 👉 Salvataggio AUTOMATICO in galleria (album "Epidermys")
+      try {
+        final ok = await GallerySaver.saveImage(outFile.path, albumName: 'Epidermys', toDcim: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ok == true ? 'Salvata nel Rullino' : 'Impossibile salvare nel Rullino')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Errore salvataggio galleria: $e')),
+          );
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -208,7 +226,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     ),
                   ),
 
-                  // TOP BAR (semplice)
+                  // TOP BAR (thumbnail, titolo, switch camera)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 8,
                     left: 12,
@@ -232,19 +250,16 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                     ),
                   ),
 
-                  // BOTTOM: SHUTTER
+                  // BOTTOM: solo shutter stile iPhone
                   Positioned(
-                    bottom: MediaQuery.of(context).padding.bottom + 24,
+                    bottom: MediaReposito ry.of(context).padding.bottom + 24, // typo fixed below
                     left: 0,
                     right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _ShutterButton(
-                          isBusy: _isTakingPicture,
-                          onTap: _takeSquare1024,
-                        ),
-                      ],
+                    child: Center(
+                      child: _IOSShutterButton(
+                        isBusy: _isTakingPicture,
+                        onTap: _takeSquare1024,
+                      ),
                     ),
                   ),
                 ],
@@ -254,8 +269,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   }
 }
 
-/// Preview che riempie tutto lo schermo **senza distorcere**.
-/// Usiamo FittedBox + SizedBox per coprire l’area (cover).
+/// Preview che riempie tutto lo schermo **senza distorcere** (cover).
 class _FullScreenCameraPreview extends StatelessWidget {
   final CameraController controller;
   const _FullScreenCameraPreview({required this.controller});
@@ -264,7 +278,6 @@ class _FullScreenCameraPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    // Rapporto nativo della preview
     final previewSize = controller.value.previewSize;
     if (previewSize == null) {
       return const Center(child: CircularProgressIndicator());
@@ -298,7 +311,7 @@ class _SquareFramePainter extends CustomPainter {
       ..color = Colors.white.withOpacity(0.8);
     canvas.drawRect(rect, paint);
 
-    // angoli
+    // Angoli (stile “L”)
     final corner = 24.0;
     final cw = Paint()
       ..style = PaintingStyle.stroke
@@ -324,7 +337,6 @@ class _SquareFramePainter extends CustomPainter {
 }
 
 /// Livelle “pittori”: orizzontale (roll) + verticale (pitch).
-/// Le linee diventano verdi quando l’angolo è entro la tolleranza.
 class _LevelPainter extends CustomPainter {
   final double rollDeg;
   final double pitchDeg;
@@ -341,7 +353,6 @@ class _LevelPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final lineLen = math.min(size.width, size.height) * 0.35;
 
-    // Colori: in bolla = verde, altrimenti bianco semi
     final bool rollOk = rollDeg.abs() <= tolDeg;
     final bool pitchOk = pitchDeg.abs() <= tolDeg;
 
@@ -355,7 +366,7 @@ class _LevelPainter extends CustomPainter {
       ..strokeWidth = 4
       ..color = Colors.greenAccent;
 
-    // Linea orizzontale (ruotata di roll)
+    // Orizzontale (ruotata di roll)
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(-rollDeg * math.pi / 180.0);
@@ -363,15 +374,14 @@ class _LevelPainter extends CustomPainter {
     canvas.drawLine(Offset(-lineLen, 0), Offset(lineLen, 0), pH);
     canvas.restore();
 
-    // Linea verticale (ruotata di pitch) – concettualmente mostriamo “verticalità”
+    // Verticale (feedback colore)
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(pitchOk ? 0 : 0); // visuale dritta; usiamo il colore per feedback
     final Paint pV = pitchOk ? pOk : pBase;
     canvas.drawLine(Offset(0, -lineLen), Offset(0, lineLen), pV);
     canvas.restore();
 
-    // Piccola etichetta angoli (facoltativa)
+    // Etichetta angoli
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'H ${rollDeg.toStringAsFixed(1)}°  •  V ${pitchDeg.toStringAsFixed(1)}°',
@@ -388,6 +398,63 @@ class _LevelPainter extends CustomPainter {
   }
 }
 
+/// Shutter stile iPhone: anello esterno + cerchio interno animato.
+class _IOSShutterButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final bool isBusy;
+  const _IOSShutterButton({required this.onTap, required this.isBusy});
+
+  @override
+  State<_IOSShutterButton> createState() => _IOSShutterButtonState();
+}
+
+class _IOSShutterButtonState extends State<_IOSShutterButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final double outerSize = 84;
+    final double innerSize = _pressed || widget.isBusy ? 58 : 64;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTap: widget.isBusy ? null : widget.onTap,
+      child: SizedBox(
+        width: outerSize,
+        height: outerSize,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Anello esterno
+            Container(
+              width: outerSize,
+              height: outerSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 6),
+              ),
+            ),
+            // Cerchio interno (animato)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: innerSize,
+              height: innerSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.isBusy ? Colors.white24 : Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ShutterButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isBusy;
@@ -395,18 +462,8 @@ class _ShutterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: isBusy ? null : onTap,
-      child: Container(
-        width: 76,
-        height: 76,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 6),
-          color: isBusy ? Colors.white24 : Colors.transparent,
-        ),
-      ),
-    );
+    // Non usato più (lasciato se vuoi tornare allo stile precedente)
+    return const SizedBox.shrink();
   }
 }
 
