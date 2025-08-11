@@ -3,7 +3,7 @@ description: A new Flutter project.
 publish_to: 'none'
 
 # ↑ alza sempre il build number quando ricompili iOS
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -25,8 +25,15 @@ dependencies:
   # 🎨 Font personalizzati
   google_fonts: ^6.3.0
 
+  # 🧰 Utility usate da FlutterFlow
+  from_css_color: ^2.0.0
+  json_path: ^0.6.2
+
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
+
+  # 💾 Salvataggio in Galleria (compatibile con http 1.x)
+  image_gallery_saver: ^2.0.3
 
   # (opzionale) Icone iOS
   cupertino_icons: ^1.0.8
