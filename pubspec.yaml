@@ -22,9 +22,12 @@ dependencies:
   provider: ^6.1.5
   shared_preferences: ^2.2.3
 
-  # 🎨 Font personalizzati (resta su 6.x)
+  # 🎨 Font personalizzati (ok con http 1.x)
   google_fonts: ^6.3.0
-  from_css_color: ^2.0.0   # 👈 aggiunto per risolvere errore build
+
+  # 🧰 Utility usate da FlutterFlow
+  from_css_color: ^2.0.0
+  json_path: ^0.6.2
 
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
