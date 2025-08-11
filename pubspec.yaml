@@ -28,8 +28,8 @@ dependencies:
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
 
-  # 💾 Salvataggio in Galleria (iOS/Android)
-  gallery_saver: ^2.3.2
+  # 💾 Salvataggio in Galleria (iOS/Android) - compatibile con google_fonts 6.x
+  image_gallery_saver: ^2.0.3
 
   # (opzionale) Icone iOS
   cupertino_icons: ^1.0.8
