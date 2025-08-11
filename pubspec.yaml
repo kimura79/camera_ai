@@ -24,6 +24,7 @@ dependencies:
 
   # 🎨 Font personalizzati (resta su 6.x)
   google_fonts: ^6.3.0
+  from_css_color: ^2.0.0   # 👈 aggiunto per risolvere errore build
 
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
