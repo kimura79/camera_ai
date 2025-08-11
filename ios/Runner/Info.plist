@@ -23,7 +23,6 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 
-	<!-- Schemi URL (se li usi, puoi lasciarli) -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -38,29 +37,28 @@
 		</dict>
 	</array>
 
-	<!-- Flutter -->
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
-	<!-- 📸 Permessi iOS: fotocamera / microfono / libreria foto -->
+	<!-- 📸 Permessi iOS -->
 	<key>NSCameraUsageDescription</key>
 	<string>Questa app utilizza la fotocamera per scattare foto.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Il microfono è usato solo per registrare video.</string>
-	<!-- Lettura libreria (per selezionare immagini) -->
+	<!-- Lettura libreria (selezione immagini) -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Questa app accede alla libreria foto per selezionare immagini.</string>
-	<!-- ✅ Scrittura in libreria (salvataggio nel Rullino) -->
+	<!-- ✅ Scrittura nel Rullino (salvataggio) -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Questa app salva le foto scattate nella libreria.</string>
 
-	<!-- UI -->
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
