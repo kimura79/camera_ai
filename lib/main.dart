@@ -3,18 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
+// FlutterFlow
 import '/flutter_flow/flutter_flow_theme.dart';
 import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👉 pagina camera
+// 👉 Pagina camera aggiornata (livelle + 1:1 1024)
 import 'pages/home_page/home_page_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // richiesto da FlutterFlow + web
+  // Richiesto da FlutterFlow + Web
   GoRouter.optionURLReflectsImperativeAPIs = true;
   usePathUrlStrategy();
 
@@ -48,8 +49,8 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  // 🔁 Toggle: TRUE = avvia direttamente HomePageWidget (test Codemagic / device)
-  //            FALSE = usa il router FlutterFlow
+  /// 🔁 TRUE = avvia direttamente la camera (comodo per test su Codemagic / device)
+  ///     FALSE = usa il router FlutterFlow (produzione)
   static const bool kLaunchDirectHome = true;
 
   // ==== Richiesti da flutter_flow_util.dart ====
@@ -82,7 +83,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Avvio diretto HomePage (test semplice: niente router)
+    // 👉 Avvio diretto della camera aggiornata
     if (kLaunchDirectHome) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
