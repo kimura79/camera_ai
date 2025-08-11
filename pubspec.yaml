@@ -3,7 +3,7 @@ description: A new Flutter project.
 publish_to: 'none'
 
 # ↑ alza sempre il build number quando ricompili iOS
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -22,12 +22,13 @@ dependencies:
   provider: ^6.1.5
   shared_preferences: ^2.2.3
 
-  # 🎨 Font personalizzati
+  # 🎨 Font personalizzati (ok con http 1.x)
   google_fonts: ^6.3.0
 
   # 🧰 Utility usate da FlutterFlow
   from_css_color: ^2.0.0
   json_path: ^0.6.2
+  timeago: ^3.6.0   # 👈 aggiunto per risolvere l'errore "package:timeago/timeago.dart"
 
   # 🔑 Permessi runtime
   permission_handler: ^11.3.1
