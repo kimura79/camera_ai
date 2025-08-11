@@ -60,7 +60,7 @@ dependencies:
 
   # 📸 Camera + livelle + crop 1024
   camera: ^0.11.1
-  sensors_plus: ^5.0.2        # << aggiunta
+  sensors_plus: ^6.1.1        # << aggiunta
   image: ^4.2.0               # << aggiunta
 
   # 💾 Salvataggio in galleria (opzionale, ma già pronto)
