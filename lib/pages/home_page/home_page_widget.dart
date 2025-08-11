@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:gallery_saver/gallery_saver.dart';
+import 'package:flutter/foundation.dart';
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
@@ -27,20 +28,19 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
   // Livelle
   StreamSubscription<AccelerometerEvent>? _accSub;
-  double _pitchDeg = 0;   // verticale
-  double _rollDeg = 0;    // orizzontale
-  static const double _levelToleranceDeg = 2.0; // soglia “in bolla”
+  double _pitchDeg = 0;
+  double _rollDeg = 0;
+  static const double _levelToleranceDeg = 2.0;
 
   // Thumbnail
   String? _lastPhotoPath;
-
   bool _isTakingPicture = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCameras();
+    _initCameras(); // avvio diretto come nei file base → popup permesso
     _listenAccelerometer();
   }
 
@@ -53,28 +53,34 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) {
-      ctrl.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _reinitializeController();
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive) return; // non chiudere durante popup
+    if (state == AppLifecycleState.paused) {
+      await _controller?.dispose();
+      _controller = null;
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      if (_controller == null && _cameras.isNotEmpty) {
+        await _initController(_cameras[_cameraIndex]);
+      }
     }
   }
 
   Future<void> _initCameras() async {
     try {
       _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
+      if (_cameras.isNotEmpty) {
+        await _initController(_cameras[_cameraIndex]);
+      } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Nessuna fotocamera disponibile')),
           );
         }
-        return;
       }
-      await _initController(_cameras[_cameraIndex]);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -84,21 +90,17 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     }
   }
 
-  Future<void> _reinitializeController() async {
-    if (_cameras.isEmpty) return;
-    await _initController(_cameras[_cameraIndex]);
-  }
-
   Future<void> _initController(CameraDescription description) async {
     final controller = CameraController(
       description,
-      ResolutionPreset.max,
+      defaultTargetPlatform == TargetPlatform.iOS
+          ? ResolutionPreset.high
+          : ResolutionPreset.max,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
     await controller.initialize();
     if (!mounted) return;
-
     setState(() {
       _controller?.dispose();
       _controller = controller;
@@ -107,10 +109,9 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
   void _listenAccelerometer() {
     _accSub = accelerometerEvents.listen((e) {
-      // feedback livella (non AR)
       final ax = e.x, ay = e.y, az = e.z;
-      final roll = math.atan2(ay, az);                              // orizzontale
-      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az));  // verticale
+      final roll = math.atan2(ay, az);
+      final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az));
       setState(() {
         _rollDeg = roll * 180.0 / math.pi;
         _pitchDeg = pitch * 180.0 / math.pi;
@@ -130,27 +131,16 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
     try {
       final xFile = await _controller!.takePicture();
-
-      // Carica JPEG
       final bytes = await File(xFile.path).readAsBytes();
       final img.Image? raw = img.decodeImage(bytes);
       if (raw == null) throw 'Immagine non valida';
 
-      // Crop centrale 1:1
       final int side = math.min(raw.width, raw.height);
       final int left = (raw.width - side) ~/ 2;
       final int top = (raw.height - side) ~/ 2;
       final img.Image cropped = img.copyCrop(raw, x: left, y: top, width: side, height: side);
+      final img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-      // Resize 1024x1024
-      final img.Image resized = img.copyResize(
-        cropped,
-        width: 1024,
-        height: 1024,
-        interpolation: img.Interpolation.average,
-      );
-
-      // Salva su file temporaneo
       final dir = await getTemporaryDirectory();
       final outPath = '${dir.path}/epidermys_${DateTime.now().millisecondsSinceEpoch}.png';
       final outBytes = img.encodePng(resized);
@@ -158,20 +148,11 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
 
       setState(() => _lastPhotoPath = outFile.path);
 
-      // Salvataggio automatico in galleria (album "Epidermys")
-      try {
-        await GallerySaver.saveImage(outFile.path, albumName: 'Epidermys', toDcim: true);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Foto salvata nel Rullino')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Errore salvataggio galleria: $e')),
-          );
-        }
+      await GallerySaver.saveImage(outFile.path, albumName: 'Epidermys', toDcim: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto salvata nel Rullino')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -196,21 +177,14 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
             ? const Center(child: CircularProgressIndicator())
             : Stack(
                 children: [
-                  // Preview full screen (cover)
                   Positioned.fill(
                     child: _FullScreenCameraPreview(controller: controller),
                   ),
-
-                  // Guida 1:1
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _SquareFramePainter(),
-                      ),
+                      child: CustomPaint(painter: _SquareFramePainter()),
                     ),
                   ),
-
-                  // Livelle H/V
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -222,8 +196,6 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                       ),
                     ),
                   ),
-
-                  // Top bar
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 8,
                     left: 12,
@@ -241,13 +213,10 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                         IconButton(
                           onPressed: _switchCamera,
                           icon: const Icon(Icons.cameraswitch_rounded, color: Colors.white, size: 28),
-                          tooltip: 'Cambia fotocamera',
                         ),
                       ],
                     ),
                   ),
-
-                  // Bottom: shutter iPhone style
                   Positioned(
                     bottom: MediaQuery.of(context).padding.bottom + 24,
                     left: 0,
@@ -266,7 +235,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   }
 }
 
-/// Preview full screen senza distorsione (cover)
+/// Preview senza distorsione (cover)
 class _FullScreenCameraPreview extends StatelessWidget {
   final CameraController controller;
   const _FullScreenCameraPreview({required this.controller});
@@ -274,11 +243,9 @@ class _FullScreenCameraPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     final previewSize = controller.value.previewSize;
-    if (previewSize == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (previewSize == null) return const Center(child: CircularProgressIndicator());
+
     final previewAspect = previewSize.width / previewSize.height;
     final screenAspect = size.width / size.height;
 
@@ -293,11 +260,11 @@ class _FullScreenCameraPreview extends StatelessWidget {
   }
 }
 
-/// Frame quadrato 1:1 centrato (guida)
+/// Frame guida 1:1
 class _SquareFramePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final side = math.min(size.width, size.height) * 0.8; // 80% lato
+    final side = math.min(size.width, size.height) * 0.8;
     final left = (size.width - side) / 2;
     final top = (size.height - side) / 2;
 
@@ -308,7 +275,6 @@ class _SquareFramePainter extends CustomPainter {
       ..color = Colors.white.withOpacity(0.8);
     canvas.drawRect(rect, paint);
 
-    // Angoli “L”
     const corner = 24.0;
     final cw = Paint()
       ..style = PaintingStyle.stroke
@@ -332,7 +298,7 @@ class _SquareFramePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Livelle “pittori”: H=roll, V=pitch
+/// Livelle H/V
 class _LevelPainter extends CustomPainter {
   final double rollDeg;
   final double pitchDeg;
@@ -356,34 +322,21 @@ class _LevelPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = Colors.white.withOpacity(0.7);
-
     final pOk = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..color = Colors.greenAccent;
 
-    // Orizzontale (ruotata di roll)
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(-rollDeg * math.pi / 180.0);
     canvas.drawLine(Offset(-lineLen, 0), Offset(lineLen, 0), rollOk ? pOk : pBase);
     canvas.restore();
 
-    // Verticale (feedback colore)
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.drawLine(Offset(0, -lineLen), Offset(0, lineLen), pitchOk ? pOk : pBase);
     canvas.restore();
-
-    // Etichetta angoli
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'H ${rollDeg.toStringAsFixed(1)}°  •  V ${pitchDeg.toStringAsFixed(1)}°',
-        style: const TextStyle(color: Colors.white70, fontSize: 12),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(canvas, Offset(center.dx - textPainter.width / 2, center.dy + lineLen + 12));
   }
 
   @override
@@ -392,7 +345,7 @@ class _LevelPainter extends CustomPainter {
   }
 }
 
-/// Shutter stile iPhone: anello esterno + cerchio interno animato
+/// Shutter stile iPhone
 class _IOSShutterButton extends StatefulWidget {
   final VoidCallback onTap;
   final bool isBusy;
@@ -411,7 +364,6 @@ class _IOSShutterButtonState extends State<_IOSShutterButton> {
     final innerSize = _pressed || widget.isBusy ? 58.0 : 64.0;
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => _pressed = true),
       onTapCancel: () => setState(() => _pressed = false),
       onTapUp: (_) => setState(() => _pressed = false),
