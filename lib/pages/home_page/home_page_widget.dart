@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui; // ✅ per WriteBuffer
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -201,11 +202,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
     InputImageRotation rotation,
   ) {
     // Concatena i piani YUV420
-    final WriteBuffer allBytes = WriteBuffer();
+    final ui.WriteBuffer allBytes = ui.WriteBuffer(); // ✅ fix
     for (final Plane plane in image.planes) {
       allBytes.putUint8List(plane.bytes);
     }
-    final bytes = allBytes.done().buffer.asUint8List();
+    final Uint8List bytes = allBytes.done().buffer.asUint8List();
 
     final Size size = Size(image.width.toDouble(), image.height.toDouble());
     final planeData = image.planes
