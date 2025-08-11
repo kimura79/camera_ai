@@ -2,7 +2,7 @@ name: custom_camera_component
 description: A new Flutter project.
 publish_to: 'none'
 
-version: 1.0.0+30  # <== alza sempre questo numero quando ricompili iOS
+version: 1.0.0+31  # ↑ alza il build number quando ricompili iOS
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -10,18 +10,26 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
-  # Fotocamera e salvataggio file temporanei
+  # 📷 Fotocamera + filesystem temp
   camera: ^0.11.1
   path_provider: ^2.1.5
 
-  # (opzionale) icone iOS
+  # 🧩 Stato (serve per i file FlutterFlow / FFAppState ecc.)
+  provider: ^6.1.5
+
+  # (opzionale) Icone iOS
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
-  flutter_lints: ^4.0.0
   flutter_test:
     sdk: flutter
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
+  # se hai assets, lasciali così:
+  # assets:
+  #   - assets/
