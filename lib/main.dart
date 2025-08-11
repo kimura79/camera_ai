@@ -12,9 +12,6 @@ import 'index.dart';
 // 👉 Pagina camera aggiornata
 import 'pages/home_page/home_page_widget.dart';
 
-// 📌 Import libreria salvataggio galleria (usata nella HomePage)
-import 'package:gallery_saver/gallery_saver.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -38,6 +35,7 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  // FlutterFlow si aspetta questo metodo statico
   static _MyAppState of(BuildContext context) =>
       context.findAncestorStateOfType<_MyAppState>()!;
 
@@ -51,7 +49,7 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  /// TRUE = avvia direttamente la camera (test)
+  /// TRUE = avvia direttamente la camera (test rapido)
   /// FALSE = usa il router FlutterFlow (produzione)
   static const bool kLaunchDirectHome = true;
 
@@ -85,7 +83,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Avvio diretto della camera aggiornata
+    // 👉 Avvio diretto della pagina fotocamera
     if (kLaunchDirectHome) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -106,7 +104,7 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // 👉 Versione con router FlutterFlow (produzione)
+    // 👉 Versione con router FlutterFlow
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Custom Camera Component',
