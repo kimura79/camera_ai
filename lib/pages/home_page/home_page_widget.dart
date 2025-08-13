@@ -44,7 +44,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== Calibrazione landmark occhi ======
   final double _targetMmPerPx = 0.117; // obiettivo scala
-  double _ipdMm = 63.0; // IPD di riferimento (puoi renderlo configurabile)
+  double _ipdMm = 63.0; // IPD di riferimento (configurabile)
   double get _targetPx => _ipdMm / _targetMmPerPx; // ~539 px
   double _lastIpdPx = 0.0;
   bool _scaleOk = false;
@@ -180,7 +180,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     });
   }
 
-  // ====== helpers: conversione CameraImage -> InputImage (API older: niente planeData) ======
+  // ====== helpers: conversione CameraImage -> InputImage ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -211,7 +211,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
       image.height.toDouble(),
     );
 
-    // 🔧 Vecchio costruttore di InputImageMetadata: usa bytesPerRow del primo plane
     final metadata = InputImageMetadata(
       size: size,
       rotation: rotation,
@@ -327,20 +326,26 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== UI ======
   Widget _buildScaleChip() {
-    // badge stato scala (rosso/giallo/verde)
+    // badge con messaggio richiesto
     final tgt = _targetPx;
     final minT = tgt * 0.95;
     final maxT = tgt * 1.05;
 
     Color c;
+    String testo;
+
     if (_lastIpdPx == 0) {
       c = Colors.grey;
+      testo = 'Inquadra il viso';
     } else if (_lastIpdPx < minT * 0.9 || _lastIpdPx > maxT * 1.1) {
       c = Colors.red;
+      testo = 'Inquadra il viso';
     } else if (_lastIpdPx < minT || _lastIpdPx > maxT) {
       c = Colors.amber;
+      testo = 'Inquadra il viso';
     } else {
       c = Colors.green;
+      testo = 'Scatta quando è verde';
     }
 
     return Container(
@@ -351,9 +356,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         border: Border.all(color: c, width: 1.5),
       ),
       child: Text(
-        _lastIpdPx == 0
-            ? 'Scala: —  (target ~${tgt.toStringAsFixed(0)} px)'
-            : 'Scala: ${_lastIpdPx.toStringAsFixed(0)} px  (target ~${tgt.toStringAsFixed(0)})',
+        testo,
         style: const TextStyle(color: Colors.white),
       ),
     );
@@ -368,13 +371,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
       return const Center(child: Text('Fotocamera non disponibile'));
     }
 
-    // Preview nativa (no deformazioni)
-    final preview = AspectRatio(
-      aspectRatio: ctrl.value.aspectRatio,
-      child: CameraPreview(ctrl),
+    // === FULL SCREEN STYLE "COVER" ===
+    final Size p = ctrl.value.previewSize!;
+    final previewFullBleed = FittedBox(
+      fit: BoxFit.cover, // riempi tutto lo schermo come la camera nativa
+      child: SizedBox(
+        width: p.width,
+        height: p.height,
+        child: CameraPreview(ctrl),
+      ),
     );
 
-    // Riquadro guida 1:1 spostato in alto
+    // Riquadro guida 1:1
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
@@ -384,7 +392,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         return IgnorePointer(
           child: Stack(
             children: [
-              // badge scala
+              // badge scala (messaggio)
               Positioned(
                 top: 12,
                 left: 12,
@@ -424,17 +432,17 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Center(child: preview),
+        Positioned.fill(child: previewFullBleed),
         overlay,
       ],
     );
   }
 
   Widget _buildBottomBar() {
+    // pulsante sempre attivo quando la camera è pronta
     final canShoot = _controller != null &&
         _controller!.value.isInitialized &&
-        !_shooting &&
-        _scaleOk;
+        !_shooting;
 
     return SafeArea(
       top: false,
@@ -475,7 +483,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               ),
             ),
 
-            // Pulsante scatto (stile iPhone)
+            // Pulsante scatto (stile iPhone) — sempre attivo
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -499,7 +507,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _scaleOk ? Colors.white : Colors.white24,
+                          color: Colors.white,
                           width: 6,
                         ),
                       ),
@@ -508,9 +516,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
                       duration: const Duration(milliseconds: 80),
                       width: _shooting ? 58 : 64,
                       height: _shooting ? 58 : 64,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _scaleOk ? Colors.white : Colors.white24,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -555,7 +563,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           automaticallyImplyLeading: false,
           elevation: 0,
           title: Text(
-            'Custom Camera',
+            'Epidermys camera', // ✅ titolo aggiornato
             style: FlutterFlowTheme.of(context).headlineMedium.override(
                   font: GoogleFonts.interTight(
                     fontWeight:
