@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart aggiornato
+// 🔹 home_page_widget.dart aggiornato (tag più alti, tap attivi)
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -49,14 +49,14 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   final double _targetMmPerPx = 0.117;
 
-  // Volto
+  // Volto (ML Kit)
   double _ipdMm = 63.0;
   double get _targetPxVolto => _ipdMm / _targetMmPerPx;
   double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
 
-  // Particolare
-  static const double _targetMmPart = 120.0; // 12 cm
+  // Particolare (12 cm)
+  static const double _targetMmPart = 120.0;
   double get _targetPxPart => _targetMmPart / _targetMmPerPx;
   bool get _scaleOkPart {
     final double minT = _targetPxPart * 0.95;
@@ -109,7 +109,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0); // 🔹 Zoom fisso
+      await ctrl.setZoomLevel(1.0); // 🔹 Zoom fisso 1×
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -140,6 +140,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
+  // Stream → ML Kit solo in modalità "volto"
   Future<void> _processCameraImage(CameraImage image) async {
     if (_mode != CaptureMode.volto) return;
     final now = DateTime.now();
@@ -158,7 +159,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         _updateScaleVolto(null);
         return;
       }
-
       final f = faces.first;
       final left = f.landmarks[FaceLandmarkType.leftEye];
       final right = f.landmarks[FaceLandmarkType.rightEye];
@@ -166,11 +166,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         _updateScaleVolto(null);
         return;
       }
-
       final dx = (left.position.x - right.position.x);
       final dy = (left.position.y - right.position.y);
       final distPx = math.sqrt(dx * dx + dy * dy);
-
       _updateScaleVolto(distPx);
     } catch (_) {}
   }
@@ -252,6 +250,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
+      // crop centrale 1:1 e resize 1024
       final int side =
           original.width < original.height ? original.width : original.height;
       final int x = (original.width - side) ~/ 2;
@@ -262,7 +261,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       img.Image resized = img.copyResize(square, width: 1024, height: 1024);
 
       if (isFront) {
-        resized = img.flipHorizontal(resized);
+        resized = img.flipHorizontal(resized); // selfie specchiato
       }
 
       final Uint8List croppedBytes =
@@ -324,6 +323,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     } else {
       c = _scaleOkPart ? Colors.green : Colors.amber;
     }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
@@ -345,7 +345,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         onTap: () async {
           setState(() => _mode = value);
           if (_controller != null && _controller!.value.isInitialized) {
-            await _controller!.setZoomLevel(1.0); // 🔹 blocco zoom anche al cambio
+            await _controller!.setZoomLevel(1.0); // 🔹 zoom fisso anche al cambio modalità
           }
         },
         child: AnimatedContainer(
@@ -391,11 +391,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
+
     final Size p = ctrl.value.previewSize!;
     Widget inner = SizedBox(
       width: p.width,
       height: p.height,
-      child: CameraPreview(ctrl),
+      child: CameraPreview(ctrl), // tap attivi
     );
     if (isFront) {
       inner = Transform(
@@ -415,7 +416,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double maxH = constraints.maxHeight;
         final double size = (maxW < maxH) ? maxW : maxH;
         final double safeTop = MediaQuery.of(context).padding.top;
+
         return IgnorePointer(
+          ignoring: true, // solo gli overlay non intercettano tocchi; i bottoni sono fuori
           child: Stack(
             children: [
               Positioned(
@@ -448,8 +451,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
                   ),
                 ),
               ),
+              // 🔺 TAG/selector più alti
               Positioned(
-                bottom: 120,
+                bottom: 180, // ⬆️ era 120
                 left: 0,
                 right: 0,
                 child: Center(child: _buildModeSelector()),
@@ -473,6 +477,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final canShoot = _controller != null &&
         _controller!.value.isInitialized &&
         !_shooting;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -569,6 +574,38 @@ class _HomePageWidgetState extends State<HomePageWidget>
         ),
       ),
     );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    if (state == AppLifecycleState.inactive) {
+      try {
+        if (_streamRunning) {
+          ctrl.stopImageStream();
+          _streamRunning = false;
+        }
+      } catch (_) {}
+      ctrl.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _startController(_cameras[_cameraIndex]);
+    }
+  }
+
+  @override
+  void dispose() {
+    _model.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    try {
+      if (_streamRunning) {
+        _controller?.stopImageStream();
+      }
+    } catch (_) {}
+    _controller?.dispose();
+    _faceDetector.close();
+    super.dispose();
   }
 
   @override
