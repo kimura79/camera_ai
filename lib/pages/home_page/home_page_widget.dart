@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — Preview 4:3 + riquadro 1:1 perfettamente allineato al crop 1024
+// 🔹 home_page_widget.dart — Volto: preview 4:3 + riquadro 1:1 in scala 0,117; crop 1024x1024 coerente
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -11,7 +11,7 @@ import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 
-// ML Kit usato solo in modalità "volto"
+// ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -55,10 +55,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
   // Volto (ML Kit, IPD)
   double _ipdMm = 63.0;
   double get _targetPxVolto => _ipdMm / _targetMmPerPx; // ~539 px
-  double _lastIpdPx = 0.0;
+  double _lastIpdPx = 0.0; // IPD misurata in px nella preview
   bool _scaleOkVolto = false;
 
-  // Particolare (12 cm)
+  // Particolare (12 cm) — lasciata com'è
   static const double _targetMmPart = 120.0; // 12 cm
   double get _targetPxPart => _targetMmPart / _targetMmPerPx; // ~1026 px
   bool get _scaleOkPart {
@@ -173,6 +173,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final dx = (left.position.x - right.position.x);
       final dy = (left.position.y - right.position.y);
       final distPx = math.sqrt(dx * dx + dy * dy);
+
       _updateScaleVolto(distPx);
     } catch (_) {}
   }
@@ -235,7 +236,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
-  // ====== Scatto + salvataggio (solo crop 1024) ======
+  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -251,34 +252,57 @@ class _HomePageWidgetState extends State<HomePageWidget>
           ctrl.description.lensDirection == CameraLensDirection.front;
 
       final XFile shot = await ctrl.takePicture();
-
       final Uint8List origBytes = await File(shot.path).readAsBytes();
       final img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // crop centrale 1:1 → 1024
-      final int side =
-          original.width < original.height ? original.width : original.height;
-      final int x = (original.width - side) ~/ 2;
-      final int y = (original.height - side) ~/ 2;
+      // ===== Crop coerente con il riquadro (modalità volto) =====
+      img.Image cropped;
 
-      img.Image square =
-          img.copyCrop(original, x: x, y: y, width: side, height: side);
-      img.Image resized = img.copyResize(square, width: 1024, height: 1024);
+      if (_mode == CaptureMode.volto && _lastIpdPx > 0) {
+        // scalaFattore = (mm/px attuale) / (mm/px target)
+        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
 
+        // Lato crop in px nel RAW = lato corto RAW / scalaFattore (centrato)
+        final int shortRaw = math.min(original.width, original.height);
+        int sidePx = (shortRaw / scalaFattore).round();
+
+        // clamp ragionevole
+        sidePx = sidePx.clamp(64, shortRaw);
+
+        final int x = (original.width - sidePx) ~/ 2;
+        final int y = (original.height - sidePx) ~/ 2;
+
+        cropped = img.copyCrop(original, x: x, y: y, width: sidePx, height: sidePx);
+      } else {
+        // fallback/particolare: crop centrale 1:1 massimo (comportamento attuale)
+        final int side =
+            original.width < original.height ? original.width : original.height;
+        final int x = (original.width - side) ~/ 2;
+        final int y = (original.height - side) ~/ 2;
+        cropped = img.copyCrop(original, x: x, y: y, width: side, height: side);
+      }
+
+      // Ridimensiona a 1024×1024
+      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+
+      // Selfie specchiato sul frontale
       if (isFront) {
-        resized = img.flipHorizontal(resized); // selfie specchiato
+        resized = img.flipHorizontal(resized);
       }
 
       final Uint8List croppedBytes =
           Uint8List.fromList(img.encodeJpg(resized, quality: 95));
 
+      // Salva SOLO il crop 1024
       await ImageGallerySaver.saveImage(
         croppedBytes,
         name:
             '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
+      // Aggiorna miniatura
       final String newPath = shot.path.replaceFirst(
         RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
         '_1024.jpg',
@@ -331,6 +355,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       }
       text = 'Centra il viso – scatta solo col verde';
     } else {
+      // lasciamo "particolare" com'è ora
       c = _scaleOkPart ? Colors.green : Colors.amber;
       text = 'Particolare 12 cm – scatta solo col verde';
     }
@@ -415,33 +440,40 @@ class _HomePageWidgetState extends State<HomePageWidget>
       );
     }
 
-    // ---- OVERLAY allineato alla stessa area 4:3 ----
-    // Usiamo un secondo AspectRatio con lo stesso rapporto per disegnare
-    // il riquadro 1:1 centrato sopra la preview.
-    Widget overlayForPreviewArea = AspectRatio(
+    // ---- OVERLAY allineato all'area 4:3 ----
+    Widget overlay = AspectRatio(
       aspectRatio: camAspect,
       child: LayoutBuilder(
         builder: (context, box) {
-          // Square centrale proporzionale all'area più corta (70% come prima)
+          // Lato corto dell'area di preview 4:3
           final double shortSide = math.min(box.maxWidth, box.maxHeight);
-          final double square = shortSide * 0.70;
+
+          double squareSize;
+          if (_mode == CaptureMode.volto && _lastIpdPx > 0) {
+            // scalaFattore = (mm/px attuale) / (mm/px target)
+            final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+            final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+            // Lato riquadro nella preview: lato corto / scalaFattore
+            squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
+          } else {
+            // fallback (e per "particolare" lasciamo il 70% come prima)
+            squareSize = shortSide * 0.70;
+          }
+
+          final Color frameColor = (_mode == CaptureMode.volto && _scaleOkVolto)
+              ? Colors.green
+              : Colors.yellow.withOpacity(0.95);
 
           return Stack(
             children: [
-              // Riquadro guida 1:1 centrato
               Align(
                 alignment: Alignment.center,
-                child: SizedBox(
-                  width: square,
-                  height: square,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.yellow.withOpacity(0.95),
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                child: Container(
+                  width: squareSize,
+                  height: squareSize,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: frameColor, width: 2),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                 ),
               ),
@@ -478,12 +510,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Preview 4:3 centrata
-        Center(child: preview),
-        // Overlay 1:1 centrato sulla stessa area 4:3
-        Center(child: overlayForPreviewArea),
-        // Badge + selector
-        overlayFixed,
+        Center(child: preview), // preview 4:3
+        Center(child: overlay), // riquadro in scala
+        overlayFixed,           // badge + selector
       ],
     );
   }
@@ -532,7 +561,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               ),
             ),
 
-            // pulsante scatto
+            // pulsante scatto (sempre attivo)
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
