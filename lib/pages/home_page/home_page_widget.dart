@@ -1,3 +1,5 @@
+// 🔹 home_page_widget.dart aggiornato
+
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -9,7 +11,6 @@ import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 
-// ML Kit (landmark occhi)
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -28,6 +29,8 @@ class HomePageWidget extends StatefulWidget {
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
+enum CaptureMode { volto, particolare }
+
 class _HomePageWidgetState extends State<HomePageWidget>
     with WidgetsBindingObserver {
   late HomePageModel _model;
@@ -41,14 +44,26 @@ class _HomePageWidgetState extends State<HomePageWidget>
   bool _shooting = false;
 
   String? _lastShotPath;
-  bool _lastWasFront = false; // per sapere se la miniatura è di un selfie
 
-  // ====== Calibrazione landmark occhi ======
-  final double _targetMmPerPx = 0.117; // obiettivo scala
-  double _ipdMm = 63.0; // IPD di riferimento (configurabile)
-  double get _targetPx => _ipdMm / _targetMmPerPx; // ~539 px
+  CaptureMode _mode = CaptureMode.volto;
+
+  final double _targetMmPerPx = 0.117;
+
+  // Volto
+  double _ipdMm = 63.0;
+  double get _targetPxVolto => _ipdMm / _targetMmPerPx;
   double _lastIpdPx = 0.0;
-  bool _scaleOk = false;
+  bool _scaleOkVolto = false;
+
+  // Particolare
+  static const double _targetMmPart = 120.0; // 12 cm
+  double get _targetPxPart => _targetMmPart / _targetMmPerPx;
+  bool get _scaleOkPart {
+    final double minT = _targetPxPart * 0.95;
+    final double maxT = _targetPxPart * 1.05;
+    const double cropSidePx = 1024.0;
+    return cropSidePx >= minT && cropSidePx <= maxT;
+  }
 
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
@@ -89,11 +104,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
       desc,
       ResolutionPreset.max,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420, // per MLKit
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
+      await ctrl.setZoomLevel(1.0); // 🔹 Zoom fisso
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -124,8 +140,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Image stream -> MLKit (ogni ~300ms) ======
   Future<void> _processCameraImage(CameraImage image) async {
+    if (_mode != CaptureMode.volto) return;
     final now = DateTime.now();
     if (now.difference(_lastProc).inMilliseconds < 300) return;
     _lastProc = now;
@@ -139,7 +155,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       final faces = await _faceDetector.processImage(inputImage);
       if (faces.isEmpty) {
-        _updateScale(null);
+        _updateScaleVolto(null);
         return;
       }
 
@@ -147,7 +163,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final left = f.landmarks[FaceLandmarkType.leftEye];
       final right = f.landmarks[FaceLandmarkType.rightEye];
       if (left == null || right == null) {
-        _updateScale(null);
+        _updateScaleVolto(null);
         return;
       }
 
@@ -155,14 +171,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final dy = (left.position.y - right.position.y);
       final distPx = math.sqrt(dx * dx + dy * dy);
 
-      _updateScale(distPx);
-    } catch (e) {
-      // frame non valido / conversione fallita → ignora
-    }
+      _updateScaleVolto(distPx);
+    } catch (_) {}
   }
 
-  void _updateScale(double? ipdPx) {
-    final double tgt = _targetPx;
+  void _updateScaleVolto(double? ipdPx) {
+    final double tgt = _targetPxVolto;
     final double minT = tgt * 0.95;
     final double maxT = tgt * 1.05;
 
@@ -172,15 +186,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
       shown = ipdPx;
       ok = (ipdPx >= minT && ipdPx <= maxT);
     }
-
     if (!mounted) return;
     setState(() {
       _lastIpdPx = shown;
-      _scaleOk = ok;
+      _scaleOkVolto = ok;
     });
   }
 
-  // ====== helpers: conversione CameraImage -> InputImage ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -236,13 +248,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       final XFile shot = await ctrl.takePicture();
 
-      // carica bytes dell'originale
       final Uint8List origBytes = await File(shot.path).readAsBytes();
       final img.Image? original = img.decodeImage(origBytes);
-
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // --- Crop centrale 1:1 e resize a 1024 ---
       final int side =
           original.width < original.height ? original.width : original.height;
       final int x = (original.width - side) ~/ 2;
@@ -252,7 +261,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
           img.copyCrop(original, x: x, y: y, width: side, height: side);
       img.Image resized = img.copyResize(square, width: 1024, height: 1024);
 
-      // Selfie: specchia la FOTO salvata
       if (isFront) {
         resized = img.flipHorizontal(resized);
       }
@@ -260,21 +268,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final Uint8List croppedBytes =
           Uint8List.fromList(img.encodeJpg(resized, quality: 95));
 
-      // Salva SOLO il crop 1024 in Galleria
       await ImageGallerySaver.saveImage(
         croppedBytes,
-        name: 'photo_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        name:
+            '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
-      // Scrivi anche un file locale per la miniatura
       final String newPath = shot.path.replaceFirst(
         RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
         '_1024.jpg',
       );
       await File(newPath).writeAsBytes(croppedBytes);
-
       _lastShotPath = newPath;
-      _lastWasFront = isFront;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -300,56 +305,25 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _controller;
-    if (ctrl == null) return;
-
-    if (state == AppLifecycleState.inactive) {
-      try {
-        if (_streamRunning) {
-          ctrl.stopImageStream();
-          _streamRunning = false;
-        }
-      } catch (_) {}
-      ctrl.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _startController(_cameras[_cameraIndex]);
-    }
-  }
-
-  @override
-  void dispose() {
-    _model.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    try {
-      if (_streamRunning) {
-        _controller?.stopImageStream();
-      }
-    } catch (_) {}
-    _controller?.dispose();
-    _faceDetector.close();
-    super.dispose();
-  }
-
-  // ====== UI ======
   Widget _buildScaleChip() {
-    // Colore che riflette lo stato; testo fisso
-    final tgt = _targetPx;
-    final minT = tgt * 0.95;
-    final maxT = tgt * 1.05;
-
     Color c;
-    if (_lastIpdPx == 0) {
-      c = Colors.grey;
-    } else if (_lastIpdPx < minT * 0.9 || _lastIpdPx > maxT * 1.1) {
-      c = Colors.red;
-    } else if (_lastIpdPx < minT || _lastIpdPx > maxT) {
-      c = Colors.amber;
+    if (_mode == CaptureMode.volto) {
+      final double tgt = _targetPxVolto;
+      final double minT = tgt * 0.95;
+      final double maxT = tgt * 1.05;
+      final v = _lastIpdPx;
+      if (v == 0) {
+        c = Colors.grey;
+      } else if (v < minT * 0.9 || v > maxT * 1.1) {
+        c = Colors.red;
+      } else if (v < minT || v > maxT) {
+        c = Colors.amber;
+      } else {
+        c = Colors.green;
+      }
     } else {
-      c = Colors.green;
+      c = _scaleOkPart ? Colors.green : Colors.amber;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
@@ -364,6 +338,48 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
+  Widget _buildModeSelector() {
+    Widget chip(String text, CaptureMode value) {
+      final bool selected = _mode == value;
+      return GestureDetector(
+        onTap: () async {
+          setState(() => _mode = value);
+          if (_controller != null && _controller!.value.isInitialized) {
+            await _controller!.setZoomLevel(1.0); // 🔹 blocco zoom anche al cambio
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.white10,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? Colors.white : Colors.white24,
+              width: 1.2,
+            ),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: selected ? Colors.black : Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        chip('volto', CaptureMode.volto),
+        const SizedBox(width: 10),
+        chip('particolare', CaptureMode.particolare),
+      ],
+    );
+  }
+
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -375,8 +391,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
-
-    // === FULL SCREEN "COVER" + MIRROR SELFIE (solo frontale) ===
     final Size p = ctrl.value.previewSize!;
     Widget inner = SizedBox(
       width: p.width,
@@ -390,31 +404,26 @@ class _HomePageWidgetState extends State<HomePageWidget>
         child: inner,
       );
     }
-
     final previewFullBleed = FittedBox(
       fit: BoxFit.cover,
       child: inner,
     );
 
-    // Overlay: badge centrato + riquadro 1:1
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
         final double maxH = constraints.maxHeight;
         final double size = (maxW < maxH) ? maxW : maxH;
         final double safeTop = MediaQuery.of(context).padding.top;
-
         return IgnorePointer(
           child: Stack(
             children: [
-              // 🔝 Badge centrato (anche con frontale)
               Positioned(
                 top: safeTop + 8,
                 left: 0,
                 right: 0,
                 child: Center(child: _buildScaleChip()),
               ),
-              // ⬜️ Quadrato guida
               Positioned(
                 top: maxH * 0.18,
                 left: (maxW - size) / 2,
@@ -439,6 +448,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
                   ),
                 ),
               ),
+              Positioned(
+                bottom: 120,
+                left: 0,
+                right: 0,
+                child: Center(child: _buildModeSelector()),
+              ),
             ],
           ),
         );
@@ -455,11 +470,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 
   Widget _buildBottomBar() {
-    // pulsante sempre attivo quando la camera è pronta
     final canShoot = _controller != null &&
         _controller!.value.isInitialized &&
         !_shooting;
-
     return SafeArea(
       top: false,
       child: Padding(
@@ -467,7 +480,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Thumbnail sinistra (il file è già specchiato se frontale)
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -498,8 +510,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
-
-            // Pulsante scatto — sempre attivo
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -541,8 +551,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
-
-            // Switch camera
             IconButton(
               iconSize: 30,
               onPressed: (_cameras.length >= 2) ? _switchCamera : null,
