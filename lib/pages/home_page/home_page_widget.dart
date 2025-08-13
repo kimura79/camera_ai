@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — badge "particolare" aggiornato
+// 🔹 home_page_widget.dart — Preview 4:3 + riquadro 1:1 perfettamente allineato al crop 1024
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -113,7 +113,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0); // 🔒 zoom fisso 1×
+      await ctrl.setZoomLevel(1.0); // 🔒 Zoom fisso 1×
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -144,7 +144,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // Stream → ML Kit solo in modalità "volto"
+  // ====== Stream → ML Kit solo in modalità "volto" ======
   Future<void> _processCameraImage(CameraImage image) async {
     if (_mode != CaptureMode.volto) return;
     final now = DateTime.now();
@@ -312,10 +312,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== UI ======
   Widget _buildScaleChip() {
-    // Colore in base alla modalità, testo diverso per "particolare"
+    // Colore e testo per modalità
     Color c;
     String text;
-
     if (_mode == CaptureMode.volto) {
       final double tgt = _targetPxVolto;
       final double minT = tgt * 0.95;
@@ -343,10 +342,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: c, width: 1.6),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(color: Colors.white),
-      ),
+      child: Text(text, style: const TextStyle(color: Colors.white)),
     );
   }
 
@@ -403,71 +399,70 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
+    final double camAspect = ctrl.value.aspectRatio; // es. ~3/4 in portrait
 
-    // FULL SCREEN + specchio sul frontale
-    final Size p = ctrl.value.previewSize!;
-    Widget inner = SizedBox(
-      width: p.width,
-      height: p.height,
-      child: CameraPreview(ctrl), // tap attivi
+    // ---- PREVIEW 4:3 senza deformazioni ----
+    Widget preview = AspectRatio(
+      aspectRatio: camAspect,
+      child: CameraPreview(ctrl),
     );
+
     if (isFront) {
-      inner = Transform(
+      preview = Transform(
         alignment: Alignment.center,
         transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
-        child: inner,
+        child: preview,
       );
     }
-    final previewFullBleed = FittedBox(
-      fit: BoxFit.cover,
-      child: inner,
+
+    // ---- OVERLAY allineato alla stessa area 4:3 ----
+    // Usiamo un secondo AspectRatio con lo stesso rapporto per disegnare
+    // il riquadro 1:1 centrato sopra la preview.
+    Widget overlayForPreviewArea = AspectRatio(
+      aspectRatio: camAspect,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // Square centrale proporzionale all'area più corta (70% come prima)
+          final double shortSide = math.min(box.maxWidth, box.maxHeight);
+          final double square = shortSide * 0.70;
+
+          return Stack(
+            children: [
+              // Riquadro guida 1:1 centrato
+              Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: square,
+                  height: square,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.yellow.withOpacity(0.95),
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
 
-    // Overlay: badge, riquadro, selector — tag cliccabili
-    final overlay = LayoutBuilder(
+    // ---- Badge e selector (posizionati rispetto all'intero schermo) ----
+    final overlayFixed = LayoutBuilder(
       builder: (context, constraints) {
-        final double maxW = constraints.maxWidth;
-        final double maxH = constraints.maxHeight;
-        final double size = (maxW < maxH) ? maxW : maxH;
         final double safeTop = MediaQuery.of(context).padding.top;
-
         return Stack(
           children: [
-            // badge centrato in alto
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
-
-            // riquadro guida 1:1
-            Positioned(
-              top: maxH * 0.18,
-              left: (maxW - size) / 2,
-              width: size,
-              child: Center(
-                child: SizedBox(
-                  width: size * 0.70,
-                  height: size * 0.70,
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.yellow.withOpacity(0.95),
-                          width: 2,
-                        ),
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // selector modalità — più alto
             Positioned(
               bottom: 180,
               left: 0,
@@ -479,11 +474,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
       },
     );
 
+    // ---- Composizione finale ----
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: previewFullBleed),
-        overlay,
+        // Preview 4:3 centrata
+        Center(child: preview),
+        // Overlay 1:1 centrato sulla stessa area 4:3
+        Center(child: overlayForPreviewArea),
+        // Badge + selector
+        overlayFixed,
       ],
     );
   }
