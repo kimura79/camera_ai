@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — integrato e corretto
+// 🔹 home_page_widget.dart — badge "particolare" aggiornato
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -312,7 +312,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== UI ======
   Widget _buildScaleChip() {
+    // Colore in base alla modalità, testo diverso per "particolare"
     Color c;
+    String text;
+
     if (_mode == CaptureMode.volto) {
       final double tgt = _targetPxVolto;
       final double minT = tgt * 0.95;
@@ -327,8 +330,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
       } else {
         c = Colors.green;
       }
+      text = 'Centra il viso – scatta solo col verde';
     } else {
       c = _scaleOkPart ? Colors.green : Colors.amber;
+      text = 'Particolare 12 cm – scatta solo col verde';
     }
 
     return Container(
@@ -338,9 +343,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: c, width: 1.6),
       ),
-      child: const Text(
-        'Centra il viso – scatta solo col verde',
-        style: TextStyle(color: Colors.white),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white),
       ),
     );
   }
@@ -418,7 +423,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: inner,
     );
 
-    // Overlay: badge, riquadro, selector — NESSUN IgnorePointer qui
+    // Overlay: badge, riquadro, selector — tag cliccabili
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
