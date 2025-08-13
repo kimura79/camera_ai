@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024
+// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -453,7 +453,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: inner,
     );
 
-    // ---- OVERLAY sulla stessa area visibile (anche lui "cover") ----
+    // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
         // il riquadro lo disegniamo rispetto all'area VISIBILE (tutto schermo)
@@ -479,8 +479,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
-            // riquadro 1:1 centrato
-            Center(
+            // riquadro 1:1 ALZATO del 30%
+            Align(
+              alignment: const Alignment(0, -0.3), // 🔹 30% verso l’alto
               child: Container(
                 width: squareSize,
                 height: squareSize,
