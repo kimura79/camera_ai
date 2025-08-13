@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart aggiornato (tag più alti, tap attivi)
+// 🔹 home_page_widget.dart — integrato e corretto
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -11,6 +11,7 @@ import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 
+// ML Kit usato solo in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -45,26 +46,29 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   String? _lastShotPath;
 
+  // Modalità selezionata
   CaptureMode _mode = CaptureMode.volto;
 
-  final double _targetMmPerPx = 0.117;
+  // ====== Parametri scala ======
+  final double _targetMmPerPx = 0.117; // mm/px
 
-  // Volto (ML Kit)
+  // Volto (ML Kit, IPD)
   double _ipdMm = 63.0;
-  double get _targetPxVolto => _ipdMm / _targetMmPerPx;
+  double get _targetPxVolto => _ipdMm / _targetMmPerPx; // ~539 px
   double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
 
   // Particolare (12 cm)
-  static const double _targetMmPart = 120.0;
-  double get _targetPxPart => _targetMmPart / _targetMmPerPx;
+  static const double _targetMmPart = 120.0; // 12 cm
+  double get _targetPxPart => _targetMmPart / _targetMmPerPx; // ~1026 px
   bool get _scaleOkPart {
-    final double minT = _targetPxPart * 0.95;
-    final double maxT = _targetPxPart * 1.05;
+    final double minT = _targetPxPart * 0.95; // ~974
+    final double maxT = _targetPxPart * 1.05; // ~1077
     const double cropSidePx = 1024.0;
     return cropSidePx >= minT && cropSidePx <= maxT;
   }
 
+  // ====== ML Kit ======
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
@@ -109,7 +113,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0); // 🔹 Zoom fisso 1×
+      await ctrl.setZoomLevel(1.0); // 🔒 zoom fisso 1×
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -191,6 +195,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     });
   }
 
+  // ====== Helpers ML Kit ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -230,6 +235,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
+  // ====== Scatto + salvataggio (solo crop 1024) ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -250,7 +256,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // crop centrale 1:1 e resize 1024
+      // crop centrale 1:1 → 1024
       final int side =
           original.width < original.height ? original.width : original.height;
       final int x = (original.width - side) ~/ 2;
@@ -304,6 +310,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
   }
 
+  // ====== UI ======
   Widget _buildScaleChip() {
     Color c;
     if (_mode == CaptureMode.volto) {
@@ -345,7 +352,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         onTap: () async {
           setState(() => _mode = value);
           if (_controller != null && _controller!.value.isInitialized) {
-            await _controller!.setZoomLevel(1.0); // 🔹 zoom fisso anche al cambio modalità
+            await _controller!.setZoomLevel(1.0); // 🔒 zoom fisso anche al cambio
           }
         },
         child: AnimatedContainer(
@@ -392,6 +399,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
 
+    // FULL SCREEN + specchio sul frontale
     final Size p = ctrl.value.previewSize!;
     Widget inner = SizedBox(
       width: p.width,
@@ -410,6 +418,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: inner,
     );
 
+    // Overlay: badge, riquadro, selector — NESSUN IgnorePointer qui
     final overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double maxW = constraints.maxWidth;
@@ -417,49 +426,50 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double size = (maxW < maxH) ? maxW : maxH;
         final double safeTop = MediaQuery.of(context).padding.top;
 
-        return IgnorePointer(
-          ignoring: true, // solo gli overlay non intercettano tocchi; i bottoni sono fuori
-          child: Stack(
-            children: [
-              Positioned(
-                top: safeTop + 8,
-                left: 0,
-                right: 0,
-                child: Center(child: _buildScaleChip()),
-              ),
-              Positioned(
-                top: maxH * 0.18,
-                left: (maxW - size) / 2,
-                width: size,
-                child: Center(
-                  child: SizedBox(
-                    width: size * 0.70,
-                    height: size * 0.70,
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.yellow.withOpacity(0.95),
-                            width: 2,
-                          ),
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
+        return Stack(
+          children: [
+            // badge centrato in alto
+            Positioned(
+              top: safeTop + 8,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildScaleChip()),
+            ),
+
+            // riquadro guida 1:1
+            Positioned(
+              top: maxH * 0.18,
+              left: (maxW - size) / 2,
+              width: size,
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.70,
+                  height: size * 0.70,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.yellow.withOpacity(0.95),
+                          width: 2,
                         ),
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
                       ),
                     ),
                   ),
                 ),
               ),
-              // 🔺 TAG/selector più alti
-              Positioned(
-                bottom: 180, // ⬆️ era 120
-                left: 0,
-                right: 0,
-                child: Center(child: _buildModeSelector()),
-              ),
-            ],
-          ),
+            ),
+
+            // selector modalità — più alto
+            Positioned(
+              bottom: 180,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildModeSelector()),
+            ),
+          ],
         );
       },
     );
@@ -485,6 +495,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // thumbnail ultimo scatto
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -515,6 +526,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
+
+            // pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -537,10 +550,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                       height: 78,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 6,
-                        ),
+                        border: Border.all(color: Colors.white, width: 6),
                       ),
                     ),
                     AnimatedContainer(
@@ -556,6 +566,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
+
+            // switch camera
             IconButton(
               iconSize: 30,
               onPressed: (_cameras.length >= 2) ? _switchCamera : null,
@@ -576,6 +588,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
+  // ====== Lifecycle ======
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final ctrl = _controller;
