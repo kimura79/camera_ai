@@ -30,7 +30,9 @@ flutter_ios_podfile_setup
 target 'Runner' do
   # ML Kit funziona bene con framework statici
   use_frameworks! :linkage => :static
-  use_modular_headers!
+
+  # ⚠️ NON usare use_modular_headers! con GoogleMLKit
+  # use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
@@ -40,11 +42,11 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
 
     target.build_configurations.each do |config|
-      # Forza iOS 14.0 per tutto (evita conflitti di target ereditati)
+      # iOS target coerente ovunque
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-
-      # Workaround comune per build su simulatore con ML Kit
-      # (su molte CI evita errori di architettura; non impatta i device reali)
+      # Forza Swift 5
+      config.build_settings['SWIFT_VERSION'] = '5.0'
+      # Workaround simulatore (non impatta i device reali)
       config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
     end
   end
