@@ -17,7 +17,8 @@ class HomePageWidget extends StatefulWidget {
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObserver {
+class _HomePageWidgetState extends State<HomePageWidget>
+    with WidgetsBindingObserver {
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<CameraDescription> _cameras = const [];
@@ -32,9 +33,9 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   // Modalità
   CaptureMode _mode = CaptureMode.volto;
 
-  // ====== Parametri scala ======
+  // ====== Parametri scala / overlay ======
   static const double _targetMmPerPx = 0.117;  // 12 cm / 1024 px
-  static const double _ipdMm = 63.0;          // distanza interpupillare virtuale
+  static const double _ipdMm = 63.0;          // IPD virtuale
   static const double _overlayYOffset = -0.3; // riquadro alzato del 30%
   static const double _tolerance = 0.05;      // ±5% per “verde”
   static const double _frameThickness = 6.0;  // bordo spesso
@@ -43,7 +44,6 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
 
-  // In particolare usiamo comunque la calibrazione IPD:
   bool get _scaleOkPart {
     if (_lastIpdPx <= 0) return false;
     final mmPerPxAttuale = _ipdMm / _lastIpdPx;
@@ -74,8 +74,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
         setState(() => _initializing = false);
         return;
       }
-      // Preferisci la back se presente
-      final backIndex = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
+      final backIndex = _cameras
+          .indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -124,7 +124,7 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== ML Kit attivo in entrambe le tab (volto e particolare) ======
+  // ====== ML Kit attivo in entrambe le tab ======
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
     if (now.difference(_lastProc).inMilliseconds < 300) return;
@@ -189,7 +189,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
     }
   }
 
-  InputImage _inputImageFromCameraImage(CameraImage image, InputImageRotation rotation) {
+  InputImage _inputImageFromCameraImage(
+      CameraImage image, InputImageRotation rotation) {
     final b = BytesBuilder(copy: false);
     for (final Plane plane in image.planes) {
       b.add(plane.bytes);
@@ -219,7 +220,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
         _streamRunning = false;
       }
 
-      final bool isFront = ctrl.description.lensDirection == CameraLensDirection.front;
+      final bool isFront =
+          ctrl.description.lensDirection == CameraLensDirection.front;
 
       // 1) Scatta
       final XFile shot = await ctrl.takePicture();
@@ -227,70 +229,71 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // 2) Front camera: flip SUBITO per allineare le coordinate alla preview specchiata
+      // 2) Frontale: flip subito per allineare le coordinate alla preview specchiata
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      // 3) Ricostruzione geometria della preview (FittedBox.cover) e overlay
+      // 3) Geometria preview (FittedBox.cover) + overlay
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble(); // invertita perché la previewSize è landscape
+      final double previewW = p.height.toDouble(); // previewSize è landscape
       final double previewH = p.width.toDouble();
 
       final Size screen = MediaQuery.of(context).size;
       final double screenW = screen.width;
       final double screenH = screen.height;
 
-      // Scala usata da BoxFit.cover per riempire lo schermo
+      // Scala usata da BoxFit.cover
       final double scale = math.max(screenW / previewW, screenH / previewH);
       final double dispW = previewW * scale;
       final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0; // bordo sinistro del frame mostrato
-      final double dy = (screenH - dispH) / 2.0; // bordo alto del frame mostrato
+      final double dx = (screenW - dispW) / 2.0; // margine sinistro
+      final double dy = (screenH - dispH) / 2.0; // margine alto
 
-      // Lato corto dello schermo
+      // Lato corto visibile
       final double shortSideScreen = math.min(screenW, screenH);
 
-      // Dimensione del riquadro in spazio SCHERMO: se ho IPD→in scala, altrimenti 70%
+      // Dimensione riquadro in SCHERMO (se IPD → in scala, altrimenti 70%)
       double squareSizeScreen;
       if (_lastIpdPx > 0) {
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
         final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-        squareSizeScreen = (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
+        squareSizeScreen =
+            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
       } else {
         squareSizeScreen = shortSideScreen * 0.70;
       }
 
-      // Centro del riquadro in SCHERMO con offset verticale -0.3
+      // Centro riquadro in SCHERMO con offset verticale -0.3
       final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = (screenH / 2.0) + _overlayYOffset * (screenH / 2.0);
+      final double centerYScreen =
+          (screenH / 2.0) + _overlayYOffset * (screenH / 2.0);
 
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen  = centerYScreen - squareSizeScreen / 2.0;
+      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
-      // 4) Trasformazione: schermo -> frame mostrato -> spazio preview -> RAW
+      // 4) Trasformazioni: schermo -> frame mostrato -> preview space -> RAW
       final double leftInShown = leftScreen - dx;
-      final double topInShown  = topScreen  - dy;
+      final double topInShown = topScreen - dy;
 
-      // coordinate nel "preview space" (prima del cover)
-      final double leftPreview  = leftInShown / scale;
-      final double topPreview   = topInShown / scale;
-      final double sidePreview  = squareSizeScreen / scale;
+      final double leftPreview = leftInShown / scale;
+      final double topPreview = topInShown / scale;
+      final double sidePreview = squareSizeScreen / scale;
 
-      // rapporto tra RAW e preview-space
       final double ratioX = original.width / previewW;
       final double ratioY = original.height / previewH;
 
       int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview  * ratioY).round();
+      int cropY = (topPreview * ratioY).round();
       int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
 
-      // 5) Clamping per non uscire dai bordi
-      cropSide = cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width  - cropSide);
+      // 5) Clamping
+      cropSide =
+          cropSide.clamp(1, math.min(original.width, original.height));
+      cropX = cropX.clamp(0, original.width - cropSide);
       cropY = cropY.clamp(0, original.height - cropSide);
 
-      // 6) Crop e resize
+      // 6) Crop + resize a 1024
       img.Image cropped = img.copyCrop(
         original,
         x: cropX,
@@ -300,15 +303,16 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       );
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-      // 7) Salvataggio (mantengo il tuo naming)
-      final Uint8List outBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 95));
+      // 7) Salvataggio
+      final Uint8List outBytes =
+          Uint8List.fromList(img.encodeJpg(resized, quality: 95));
       await ImageGallerySaver.saveImage(
         outBytes,
         name:
             '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
-      // Aggiorna miniatura locale
+      // Thumbnail
       final String newPath = shot.path.replaceFirst(
         RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
         '_1024.jpg',
@@ -407,15 +411,19 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       return const Center(child: CircularProgressIndicator());
     }
     if (ctrl == null || !ctrl.value.isInitialized) {
-      return const Center(child: Text('Fotocamera non disponibile', style: TextStyle(color: Colors.white)));
+      return const Center(
+        child: Text('Fotocamera non disponibile',
+            style: TextStyle(color: Colors.white)),
+      );
     }
 
-    final bool isFront = ctrl.description.lensDirection == CameraLensDirection.front;
+    final bool isFront =
+        ctrl.description.lensDirection == CameraLensDirection.front;
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
 
-    // PREVIEW FULLSCREEN con comportamento "cover"
+    // PREVIEW full screen tipo cover
     Widget inner = SizedBox(
-      width: p.height,
+      width: p.height, // invertiti perché previewSize è landscape
       height: p.width,
       child: CameraPreview(ctrl),
     );
@@ -428,68 +436,66 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
       );
     }
 
-    final previewFull = FittedBox(
-      fit: BoxFit.cover,
-      child: inner,
-    );
+    final previewFull = FittedBox(fit: BoxFit.cover, child: inner);
 
-    // OVERLAY allineato alla stessa area coperta
-    Widget overlay = LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
-        final double screenH = constraints.maxHeight;
-        final double shortSide = math.min(screenW, screenH);
+    // OVERLAY allineato all’area visibile
+    Widget overlay = LayoutBuilder(builder: (context, constraints) {
+      final double screenW = constraints.maxWidth;
+      final double screenH = constraints.maxHeight;
+      final double shortSide = math.min(screenW, screenH);
 
-        double squareSize;
-        if (_lastIpdPx > 0) {
-          final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-          final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
-        } else {
-          squareSize = shortSide * 0.70;
-        }
+      double squareSize;
+      if (_lastIpdPx > 0) {
+        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+        squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
+      } else {
+        squareSize = shortSide * 0.70;
+      }
 
-        final bool okScale = (_mode == CaptureMode.volto) ? _scaleOkVolto : _scaleOkPart;
-        final Color frameColor = okScale ? Colors.green : Colors.yellow.withOpacity(0.95);
+      final bool okScale =
+          (_mode == CaptureMode.volto) ? _scaleOkVolto : _scaleOkPart;
+      final Color frameColor =
+          okScale ? Colors.green : Colors.yellow.withOpacity(0.95);
 
-        final double safeTop = MediaQuery.of(context).padding.top;
+      final double safeTop = MediaQuery.of(context).padding.top;
 
-        return Stack(
-          children: [
-            Align(
-              alignment: Alignment(0, _overlayYOffset),
-              child: Container(
-                width: squareSize,
-                height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: _frameThickness),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      return Stack(
+        children: [
+          Align(
+            alignment: Alignment(0, _overlayYOffset),
+            child: Container(
+              width: squareSize,
+              height: squareSize,
+              decoration: BoxDecoration(
+                border:
+                    Border.all(color: frameColor, width: _frameThickness),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-            Positioned(
-              top: safeTop + 8,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildScaleChip()),
+          ),
+          Positioned(
+            top: safeTop + 8,
+            left: 0,
+            right: 0,
+            child: Center(child: _buildScaleChip()),
+          ),
+          Positioned(
+            bottom: 180,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _modeChip('VOLTO', CaptureMode.volto),
+                const SizedBox(width: 10),
+                _modeChip('PARTICOLARE', CaptureMode.particolare),
+              ],
             ),
-            Positioned(
-              bottom: 180,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _modeChip('VOLTO', CaptureMode.volto),
-                  const SizedBox(width: 10),
-                  _modeChip('PARTICOLARE', CaptureMode.particolare),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
+          ),
+        ],
+      );
+    });
 
     return Stack(
       fit: StackFit.expand,
@@ -501,13 +507,14 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
   }
 
   Widget _buildBottomBar() {
-    final canShoot = _controller != null && _controller!.value.isInitialized && !_shooting;
+    final canShoot =
+        _controller != null && _controller!.value.isInitialized && !_shooting;
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.space-between,
           children: [
             // thumbnail
             GestureDetector(
@@ -519,7 +526,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                         barrierColor: Colors.black.withOpacity(0.9),
                         builder: (_) => GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
-                          child: InteractiveViewer(child: Center(child: Image.file(File(p)))),
+                          child: InteractiveViewer(
+                              child: Center(child: Image.file(File(p)))),
                         ),
                       );
                     }
@@ -568,7 +576,8 @@ class _HomePageWidgetState extends State<HomePageWidget> with WidgetsBindingObse
                       duration: const Duration(milliseconds: 80),
                       width: _shooting ? 58 : 64,
                       height: _shooting ? 58 : 64,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                      decoration: const BoxDecoration(
+                          shape: BoxShape.circle, color: Colors.white),
                     ),
                   ],
                 ),
