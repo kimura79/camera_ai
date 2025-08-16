@@ -1,8 +1,7 @@
 // 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
 //     Bordo quadrato più spesso per visibilità colore
 //
-// Calibrazione IPD attiva anche su "PARTICOLARE" + fix crop 1:1
-// Bottom bar: thumbnail a sinistra, reverse camera a destra
+// Calibrazione IPD attiva anche su "PARTICOLARE" + crop identico al riquadro overlay
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -14,6 +13,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
+
+// ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -255,74 +256,97 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
+      // 1) Scatto + decodifica
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
-      final img.Image? original = img.decodeImage(origBytes);
+      img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // ===== Crop coerente con preview fullscreen =====
-      img.Image cropped;
+      // 2) Per la front: flip SUBITO per allineare alle coordinate della preview specchiata
+      if (isFront) {
+        original = img.flipHorizontal(original);
+      }
 
-      if (_mode == CaptureMode.volto && _lastIpdPx > 0) {
+      // 3) Geometria della preview (FittedBox.cover) + overlay (stessa logica dell'UI)
+      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
+      final double previewW = p.height.toDouble(); // previewSize è landscape
+      final double previewH = p.width.toDouble();
+
+      final Size screen = MediaQuery.of(context).size;
+      final double screenW = screen.width;
+      final double screenH = screen.height;
+
+      // scala di BoxFit.cover
+      final double scale = math.max(screenW / previewW, screenH / previewH);
+      final double dispW = previewW * scale;
+      final double dispH = previewH * scale;
+      final double dx = (screenW - dispW) / 2.0; // offset sinistro del contenuto
+      final double dy = (screenH - dispH) / 2.0; // offset superiore del contenuto
+
+      // lato corto visibile
+      final double shortSideScreen = math.min(screenW, screenH);
+
+      // dimensione del riquadro come overlay
+      double squareSizeScreen;
+      if (_lastIpdPx > 0) {
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
         final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-
-        final int rawW = original.width;
-        final int rawH = original.height;
-        final int previewSide = math.min(rawW, rawH);
-
-        int sidePx = (previewSide / scalaFattore).round();
-        sidePx = sidePx.clamp(64, previewSide);
-
-        final int x = (rawW - sidePx) ~/ 2;
-        final int y = (rawH - sidePx) ~/ 2;
-
-        cropped =
-            img.copyCrop(original, x: x, y: y, width: sidePx, height: sidePx);
+        squareSizeScreen =
+            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
       } else {
-        // fallback/particolare → crop con stesse proporzioni del preview fullscreen
-        final double screenRatio =
-            MediaQuery.of(context).size.width / MediaQuery.of(context).size.height;
-        int cropW, cropH;
-
-        if (original.width / original.height > screenRatio) {
-          cropH = original.height;
-          cropW = (cropH * screenRatio).round();
-        } else {
-          cropW = original.width;
-          cropH = (cropW / screenRatio).round();
-        }
-
-        final int x = (original.width - cropW) ~/ 2;
-        final int y = (original.height - cropH) ~/ 2;
-        cropped = img.copyCrop(original, x: x, y: y, width: cropW, height: cropH);
+        squareSizeScreen = shortSideScreen * 0.70; // fallback
       }
 
-      // 🔸 Fix: evita immagini "schiacciate"
-      if (cropped.width != cropped.height) {
-        final int side = math.min(cropped.width, cropped.height);
-        final int cx = (cropped.width - side) ~/ 2;
-        final int cy = (cropped.height - side) ~/ 2;
-        cropped = img.copyCrop(cropped, x: cx, y: cy, width: side, height: side);
-      }
+      // centro riquadro con offset -0.3 (stessa Align dell'overlay)
+      final double centerXScreen = screenW / 2.0;
+      final double centerYScreen = (screenH / 2.0) + (-0.3) * (screenH / 2.0);
 
-      // Ridimensiona a 1024×1024
+      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
+      final double topScreen  = centerYScreen - squareSizeScreen / 2.0;
+
+      // 4) Trasforma SCHERMO → preview visibile → spazio preview → RAW
+      final double leftInShown = leftScreen - dx;
+      final double topInShown  = topScreen  - dy;
+
+      final double leftPreview = leftInShown / scale;
+      final double topPreview  = topInShown  / scale;
+      final double sidePreview = squareSizeScreen / scale;
+
+      final double ratioX = original.width  / previewW;
+      final double ratioY = original.height / previewH;
+
+      int cropX    = (leftPreview * ratioX).round();
+      int cropY    = (topPreview  * ratioY).round();
+      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
+
+      // 5) Clamping ai bordi
+      cropSide = cropSide.clamp(1, math.min(original.width, original.height));
+      cropX    = cropX.clamp(0, original.width  - cropSide);
+      cropY    = cropY.clamp(0, original.height - cropSide);
+
+      // 6) Crop RAW esattamente corrispondente al riquadro overlay
+      img.Image cropped = img.copyCrop(
+        original,
+        x: cropX,
+        y: cropY,
+        width: cropSide,
+        height: cropSide,
+      );
+
+      // 7) Resize a 1024×1024 (nessun flip qui: già fatto PRIMA se front)
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-
-      // Selfie specchiato sul frontale
-      if (isFront) {
-        resized = img.flipHorizontal(resized);
-      }
 
       final Uint8List croppedBytes =
           Uint8List.fromList(img.encodeJpg(resized, quality: 95));
 
+      // 8) Salvataggio
       await ImageGallerySaver.saveImage(
         croppedBytes,
         name:
             '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
+      // Aggiorna thumbnail
       final String newPath = shot.path.replaceFirst(
         RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
         '_1024.jpg',
@@ -457,24 +481,26 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
 
     final previewFull = FittedBox(
-      fit: BoxFit.cover,
+      fit: BoxFit.cover, // riempi tutto lo schermo
       child: inner,
     );
 
     // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
+        // il riquadro lo disegniamo rispetto all'area VISIBILE (tutto schermo)
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
         final double shortSide = math.min(screenW, screenH);
 
+        // calcolo riquadro in scala, in entrambe le tab
         double squareSize;
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70; // fallback
+          squareSize = shortSide * 0.70; // fallback prima della calibrazione
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -487,23 +513,29 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
+            // riquadro 1:1 ALZATO del 30% — BORDO SPESSO
             Align(
-              alignment: const Alignment(0, -0.3), // riquadro alzato del 30%
+              alignment: const Alignment(0, -0.3),
               child: Container(
                 width: squareSize,
                 height: squareSize,
                 decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: 4),
+                  border: Border.all(
+                    color: frameColor,
+                    width: 4, // bordo più spesso
+                  ),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
             ),
+            // badge
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
+            // selector
             Positioned(
               bottom: 180,
               left: 0,
