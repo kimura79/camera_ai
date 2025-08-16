@@ -352,8 +352,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       // ✅ Salva PNG "as-is" nella galleria (mantiene PNG, nessuna ricodifica)
       final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        title: '$baseName.png',
+      pngBytes,
+      filename: '$baseName.png', // ✅ richiesto da photo_manager
       );
       if (asset == null) throw Exception('Salvataggio PNG fallito');
 
