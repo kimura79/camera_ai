@@ -1,11 +1,8 @@
 // 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
 //     Bordo quadrato più spesso per visibilità colore
 //
-// Modifica richiesta: calibrazione IPD (occhi) attiva anche nella tab "PARTICOLARE"
-// - _processCameraImage ora gira anche in PARTCOLARE
-// - _scaleOkPart usa la calibrazione IPD vs target 0.117 mm/px
-// - overlay usa la calibrazione (se presente) anche in PARTICOLARE
-// - correzione: crop identico a preview fullscreen
+// Calibrazione IPD attiva anche su "PARTICOLARE" + fix crop 1:1
+// Bottom bar: thumbnail a sinistra, reverse camera a destra
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -17,8 +14,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
-
-// ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -69,7 +64,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   static const double _targetMmPart = 120.0; // 12 cm
   double get _targetPxPart => _targetMmPart / _targetMmPerPx; // ~1026 px
 
-  // 🔁 Aggiornato: ora usa la calibrazione IPD (come "volto")
+  // Usa calibrazione IPD anche per particolare
   bool get _scaleOkPart {
     if (_lastIpdPx <= 0) return false;
     final mmPerPxAttuale = _ipdMm / _lastIpdPx;
@@ -303,6 +298,14 @@ class _HomePageWidgetState extends State<HomePageWidget>
         cropped = img.copyCrop(original, x: x, y: y, width: cropW, height: cropH);
       }
 
+      // 🔸 Fix: evita immagini "schiacciate"
+      if (cropped.width != cropped.height) {
+        final int side = math.min(cropped.width, cropped.height);
+        final int cx = (cropped.width - side) ~/ 2;
+        final int cy = (cropped.height - side) ~/ 2;
+        cropped = img.copyCrop(cropped, x: cx, y: cy, width: side, height: side);
+      }
+
       // Ridimensiona a 1024×1024
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
@@ -435,10 +438,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
 
+    // Dimensioni natie della preview (in landscape)
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
 
+    // ---- PREVIEW FULLSCREEN tipo Fotocamera (cover) ----
     Widget inner = SizedBox(
-      width: p.height,
+      width: p.height, // invertiti perché la previewSize è landscape
       height: p.width,
       child: CameraPreview(ctrl),
     );
@@ -456,6 +461,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: inner,
     );
 
+    // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
@@ -468,7 +474,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70;
+          squareSize = shortSide * 0.70; // fallback
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -482,15 +488,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
         return Stack(
           children: [
             Align(
-              alignment: const Alignment(0, -0.3),
+              alignment: const Alignment(0, -0.3), // riquadro alzato del 30%
               child: Container(
                 width: squareSize,
                 height: squareSize,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: frameColor,
-                    width: 4,
-                  ),
+                  border: Border.all(color: frameColor, width: 4),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -515,8 +518,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: previewFull),
-        Positioned.fill(child: overlay),
+        Positioned.fill(child: previewFull), // FULL SCREEN
+        Positioned.fill(child: overlay),     // overlay allineato
       ],
     );
   }
@@ -530,39 +533,93 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-              icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
-              onPressed: _switchCamera,
+            // ✅ THUMBNAIL A SINISTRA
+            GestureDetector(
+              onTap: (_lastShotPath != null)
+                  ? () async {
+                      final p = _lastShotPath!;
+                      await showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.9),
+                        builder: (_) => GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: InteractiveViewer(
+                            child: Center(child: Image.file(File(p))),
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (_lastShotPath != null)
+                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
+                    : const Icon(Icons.image, color: Colors.white70),
+              ),
             ),
+
+            // PULSANTE SCATTO AL CENTRO
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 4),
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                width: 86,
+                height: 86,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.10),
+                      ),
+                    ),
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      width: _shooting ? 58 : 64,
+                      height: _shooting ? 58 : 64,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.photo_library, color: Colors.white),
-              onPressed: () {
-                if (_lastShotPath != null) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => Scaffold(
-                        appBar: AppBar(title: const Text('Ultimo scatto')),
-                        body: Center(
-                          child: Image.file(File(_lastShotPath!)),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-              },
+
+            // ✅ REVERSE CAMERA A DESTRA
+            GestureDetector(
+              onTap: _switchCamera,
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const Icon(Icons.cameraswitch, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -570,20 +627,53 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
+  // ====== Lifecycle ======
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    if (state == AppLifecycleState.inactive) {
+      try {
+        if (_streamRunning) {
+          _controller?.stopImageStream();
+          _streamRunning = false;
+        }
+      } catch (_) {}
+      _controller?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _startController(_cameras[_cameraIndex]);
+    }
+  }
+
+  @override
+  void dispose() {
+    _model.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    try {
+      if (_streamRunning) {
+        _controller?.stopImageStream();
+      }
+    } catch (_) {}
+    _controller?.dispose();
+    _faceDetector.close();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    context.watch<FFAppState>();
     return Scaffold(
       key: scaffoldKey,
       backgroundColor: Colors.black,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Stack(
-          fit: StackFit.expand,
           children: [
-            _buildCameraPreview(),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+            Positioned.fill(child: _buildCameraPreview()),
+            Align(
+              alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
             ),
           ],
