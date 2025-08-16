@@ -61,8 +61,8 @@ dependencies:
   path_provider_platform_interface: 2.1.2
   path_provider_windows: 2.3.0
 
-  # ✅ Salvataggio in Galleria e permessi
-  image_gallery_saver: ^2.0.3
+  # ✅ Salvataggio in Galleria e permessi (PNG vero)
+  photo_manager: ^3.0.0
   permission_handler: ^11.4.0
 
   # 🖼️ Libreria per ritaglio e resize immagini
