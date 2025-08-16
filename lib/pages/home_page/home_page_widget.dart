@@ -333,23 +333,29 @@ class _HomePageWidgetState extends State<HomePageWidget>
         height: cropSide,
       );
 
-      // 7) Resize a 1024×1024 (nessun flip qui: già fatto PRIMA se front)
+      // 7) Resize a 1024×1024
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-      final Uint8List croppedBytes =
-          Uint8List.fromList(img.encodeJpg(resized, quality: 95));
+      // === SALVATAGGIO SENZA PERDITA (LOSSLESS) PER ENTRAMBE LE MODALITÀ ===
+      final Uint8List croppedBytes = Uint8List.fromList(img.encodePng(resized));
+      const String ext = 'png';
+
+      // Log dimensione reale
+      debugPrint('📦 Byte immagine: ${croppedBytes.length} '
+          '(${(croppedBytes.length / (1024*1024)).toStringAsFixed(2)} MB) '
+          '— formato: $ext');
 
       // 8) Salvataggio
       await ImageGallerySaver.saveImage(
         croppedBytes,
         name:
-            '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.$ext',
       );
 
-      // Aggiorna thumbnail
+      // Aggiorna thumbnail con stessa estensione
       final String newPath = shot.path.replaceFirst(
         RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
-        '_1024.jpg',
+        '_1024.$ext',
       );
       await File(newPath).writeAsBytes(croppedBytes);
       _lastShotPath = newPath;
