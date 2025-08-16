@@ -336,7 +336,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       // 7) Resize a 1024×1024
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-      // === SALVATAGGIO SENZA PERDITA (LOSSLESS) PER ENTRAMBE LE MODALITÀ ===
+      // === SALVATAGGIO LOSSLESS (PNG) — VOLTO & PARTICOLARE ===
       final Uint8List croppedBytes = Uint8List.fromList(img.encodePng(resized));
       const String ext = 'png';
 
