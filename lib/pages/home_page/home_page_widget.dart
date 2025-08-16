@@ -1,7 +1,4 @@
 // 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
-//     Bordo quadrato più spesso per visibilità colore
-//
-// Calibrazione IPD attiva anche su "PARTICOLARE" + crop identico al riquadro overlay
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -10,9 +7,11 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+// ⛔️ tolto: image_gallery_saver
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
+// ✅ aggiunto:
+import 'package:photo_manager/photo_manager.dart';
 
 // ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -333,36 +332,42 @@ class _HomePageWidgetState extends State<HomePageWidget>
         height: cropSide,
       );
 
-      // 7) Resize a 1024×1024
+      // 7) Resize a 1024×1024 (PNG ≈ 1–3 MB per foto "vera")
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      // === SALVATAGGIO LOSSLESS (PNG) — VOLTO & PARTICOLARE ===
-      final Uint8List croppedBytes = Uint8List.fromList(img.encodePng(resized));
-      const String ext = 'png';
+      // 🔐 Permessi + salvataggio PNG nativo in Galleria (iOS/Android)
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (!pState.hasAccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+        }
+        return;
+      }
 
-      // Log dimensione reale
-      debugPrint('📦 Byte immagine: ${croppedBytes.length} '
-          '(${(croppedBytes.length / (1024*1024)).toStringAsFixed(2)} MB) '
-          '— formato: $ext');
+      final String baseName =
+          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
 
-      // 8) Salvataggio
-      await ImageGallerySaver.saveImage(
-        croppedBytes,
-        name:
-            '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      // ✅ Salva PNG "as-is" nella galleria (mantiene PNG, nessuna ricodifica)
+      final AssetEntity? asset = await PhotoManager.editor.saveImage(
+        pngBytes,
+        title: '$baseName.png',
       );
+      if (asset == null) throw Exception('Salvataggio PNG fallito');
 
-      // Aggiorna thumbnail con stessa estensione
-      final String newPath = shot.path.replaceFirst(
-        RegExp(r'\.(heic|jpeg|jpg|png)$', caseSensitive: false),
-        '_1024.$ext',
-      );
-      await File(newPath).writeAsBytes(croppedBytes);
+      // Thumbnail locale per la preview (stessa estensione .png)
+      final String newPath = (await _tempThumbPath('$baseName.png'));
+      await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
+
+      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length} '
+          '(${(pngBytes.length / (1024*1024)).toStringAsFixed(2)} MB)');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto 1024×1024 salvata')),
+          const SnackBar(content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
         );
         setState(() {});
       }
@@ -382,6 +387,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
       } catch (_) {}
       if (mounted) setState(() => _shooting = false);
     }
+  }
+
+  Future<String> _tempThumbPath(String fileName) async {
+    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
+    return '${dir.path}/$fileName';
   }
 
   // ====== UI ======
@@ -494,19 +504,17 @@ class _HomePageWidgetState extends State<HomePageWidget>
     // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
-        // il riquadro lo disegniamo rispetto all'area VISIBILE (tutto schermo)
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
         final double shortSide = math.min(screenW, screenH);
 
-        // calcolo riquadro in scala, in entrambe le tab
         double squareSize;
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70; // fallback prima della calibrazione
+          squareSize = shortSide * 0.70; // fallback
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -519,29 +527,23 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
-            // riquadro 1:1 ALZATO del 30% — BORDO SPESSO
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
                 width: squareSize,
                 height: squareSize,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: frameColor,
-                    width: 4, // bordo più spesso
-                  ),
+                  border: Border.all(color: frameColor, width: 4),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
             ),
-            // badge
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
-            // selector
             Positioned(
               bottom: 180,
               left: 0,
@@ -556,8 +558,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: previewFull), // FULL SCREEN
-        Positioned.fill(child: overlay),     // overlay allineato
+        Positioned.fill(child: previewFull),
+        Positioned.fill(child: overlay),
       ],
     );
   }
