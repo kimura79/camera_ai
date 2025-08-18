@@ -735,18 +735,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 // Funzione livella overlay
 // =======================
-// ✅ Versione corretta per telefono in verticale (portrait):
-// usa -az come "su/giù" per avere 0° quando il telefono è perpendicolare.
+// 🔸 Solo gradi (grandi) in alto al centro + badge sotto.
+//    Verde quando *90°* (entro ±1°). Calcolo in portrait con riferimento -az.
 Widget buildLivellaVerticaleOverlay({
-  double size = 120,
-  double bubbleSize = 16,
-  double okThresholdDeg = 1.8,    // tolleranza "OK"
-  double fullScaleDeg = 10.0,     // gradi per spostare la bolla fino al bordo
-  Alignment alignment = Alignment.centerRight,
-  EdgeInsets margin = const EdgeInsets.all(16),
+  double size = 120,                // lasciato per compatibilità con le chiamate esistenti (non usato)
+  double bubbleSize = 16,           // idem compatibilità (non usato)
+  double okThresholdDeg = 1.0,      // quanto vicino a 90° per essere OK
+  double fullScaleDeg = 10.0,       // compatibilità (non usato)
+  Alignment alignment = Alignment.centerRight, // compatibilità (non usato)
+  EdgeInsets margin = const EdgeInsets.only(top: 12),
 }) {
   return Align(
-    alignment: alignment,
+    alignment: Alignment.topCenter, // forzato: in alto al centro
     child: Container(
       margin: margin,
       child: StreamBuilder<AccelerometerEvent>(
@@ -754,116 +754,72 @@ Widget buildLivellaVerticaleOverlay({
         builder: (context, snap) {
           double pitchDeg = 0, rollDeg = 0;
           if (snap.hasData) {
-            final ax = snap.data!.x; // +destra / -sinistra
-            final ay = snap.data!.y; // +su / -giù
-            final az = snap.data!.z; // +verso utente / -verso pavimento
+            final ax = snap.data!.x;
+            final ay = snap.data!.y;
+            final az = snap.data!.z;
 
-            // Correzione assi per portrait: quando perpendicolare → pitch≈0°, roll≈0°
-            final pitch = math.atan2(ax, -az); // beccheggio avanti/indietro
-            final roll  = math.atan2(ay, -az); // rollio sinistra/destra
-
+            // Assi corretti per portrait: 0° quando telefono è perpendicolare.
+            final pitch = math.atan2(ax, -az);
+            final roll  = math.atan2(ay, -az);
             pitchDeg = pitch * 180 / math.pi;
             rollDeg  = roll  * 180 / math.pi;
-
             if (!pitchDeg.isFinite) pitchDeg = 0;
             if (!rollDeg.isFinite)  rollDeg  = 0;
           }
 
+          // Tilt è la distanza angolare dal centro; 0 = perfetto.
           final tilt = math.sqrt(pitchDeg * pitchDeg + rollDeg * rollDeg);
-          final isOk = tilt <= okThresholdDeg;
 
-          final radius = (size / 2) - (bubbleSize / 2) - 2;
-          final nx = (rollDeg  / fullScaleDeg).clamp(-1.0, 1.0);
-          final ny = (pitchDeg / fullScaleDeg).clamp(-1.0, 1.0);
-          final targetOffset = Offset(nx * radius, ny * radius);
+          // Mostriamo "gradi rispetto alla perpendicolare": 90 - tilt.
+          double shownDeg = 90.0 - tilt;
+          if (!shownDeg.isFinite) shownDeg = 0;
+          shownDeg = shownDeg.clamp(0.0, 90.0);
 
-          return Stack(
-            alignment: Alignment.center,
+          final bool isOk = (90.0 - shownDeg).abs() <= okThresholdDeg;
+
+          final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
+          final Color badgeColor =
+              isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+          final String badgeText = isOk ? "OK" : "Inclina";
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // anello esterno
+              // Gradi grandi
               Container(
-                width: size,
-                height: size,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withOpacity(0.22),
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "${shownDeg.toStringAsFixed(1)}°",
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: bigColor,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Badge sotto
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    width: 2,
-                    color: isOk ? Colors.greenAccent : Colors.white70,
+                    color: isOk ? Colors.greenAccent : Colors.white24,
+                    width: 1.2,
                   ),
                 ),
-              ),
-              // crocicchio
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: size, height: 1,
-                          color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 1, height: size,
-                          color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: size * 0.3, height: size * 0.3,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              width: 1,
-                              color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.6),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // bolla con animazione
-              TweenAnimationBuilder<Offset>(
-                tween: Tween<Offset>(begin: Offset.zero, end: targetOffset),
-                duration: const Duration(milliseconds: 90),
-                curve: Curves.easeOut,
-                builder: (context, value, child) =>
-                    Transform.translate(offset: value, child: child!),
-                child: Container(
-                  width: bubbleSize,
-                  height: bubbleSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                child: Text(
+                  badgeText,
+                  style: const TextStyle(
                     color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 6,
-                        offset: const Offset(0, 1),
-                        color: Colors.black.withOpacity(0.35),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // etichetta gradi
-              Positioned(
-                bottom: -2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    "${tilt.abs().toStringAsFixed(1)}° ${isOk ? "OK" : ""}",
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
