@@ -12,6 +12,8 @@ import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 // ✅ aggiunto:
 import 'package:photo_manager/photo_manager.dart';
+// ✅ import per livella:
+import 'package:sensors_plus/sensors_plus.dart';
 
 // ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -721,4 +723,145 @@ class _HomePageWidgetState extends State<HomePageWidget>
       ),
     );
   }
+}
+
+// =======================
+// Funzione livella overlay
+// =======================
+// Overlay "livella" perpendicolarità: bolla al centro = telefono perpendicolare.
+// Richiede: sensors_plus (accelerometerEventStream) e 'dart:math as math' già importato.
+Widget buildLivellaVerticaleOverlay({
+  double size = 120,
+  double bubbleSize = 16,
+  double okThresholdDeg = 1.5,    // tolleranza per considerare "OK"
+  double fullScaleDeg = 10.0,     // gradi per spostare la bolla fino al bordo
+  Alignment alignment = Alignment.centerRight,
+  EdgeInsets margin = const EdgeInsets.all(16),
+}) {
+  return Align(
+    alignment: alignment,
+    child: Container(
+      margin: margin,
+      child: StreamBuilder<AccelerometerEvent>(
+        stream: accelerometerEventStream(),
+        builder: (context, snap) {
+          double pitchDeg = 0, rollDeg = 0;
+          if (snap.hasData) {
+            final ax = snap.data!.x; // destra/sinistra
+            final ay = snap.data!.y; // alto/basso
+            final az = snap.data!.z; // verso/controschermo
+            final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)); // [-90°, 90°]
+            final roll  = math.atan2(ay, az);                             // [-180°, 180°]
+            pitchDeg = pitch * 180 / math.pi;
+            rollDeg  = roll  * 180 / math.pi;
+          }
+
+          final tilt = math.sqrt(pitchDeg * pitchDeg + rollDeg * rollDeg);
+          final isOk = tilt.abs() <= okThresholdDeg;
+
+          final radius = (size / 2) - (bubbleSize / 2) - 2;
+          final nx = (rollDeg  / fullScaleDeg).clamp(-1.0, 1.0);
+          final ny = (pitchDeg / fullScaleDeg).clamp(-1.0, 1.0);
+          final targetOffset = Offset(nx * radius, ny * radius);
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // disco esterno
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.22),
+                  border: Border.all(
+                    width: 2,
+                    color: isOk ? Colors.greenAccent : Colors.white70,
+                  ),
+                ),
+              ),
+              // crocicchio (linee orizzontale/verticale)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: size,
+                          height: 1,
+                          color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: 1,
+                          height: size,
+                          color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: size * 0.3,
+                          height: size * 0.3,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              width: 1,
+                              color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.6),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // bolla con animazione
+              TweenAnimationBuilder<Offset>(
+                tween: Tween<Offset>(begin: Offset.zero, end: targetOffset),
+                duration: const Duration(milliseconds: 90),
+                curve: Curves.easeOut,
+                builder: (context, value, child) {
+                  return Transform.translate(offset: value, child: child!);
+                },
+                child: Container(
+                  width: bubbleSize,
+                  height: bubbleSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 6,
+                        offset: const Offset(0, 1),
+                        color: Colors.black.withOpacity(0.35),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // etichetta gradi
+              Positioned(
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    "${tilt.abs().toStringAsFixed(1)}° ${isOk ? "OK" : ""}",
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }
