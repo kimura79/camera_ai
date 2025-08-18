@@ -735,12 +735,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 // Funzione livella overlay
 // =======================
-// Overlay "livella" perpendicolarità: bolla al centro = telefono perpendicolare.
-// Richiede: sensors_plus (accelerometerEventStream) e 'dart:math as math' già importato.
+// ✅ Versione corretta per telefono in verticale (portrait):
+// usa -az come "su/giù" per avere 0° quando il telefono è perpendicolare.
 Widget buildLivellaVerticaleOverlay({
   double size = 120,
   double bubbleSize = 16,
-  double okThresholdDeg = 1.5,    // tolleranza per considerare "OK"
+  double okThresholdDeg = 1.8,    // tolleranza "OK"
   double fullScaleDeg = 10.0,     // gradi per spostare la bolla fino al bordo
   Alignment alignment = Alignment.centerRight,
   EdgeInsets margin = const EdgeInsets.all(16),
@@ -754,17 +754,23 @@ Widget buildLivellaVerticaleOverlay({
         builder: (context, snap) {
           double pitchDeg = 0, rollDeg = 0;
           if (snap.hasData) {
-            final ax = snap.data!.x; // destra/sinistra
-            final ay = snap.data!.y; // alto/basso
-            final az = snap.data!.z; // verso/controschermo
-            final pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az)); // [-90°, 90°]
-            final roll  = math.atan2(ay, az);                             // [-180°, 180°]
+            final ax = snap.data!.x; // +destra / -sinistra
+            final ay = snap.data!.y; // +su / -giù
+            final az = snap.data!.z; // +verso utente / -verso pavimento
+
+            // Correzione assi per portrait: quando perpendicolare → pitch≈0°, roll≈0°
+            final pitch = math.atan2(ax, -az); // beccheggio avanti/indietro
+            final roll  = math.atan2(ay, -az); // rollio sinistra/destra
+
             pitchDeg = pitch * 180 / math.pi;
             rollDeg  = roll  * 180 / math.pi;
+
+            if (!pitchDeg.isFinite) pitchDeg = 0;
+            if (!rollDeg.isFinite)  rollDeg  = 0;
           }
 
           final tilt = math.sqrt(pitchDeg * pitchDeg + rollDeg * rollDeg);
-          final isOk = tilt.abs() <= okThresholdDeg;
+          final isOk = tilt <= okThresholdDeg;
 
           final radius = (size / 2) - (bubbleSize / 2) - 2;
           final nx = (rollDeg  / fullScaleDeg).clamp(-1.0, 1.0);
@@ -774,7 +780,7 @@ Widget buildLivellaVerticaleOverlay({
           return Stack(
             alignment: Alignment.center,
             children: [
-              // disco esterno
+              // anello esterno
               Container(
                 width: size,
                 height: size,
@@ -787,7 +793,7 @@ Widget buildLivellaVerticaleOverlay({
                   ),
                 ),
               ),
-              // crocicchio (linee orizzontale/verticale)
+              // crocicchio
               Positioned.fill(
                 child: IgnorePointer(
                   child: Stack(
@@ -795,24 +801,21 @@ Widget buildLivellaVerticaleOverlay({
                       Align(
                         alignment: Alignment.center,
                         child: Container(
-                          width: size,
-                          height: 1,
+                          width: size, height: 1,
                           color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
                         ),
                       ),
                       Align(
                         alignment: Alignment.center,
                         child: Container(
-                          width: 1,
-                          height: size,
+                          width: 1, height: size,
                           color: (isOk ? Colors.greenAccent : Colors.white70).withOpacity(0.8),
                         ),
                       ),
                       Align(
                         alignment: Alignment.center,
                         child: Container(
-                          width: size * 0.3,
-                          height: size * 0.3,
+                          width: size * 0.3, height: size * 0.3,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -831,9 +834,8 @@ Widget buildLivellaVerticaleOverlay({
                 tween: Tween<Offset>(begin: Offset.zero, end: targetOffset),
                 duration: const Duration(milliseconds: 90),
                 curve: Curves.easeOut,
-                builder: (context, value, child) {
-                  return Transform.translate(offset: value, child: child!);
-                },
+                builder: (context, value, child) =>
+                    Transform.translate(offset: value, child: child!),
                 child: Container(
                   width: bubbleSize,
                   height: bubbleSize,
