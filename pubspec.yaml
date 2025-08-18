@@ -71,6 +71,9 @@ dependencies:
   # 👁️ Landmark occhi (ML Kit)
   google_mlkit_face_detection: ^0.10.0
 
+  # 📱 Sensori (per livella)
+  sensors_plus: ^5.0.1
+
 dependency_overrides:
   http: 1.4.0
   uuid: ^4.0.0
