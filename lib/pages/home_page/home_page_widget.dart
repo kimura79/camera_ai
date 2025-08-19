@@ -733,49 +733,46 @@ class _HomePageWidgetState extends State<HomePageWidget>
 }
 
 // =======================
-// Funzione livella overlay
+// Funzione livella overlay — SOLO GRADI (grandi) + badge
 // =======================
-// 🔸 Solo gradi (grandi) in alto al centro + badge sotto.
-//    Verde quando *90°* (entro ±1°). Calcolo in portrait con riferimento -az.
+// Mostra 90° quando il telefono è VERTICALE (perpendicolare al suolo) e 0° quando è orizzontale.
+// Posizionata tra il badge superiore e il riquadro 1:1.
 Widget buildLivellaVerticaleOverlay({
-  double size = 120,                // lasciato per compatibilità con le chiamate esistenti (non usato)
-  double bubbleSize = 16,           // idem compatibilità (non usato)
-  double okThresholdDeg = 1.0,      // quanto vicino a 90° per essere OK
-  double fullScaleDeg = 10.0,       // compatibilità (non usato)
-  Alignment alignment = Alignment.centerRight, // compatibilità (non usato)
-  EdgeInsets margin = const EdgeInsets.only(top: 12),
+  // i parametri rimangono per compatibilità, ma usiamo solo quelli utili
+  double size = 120,                 // compatibilità (non usato)
+  double bubbleSize = 16,            // compatibilità (non usato)
+  double okThresholdDeg = 1.0,       // tolleranza per il "verde" intorno a 90°
+  double fullScaleDeg = 10.0,        // compatibilità (non usato)
+  Alignment alignment = const Alignment(0, -0.70), // più in basso tra badge e riquadro
+  EdgeInsets margin = EdgeInsets.zero,
 }) {
   return Align(
-    alignment: Alignment.topCenter, // forzato: in alto al centro
+    alignment: alignment,
     child: Container(
       margin: margin,
       child: StreamBuilder<AccelerometerEvent>(
         stream: accelerometerEventStream(),
         builder: (context, snap) {
-          double pitchDeg = 0, rollDeg = 0;
+          // Calcolo dell'angolo tra la normale dello schermo (-Z) e la gravità:
+          // 0° = telefono orizzontale (flat), 90° = telefono verticale (upright).
+          double angleDeg = 0.0;
           if (snap.hasData) {
             final ax = snap.data!.x;
             final ay = snap.data!.y;
             final az = snap.data!.z;
 
-            // Assi corretti per portrait: 0° quando telefono è perpendicolare.
-            final pitch = math.atan2(ax, -az);
-            final roll  = math.atan2(ay, -az);
-            pitchDeg = pitch * 180 / math.pi;
-            rollDeg  = roll  * 180 / math.pi;
-            if (!pitchDeg.isFinite) pitchDeg = 0;
-            if (!rollDeg.isFinite)  rollDeg  = 0;
+            final g = math.sqrt(ax * ax + ay * ay + az * az);
+            if (g > 0) {
+              // cos(theta) = (-az)/|g|  -> theta = acos(...)
+              double c = (-az) / g;
+              if (c > 1) c = 1;
+              if (c < -1) c = -1;
+              angleDeg = (math.acos(c) * 180.0 / math.pi);
+            }
           }
 
-          // Tilt è la distanza angolare dal centro; 0 = perfetto.
-          final tilt = math.sqrt(pitchDeg * pitchDeg + rollDeg * rollDeg);
-
-          // Mostriamo "gradi rispetto alla perpendicolare": 90 - tilt.
-          double shownDeg = 90.0 - tilt;
-          if (!shownDeg.isFinite) shownDeg = 0;
-          shownDeg = shownDeg.clamp(0.0, 90.0);
-
-          final bool isOk = (90.0 - shownDeg).abs() <= okThresholdDeg;
+          // Verde se vicino a 90°
+          final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
 
           final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
           final Color badgeColor =
@@ -793,7 +790,7 @@ Widget buildLivellaVerticaleOverlay({
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  "${shownDeg.toStringAsFixed(1)}°",
+                  "${angleDeg.toStringAsFixed(1)}°",
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
