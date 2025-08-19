@@ -738,7 +738,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
-  double topOffsetPx = 72.0,        // distanza dal top (dopo la SafeArea)
+  double topOffsetPx = 65.0,        // distanza dal top (dopo la SafeArea)
   // parametri mantenuti per compatibilità (non usati)
   Alignment alignment = Alignment.centerRight,
   double size = 120,
