@@ -735,16 +735,21 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 // Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
 // Mostra gradi + badge. Gradi diventano verdi se ≈90° (telefono perpendicolare).
+// Visibile SOLO in modalità VOLTO.
 // =======================
 Widget buildLivellaVerticaleOverlay({
+  required CaptureMode mode,        // 👈 aggiunto parametro obbligatorio
   double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
-  double topOffsetPx = 65.0,        // distanza dal top (dopo la SafeArea)
+  double topOffsetPx = 72.0,        // distanza dal top (dopo la SafeArea)
   // parametri mantenuti per compatibilità (non usati)
   Alignment alignment = Alignment.centerRight,
   double size = 120,
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
+  // 👉 se NON siamo in modalità volto, non mostra nulla
+  if (mode != CaptureMode.volto) return const SizedBox.shrink();
+
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
