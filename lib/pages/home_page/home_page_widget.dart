@@ -738,7 +738,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // Visibile SOLO in modalità VOLTO.
 // =======================
 Widget buildLivellaVerticaleOverlay({
-  required CaptureMode mode,        // 👈 aggiunto parametro obbligatorio
+  required CaptureMode mode,        // mostra solo in modalità volto
   double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
   double topOffsetPx = 72.0,        // distanza dal top (dopo la SafeArea)
   // parametri mantenuti per compatibilità (non usati)
@@ -747,7 +747,6 @@ Widget buildLivellaVerticaleOverlay({
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
-  // 👉 se NON siamo in modalità volto, non mostra nulla
   if (mode != CaptureMode.volto) return const SizedBox.shrink();
 
   return Builder(
@@ -770,7 +769,7 @@ Widget buildLivellaVerticaleOverlay({
                 final az = snap.data!.z;
                 final g = math.sqrt(ax * ax + ay * ay + az * az);
                 if (g > 0) {
-                  double c = (-az) / g; // cos(theta): 0°=orizzontale, 90°=verticale
+                  double c = (-az) / g; // 0°=orizzontale, 90°=verticale
                   c = c.clamp(-1.0, 1.0);
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
@@ -785,7 +784,7 @@ Widget buildLivellaVerticaleOverlay({
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Gradi (più piccoli, centrali)
+                  // Gradi (font ridotto)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
