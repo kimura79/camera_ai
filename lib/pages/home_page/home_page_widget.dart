@@ -734,89 +734,92 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
 // =======================
 // Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
-// Compatibile con la chiamata esistente: accetta anche alignment/size (ignorati).
+// Mostra gradi + badge. Gradi diventano verdi se ≈90° (telefono perpendicolare).
 // =======================
 Widget buildLivellaVerticaleOverlay({
-  // parametri usati
   double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
   double topOffsetPx = 72.0,        // distanza dal top (dopo la SafeArea)
-  // parametri mantenuti per compatibilità con vecchie chiamate (non usati)
+  // parametri mantenuti per compatibilità (non usati)
   Alignment alignment = Alignment.centerRight,
   double size = 120,
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
-  return Positioned(
-    top: WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.top +
-        MediaQueryData.fromWindow(WidgetsBinding.instance.window).padding.top +
-        topOffsetPx,
-    left: 0,
-    right: 0,
-    child: Center(
-      child: StreamBuilder<AccelerometerEvent>(
-        stream: accelerometerEventStream(),
-        builder: (context, snap) {
-          // 0° = orizzontale, 90° = verticale (perpendicolare al suolo)
-          double angleDeg = 0.0;
-          if (snap.hasData) {
-            final ax = snap.data!.x;
-            final ay = snap.data!.y;
-            final az = snap.data!.z;
-            final g = math.sqrt(ax * ax + ay * ay + az * az);
-            if (g > 0) {
-              double c = (-az) / g; // cos(theta)
-              c = c.clamp(-1.0, 1.0);
-              angleDeg = (math.acos(c) * 180.0 / math.pi);
-            }
-          }
+  return Builder(
+    builder: (context) {
+      final double safeTop = MediaQuery.of(context).padding.top;
 
-          final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
-          final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-          final Color badgeBg  = isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
-          final Color badgeBor = isOk ? Colors.greenAccent : Colors.white24;
-          final String badgeTxt = isOk ? "OK" : "Inclina";
+      return Positioned(
+        top: safeTop + topOffsetPx,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: StreamBuilder<AccelerometerEvent>(
+            stream: accelerometerEventStream(),
+            builder: (context, snap) {
+              double angleDeg = 0.0;
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Gradi grandi
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "${angleDeg.toStringAsFixed(1)}°",
-                  style: TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.w800,
-                    color: bigColor,
+              if (snap.hasData) {
+                final ax = snap.data!.x;
+                final ay = snap.data!.y;
+                final az = snap.data!.z;
+                final g = math.sqrt(ax * ax + ay * ay + az * az);
+                if (g > 0) {
+                  double c = (-az) / g; // cos(theta): 0°=orizzontale, 90°=verticale
+                  c = c.clamp(-1.0, 1.0);
+                  angleDeg = (math.acos(c) * 180.0 / math.pi);
+                }
+              }
+
+              final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
+              final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
+              final Color badgeBg  = isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBor = isOk ? Colors.greenAccent : Colors.white24;
+              final String badgeTxt = isOk ? "OK" : "Inclina";
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Gradi (più piccoli, centrali)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "${angleDeg.toStringAsFixed(1)}°",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: bigColor,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              // Badge subito sotto
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: badgeBg,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: badgeBor, width: 1.2),
-                ),
-                child: Text(
-                  badgeTxt,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 4),
+                  // Badge subito sotto
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: badgeBor, width: 1.2),
+                    ),
+                    child: Text(
+                      badgeTxt,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    },
   );
 }
