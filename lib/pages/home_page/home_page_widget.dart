@@ -735,20 +735,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 // Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
 // Mostra gradi + badge. Gradi diventano verdi se ≈90° (telefono perpendicolare).
-// Visibile SOLO in modalità VOLTO.
 // =======================
 Widget buildLivellaVerticaleOverlay({
-  required CaptureMode mode,        // mostra solo in modalità volto
   double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
-  double topOffsetPx = 72.0,        // distanza dal top (dopo la SafeArea)
+  double topOffsetPx = 65.0,        // distanza dal top (dopo la SafeArea)
   // parametri mantenuti per compatibilità (non usati)
   Alignment alignment = Alignment.centerRight,
   double size = 120,
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
-  if (mode != CaptureMode.volto) return const SizedBox.shrink();
-
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
@@ -769,7 +765,7 @@ Widget buildLivellaVerticaleOverlay({
                 final az = snap.data!.z;
                 final g = math.sqrt(ax * ax + ay * ay + az * az);
                 if (g > 0) {
-                  double c = (-az) / g; // 0°=orizzontale, 90°=verticale
+                  double c = (-az) / g; // cos(theta): 0°=orizzontale, 90°=verticale
                   c = c.clamp(-1.0, 1.0);
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
@@ -784,7 +780,7 @@ Widget buildLivellaVerticaleOverlay({
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Gradi (font ridotto)
+                  // Gradi (più piccoli, centrali)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
