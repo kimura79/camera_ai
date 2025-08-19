@@ -715,10 +715,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
           children: [
             Positioned.fill(child: _buildCameraPreview()),
 
-            // 👇 Livella visibile
+            // 👇 Livella visibile SOLO in modalità VOLTO (passiamo mode)
             buildLivellaVerticaleOverlay(
-              alignment: Alignment.centerRight,
-              size: 120,
+              mode: _mode,
+              topOffsetPx: 65.0,
             ),
 
             Align(
@@ -735,16 +735,23 @@ class _HomePageWidgetState extends State<HomePageWidget>
 // =======================
 // Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
 // Mostra gradi + badge. Gradi diventano verdi se ≈90° (telefono perpendicolare).
+// Visibile SOLO in modalità VOLTO se si passa `mode: _mode`.
 // =======================
 Widget buildLivellaVerticaleOverlay({
-  double okThresholdDeg = 1.0,      // tolleranza per "verde" attorno a 90°
-  double topOffsetPx = 65.0,        // distanza dal top (dopo la SafeArea)
-  // parametri mantenuti per compatibilità (non usati)
+  CaptureMode? mode,              // <- PASSA _mode qui per nasconderla in "particolare"
+  double okThresholdDeg = 1.0,    // tolleranza per "verde" attorno a 90°
+  double topOffsetPx = 65.0,      // distanza dal top (dopo la SafeArea). Alza/abbassa qui.
+  // parametri mantenuti per compatibilità (non usati graficamente)
   Alignment alignment = Alignment.centerRight,
   double size = 120,
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
+  // Se il chiamante passa la modalità ed è "particolare", non mostrare nulla
+  if (mode != null && mode != CaptureMode.volto) {
+    return const SizedBox.shrink();
+  }
+
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
@@ -765,7 +772,7 @@ Widget buildLivellaVerticaleOverlay({
                 final az = snap.data!.z;
                 final g = math.sqrt(ax * ax + ay * ay + az * az);
                 if (g > 0) {
-                  double c = (-az) / g; // cos(theta): 0°=orizzontale, 90°=verticale
+                  double c = (-az) / g; // 0° = orizzontale, 90° = verticale
                   c = c.clamp(-1.0, 1.0);
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
@@ -780,7 +787,7 @@ Widget buildLivellaVerticaleOverlay({
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Gradi (più piccoli, centrali)
+                  // Gradi (font ridotto)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
