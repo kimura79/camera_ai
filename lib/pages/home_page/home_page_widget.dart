@@ -733,97 +733,86 @@ class _HomePageWidgetState extends State<HomePageWidget>
 }
 
 // =======================
-// Funzione livella overlay — SOLO GRADI (grandi) + badge
+// Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
 // =======================
-// Mostra 90° quando il telefono è VERTICALE (perpendicolare al suolo) e 0° quando è orizzontale.
-// Posizionata tra il badge superiore e il riquadro 1:1.
 Widget buildLivellaVerticaleOverlay({
-  // i parametri rimangono per compatibilità, ma usiamo solo quelli utili
-  double size = 120,                 // compatibilità (non usato)
-  double bubbleSize = 16,            // compatibilità (non usato)
-  double okThresholdDeg = 1.0,       // tolleranza per il "verde" intorno a 90°
-  double fullScaleDeg = 10.0,        // compatibilità (non usato)
-  Alignment alignment = const Alignment(0, -0.70), // più in basso tra badge e riquadro
-  EdgeInsets margin = EdgeInsets.zero,
+  double okThresholdDeg = 1.0,            // tolleranza per "verde" attorno a 90°
+  double topOffsetPx = 72.0,              // distanza dal top (dopo la SafeArea)
 }) {
-  return Align(
-    alignment: alignment,
-    child: Container(
-      margin: margin,
-      child: StreamBuilder<AccelerometerEvent>(
-        stream: accelerometerEventStream(),
-        builder: (context, snap) {
-          // Calcolo dell'angolo tra la normale dello schermo (-Z) e la gravità:
-          // 0° = telefono orizzontale (flat), 90° = telefono verticale (upright).
-          double angleDeg = 0.0;
-          if (snap.hasData) {
-            final ax = snap.data!.x;
-            final ay = snap.data!.y;
-            final az = snap.data!.z;
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final double safeTop = MediaQuery.of(context).padding.top;
+      return Positioned(
+        top: safeTop + topOffsetPx,       // 👈 subito sotto il badge superiore
+        left: 0,
+        right: 0,
+        child: Center(
+          child: StreamBuilder<AccelerometerEvent>(
+            stream: accelerometerEventStream(),
+            builder: (context, snap) {
+              // 0° = orizzontale, 90° = verticale (upright, perpendicolare al suolo)
+              double angleDeg = 0.0;
+              if (snap.hasData) {
+                final ax = snap.data!.x;
+                final ay = snap.data!.y;
+                final az = snap.data!.z;
+                final g = math.sqrt(ax * ax + ay * ay + az * az);
+                if (g > 0) {
+                  double c = (-az) / g;         // cos(theta)
+                  c = c.clamp(-1.0, 1.0);
+                  angleDeg = (math.acos(c) * 180.0 / math.pi);
+                }
+              }
 
-            final g = math.sqrt(ax * ax + ay * ay + az * az);
-            if (g > 0) {
-              // cos(theta) = (-az)/|g|  -> theta = acos(...)
-              double c = (-az) / g;
-              if (c > 1) c = 1;
-              if (c < -1) c = -1;
-              angleDeg = (math.acos(c) * 180.0 / math.pi);
-            }
-          }
+              final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
+              final Color bigColor  = isOk ? Colors.greenAccent : Colors.white;
+              final Color badgeBg   = isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBor  = isOk ? Colors.greenAccent : Colors.white24;
+              final String badgeTxt = isOk ? "OK" : "Inclina";
 
-          // Verde se vicino a 90°
-          final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
-
-          final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-          final Color badgeColor =
-              isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
-          final String badgeText = isOk ? "OK" : "Inclina";
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Gradi grandi
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "${angleDeg.toStringAsFixed(1)}°",
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: bigColor,
-                    height: 1.0,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Gradi grandi
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "${angleDeg.toStringAsFixed(1)}°",
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w800,
+                        color: bigColor,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              // Badge sotto
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: isOk ? Colors.greenAccent : Colors.white24,
-                    width: 1.2,
+                  const SizedBox(height: 4),
+                  // Badge subito sotto
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: badgeBor, width: 1.2),
+                    ),
+                    child: Text(
+                      badgeTxt,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  badgeText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    },
   );
 }
