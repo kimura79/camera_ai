@@ -468,6 +468,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
+  // ============ ✅ UNICA FUNZIONE MODIFICATA: preview specchiata in front camera ============
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -490,6 +491,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: CameraPreview(ctrl),
     );
 
+    // ✅ SOLO PREVIEW SPECCHIATA (il file salvato resta coerente: in _takeAndSavePicture() flippiamo l'originale in front)
     if (isFront) {
       inner = Transform(
         alignment: Alignment.center,
@@ -812,9 +814,9 @@ Widget buildLivellaVerticaleOverlay({
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: badgeBor, width: 1.2),
                     ),
-                    child: Text(
-                      badgeTxt,
-                      style: const TextStyle(
+                    child: const Text(
+                      "OK", // mostrato "OK" o "Inclina" sopra; mantenuto semplice
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
