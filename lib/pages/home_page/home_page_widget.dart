@@ -468,7 +468,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
-  // ============ ✅ UNICA FUNZIONE MODIFICATA: preview specchiata in front camera ============
+  // ============ ✅ UNICA FUNZIONE MODIFICATA: preview specchiata SOLO dove serve ============
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -480,6 +480,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
+
+    // Alcune piattaforme (iOS) specchiano già la front preview.
+    final bool needsMirror = isFront && Platform.isAndroid;
 
     // Dimensioni natie della preview (in landscape)
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
@@ -496,11 +499,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: inner,
     );
 
-    // ✅ Specchia TUTTA la preview se front (flip orizzontale)
-    final Widget preview = isFront
+    // ✅ Specchia TUTTA la preview solo se necessario (Android front)
+    final Widget preview = needsMirror
         ? Transform(
             alignment: Alignment.center,
-            transform: Matrix4.identity()..rotateY(math.pi),
+            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
             child: previewFull,
           )
         : previewFull;
