@@ -354,8 +354,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       // ✅ Salva PNG "as-is" nella galleria (mantiene PNG, nessuna ricodifica)
       final AssetEntity? asset = await PhotoManager.editor.saveImage(
-      pngBytes,
-      filename: '$baseName.png', // ✅ richiesto da photo_manager
+        pngBytes,
+        filename: '$baseName.png', // ✅ richiesto da photo_manager
       );
       if (asset == null) throw Exception('Salvataggio PNG fallito');
 
@@ -485,25 +485,25 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
 
     // ---- PREVIEW FULLSCREEN tipo Fotocamera (cover) ----
-    Widget inner = SizedBox(
+    final Widget inner = SizedBox(
       width: p.height, // invertiti perché la previewSize è landscape
       height: p.width,
       child: CameraPreview(ctrl),
     );
 
-    // ✅ SOLO PREVIEW SPECCHIATA (il file salvato resta coerente: in _takeAndSavePicture() flippiamo l'originale in front)
-    if (isFront) {
-      inner = Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
-        child: inner,
-      );
-    }
-
-    final previewFull = FittedBox(
+    final Widget previewFull = FittedBox(
       fit: BoxFit.cover, // riempi tutto lo schermo
       child: inner,
     );
+
+    // ✅ Specchia TUTTA la preview se front (flip orizzontale)
+    final Widget preview = isFront
+        ? Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..rotateY(math.pi),
+            child: previewFull,
+          )
+        : previewFull;
 
     // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
@@ -562,7 +562,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: previewFull),
+        Positioned.fill(child: preview), // <- preview (eventualmente specchiata)
         Positioned.fill(child: overlay),
       ],
     );
@@ -814,9 +814,9 @@ Widget buildLivellaVerticaleOverlay({
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: badgeBor, width: 1.2),
                     ),
-                    child: const Text(
-                      "OK", // mostrato "OK" o "Inclina" sopra; mantenuto semplice
-                      style: TextStyle(
+                    child: Text(
+                      badgeTxt,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
