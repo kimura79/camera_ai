@@ -372,6 +372,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
           const SnackBar(content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
         );
         setState(() {});
+
+      // 👉 Apri schermata di anteprima analisi
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AnalysisPreview(imagePath: shot.path),
+        ),
+      );
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
