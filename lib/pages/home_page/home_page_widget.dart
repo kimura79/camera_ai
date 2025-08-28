@@ -15,12 +15,8 @@ import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 // ✅ import per livella:
 import 'package:sensors_plus/sensors_plus.dart';
-// ✅ per HTTP e salvataggio overlay
+// ✅ per invio server
 import 'package:http/http.dart' as http;
-import 'package:gallery_saver/gallery_saver.dart';
-
-// ML Kit usato in modalità "volto"
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -155,7 +151,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Stream → ML Kit ======
+  // ====== Stream → ML Kit ATTIVO in entrambe le modalità (volto + particolare) ======
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
     if (now.difference(_lastProc).inMilliseconds < 300) return;
@@ -206,6 +202,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     });
   }
 
+  // ====== Helpers ML Kit ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -245,7 +242,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
-  // ====== Scatto ======
+  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -257,14 +254,54 @@ class _HomePageWidgetState extends State<HomePageWidget>
         _streamRunning = false;
       }
 
-      final XFile shot = await ctrl.takePicture();
-      final file = File(shot.path);
+      final bool isFront =
+          ctrl.description.lensDirection == CameraLensDirection.front;
 
-      if (mounted) {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => PreviewScreen(imageFile: file),
-        ));
+      // 1) Scatto + decodifica
+      final XFile shot = await ctrl.takePicture();
+      final Uint8List origBytes = await File(shot.path).readAsBytes();
+      img.Image? original = img.decodeImage(origBytes);
+      if (original == null) throw Exception('Decodifica immagine fallita');
+
+      if (isFront) {
+        original = img.flipHorizontal(original);
       }
+
+      img.Image resized = img.copyResize(original, width: 1024, height: 1024);
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
+
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (!pState.hasAccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+        }
+        return;
+      }
+
+      final String baseName =
+          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
+
+      final AssetEntity? asset = await PhotoManager.editor.saveImage(
+        pngBytes,
+        filename: '$baseName.png',
+      );
+      if (asset == null) throw Exception('Salvataggio PNG fallito');
+
+      final String newPath = (await _tempThumbPath('$baseName.png'));
+      await File(newPath).writeAsBytes(pngBytes);
+      _lastShotPath = newPath;
+
+      // 👉 Dopo lo scatto apri schermata anteprima + analisi
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PreviewScreen(imageFile: File(newPath)),
+          ),
+        );
+      }
+
     } catch (e) {
       debugPrint('Take/save error: $e');
     } finally {
@@ -278,24 +315,33 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
   }
 
-  // ====== UI originale invariata ======
-  Widget _buildScaleChip() { /* ... codice invariato ... */ }
-  Widget _buildModeSelector() { /* ... codice invariato ... */ }
-  Widget _buildCameraPreview() { /* ... codice invariato ... */ }
-  Widget _buildBottomBar() { /* ... codice invariato ... */ }
+  Future<String> _tempThumbPath(String fileName) async {
+    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
+    return '${dir.path}/$fileName';
+  }
+
+  // ====== UI (resta tutto uguale) ======
+  Widget _buildScaleChip() { ... } // <- lasciato identico
+  Widget _buildModeSelector() { ... } // <- lasciato identico
+  Widget _buildCameraPreview() { ... } // <- lasciato identico
+  Widget _buildBottomBar() { ... } // <- lasciato identico
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) { /* ... invariato ... */ }
+  void didChangeAppLifecycleState(AppLifecycleState state) { ... }
   @override
-  void dispose() { /* ... invariato ... */ }
-
+  void dispose() { ... }
   @override
-  Widget build(BuildContext context) { /* ... invariato ... */ }
+  Widget build(BuildContext context) { ... }
 }
 
-// =============================
-// 🔹 NUOVA SCHERMATA: Anteprima + Analizza
-// =============================
+// =======================
+// Livella overlay (resta uguale)
+// =======================
+Widget buildLivellaVerticaleOverlay({ ... }) { ... }
+
+// =======================
+// NUOVO WIDGET: Anteprima + Analisi
+// =======================
 class PreviewScreen extends StatefulWidget {
   final File imageFile;
   const PreviewScreen({super.key, required this.imageFile});
@@ -331,19 +377,17 @@ class _PreviewScreenState extends State<PreviewScreen> {
         area = data["area_cm2"].toString();
       });
 
-      // 🔹 Scarica e salva overlay in galleria
-      if (overlayUrl != null) {
-        var overlayResp = await http.get(Uri.parse(overlayUrl!));
-        final tempFile = File("${widget.imageFile.parent.path}/overlay_result.png");
-        await tempFile.writeAsBytes(overlayResp.bodyBytes);
-        await GallerySaver.saveImage(tempFile.path);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Overlay salvato in galleria")),
-        );
-      }
+      // 🔹 Scarica overlay e salva in galleria
+      var overlayResp = await http.get(Uri.parse(overlayUrl!));
+      final tempFile = File("${widget.imageFile.parent.path}/overlay_result.png");
+      await tempFile.writeAsBytes(overlayResp.bodyBytes);
+      await PhotoManager.editor.saveImage(
+        overlayResp.bodyBytes,
+        filename: "overlay_${DateTime.now().millisecondsSinceEpoch}.png",
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Errore analisi server")),
+        const SnackBar(content: Text("Errore nell'analisi")),
       );
     }
 
@@ -353,13 +397,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Anteprima Foto")),
+      appBar: AppBar(title: const Text("Anteprima")),
       body: Column(
         children: [
           Expanded(
             child: overlayUrl == null
-                ? Image.file(widget.imageFile)  // foto originale
-                : Image.network(overlayUrl!),  // overlay ricevuto
+                ? Image.file(widget.imageFile)
+                : Image.network(overlayUrl!),
           ),
           if (_loading) const LinearProgressIndicator(),
           if (percentuale != null && area != null)
