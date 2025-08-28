@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:custom_camera_component/pages/analysis_preview.dart';
 // ⛔️ tolto: image_gallery_saver
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
