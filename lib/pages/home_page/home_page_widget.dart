@@ -301,7 +301,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       // centro riquadro con offset -0.3 (stessa Align dell'overlay)
       final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = (screenH / 2.0) + (-0.3) * (screenH / 2.0);
+      final double centerYScreen = (screenH / 2.0);
 
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
       final double topScreen  = centerYScreen - squareSizeScreen / 2.0;
