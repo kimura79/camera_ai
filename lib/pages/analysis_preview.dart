@@ -63,23 +63,22 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
-            // ✅ Mostra immagine crop 1024×1024
-            Center(
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green, width: 3),
-                ),
-                child: Image.file(
-                  File(widget.imagePath),
-                  fit: BoxFit.cover,
-                ),
+            // ✅ Mostra foto scattata (crop 1024×1024) — più grande e centrata
+            Container(
+              width: MediaQuery.of(context).size.width * 0.9, // più largo
+              height: MediaQuery.of(context).size.width * 0.9, // quadrato 1:1
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.green, width: 3),
+              ),
+              child: Image.file(
+                File(widget.imagePath),
+                fit: BoxFit.cover, // riempie tutto il quadrato
               ),
             ),
 
@@ -101,9 +100,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
-              Text(
-                const JsonEncoder.withIndent("  ").convert(_result),
-                style: const TextStyle(fontFamily: "monospace"),
+
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  const JsonEncoder.withIndent("  ").convert(_result),
+                  style: const TextStyle(fontFamily: "monospace"),
+                ),
               ),
 
               const SizedBox(height: 20),
@@ -115,13 +118,18 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
-                Image.network(
-                  overlayUrl,
-                  width: 300,
-                  height: 300,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, err, stack) =>
-                      const Text("Errore caricamento overlay"),
+                Container(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.width * 0.9,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue, width: 3),
+                  ),
+                  child: Image.network(
+                    overlayUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (ctx, err, stack) =>
+                        const Center(child: Text("Errore caricamento overlay")),
+                  ),
                 ),
               ],
             ],
