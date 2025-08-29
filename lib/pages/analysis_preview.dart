@@ -53,6 +53,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   @override
   Widget build(BuildContext context) {
+    final overlayUrl = _result != null && _result!["overlay_url"] != null
+        ? "http://46.101.223.88:5000${_result!["overlay_url"]}"
+        : null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Anteprima"),
@@ -81,7 +85,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // 🔘 Pulsante Analizza
             ElevatedButton(
               onPressed: _loading ? null : _analyzeImage,
               child: _loading
@@ -92,25 +95,36 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             const SizedBox(height: 24),
 
             // 📊 Risultato analisi
-            if (_result != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "📊 Risultati:",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      const JsonEncoder.withIndent("  ").convert(_result),
-                      style: const TextStyle(fontFamily: "monospace"),
-                    ),
-                  ],
-                ),
+            if (_result != null) ...[
+              const Text(
+                "📊 Risultati:",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 10),
+              Text(
+                const JsonEncoder.withIndent("  ").convert(_result),
+                style: const TextStyle(fontFamily: "monospace"),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 🔥 Mostra overlay restituito dal server
+              if (overlayUrl != null) ...[
+                const Text(
+                  "🖼️ Overlay:",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Image.network(
+                  overlayUrl,
+                  width: 300,
+                  height: 300,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, stack) =>
+                      const Text("Errore caricamento overlay"),
+                ),
+              ],
+            ],
           ],
         ),
       ),
