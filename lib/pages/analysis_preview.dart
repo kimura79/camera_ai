@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:path/path.dart' as path;
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
@@ -17,17 +17,19 @@ class AnalysisPreview extends StatefulWidget {
 class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
   Map<String, dynamic>? _result;
-  String? _savedOverlayPath;
+  String? _overlayUrl;
+  double? _percentuale;
 
   Future<void> _analyzeImage() async {
     setState(() {
       _loading = true;
       _result = null;
-      _savedOverlayPath = null;
+      _overlayUrl = null;
+      _percentuale = null;
     });
 
     try {
-      final uri = Uri.parse("http://46.101.223.88:5000/analyze");
+      final uri = Uri.parse("http://46.101.223.88:5000/analyze"); // 🔗 server
       final request = http.MultipartRequest("POST", uri);
 
       request.files.add(
@@ -41,20 +43,44 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         final decoded = json.decode(body);
         setState(() {
           _result = decoded;
+          _overlayUrl = decoded["overlay_url"] != null
+              ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
+              : null;
+          _percentuale = decoded["percentuale"] != null
+              ? (decoded["percentuale"] as num).toDouble()
+              : null;
         });
 
-        // ✅ scarica overlay e salva in galleria
-        if (decoded["overlay_url"] != null) {
-          final overlayUrl = "http://46.101.223.88:5000${decoded["overlay_url"]}";
-          await _downloadAndSaveOverlay(overlayUrl);
+        // 🔐 Se arriva overlay → salvalo in galleria
+        if (_overlayUrl != null) {
+          final overlayResp = await http.get(Uri.parse(_overlayUrl!));
+          if (overlayResp.statusCode == 200) {
+            final bytes = overlayResp.bodyBytes;
+            final PermissionState pState =
+                await PhotoManager.requestPermissionExtend();
+            if (pState.isAuth) {
+              await PhotoManager.editor.saveImage(
+                bytes,
+                filename:
+                    "overlay_${DateTime.now().millisecondsSinceEpoch}.png",
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Overlay salvato in galleria")),
+                );
+              }
+            }
+          }
         }
       } else {
         throw Exception("Errore server: ${response.statusCode}");
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Errore analisi: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore analisi: $e")),
+        );
+      }
     } finally {
       setState(() {
         _loading = false;
@@ -62,52 +88,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  Future<void> _downloadAndSaveOverlay(String url) async {
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final Uint8List bytes = response.bodyBytes;
-
-        final PermissionState pState =
-            await PhotoManager.requestPermissionExtend();
-        if (!pState.hasAccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
-          return;
-        }
-
-        final filename = "overlay_${DateTime.now().millisecondsSinceEpoch}.png";
-        final asset = await PhotoManager.editor.saveImage(
-          bytes,
-          filename: filename,
-        );
-
-        if (asset != null) {
-          final tempDir = await Directory.systemTemp.createTemp("epi_overlay");
-          final filePath = "${tempDir.path}/$filename";
-          final file = File(filePath);
-          await file.writeAsBytes(bytes);
-          setState(() {
-            _savedOverlayPath = filePath;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Overlay salvato in galleria")),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint("Errore salvataggio overlay: $e");
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final overlayUrl = _result != null && _result!["overlay_url"] != null
-        ? "http://46.101.223.88:5000${_result!["overlay_url"]}"
-        : null;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Anteprima"),
@@ -120,7 +102,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           children: [
             const SizedBox(height: 10),
 
-            // ✅ Foto 1024x1024
+            // ✅ Foto originale
             Container(
               width: MediaQuery.of(context).size.width * 0.9,
               height: MediaQuery.of(context).size.width * 0.9,
@@ -144,13 +126,15 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // ✅ Mostra overlay restituito
-            if (overlayUrl != null) ...[
+            // 📊 Risultato analisi
+            if (_overlayUrl != null) ...[
               const Text(
-                "🖼️ Overlay:",
+                "🔬 Analisi Macchie",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
+
+              // Overlay
               Container(
                 width: MediaQuery.of(context).size.width * 0.9,
                 height: MediaQuery.of(context).size.width * 0.9,
@@ -158,12 +142,32 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                   border: Border.all(color: Colors.blue, width: 3),
                 ),
                 child: Image.network(
-                  overlayUrl,
+                  _overlayUrl!,
                   fit: BoxFit.cover,
                   errorBuilder: (ctx, err, stack) =>
                       const Center(child: Text("Errore caricamento overlay")),
                 ),
               ),
+
+              const SizedBox(height: 20),
+
+              // 📊 Percentuale + barra
+              if (_percentuale != null) ...[
+                Text(
+                  "Percentuale macchie: ${_percentuale!.toStringAsFixed(2)}%",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: (_percentuale! / 100).clamp(0.0, 1.0),
+                  backgroundColor: Colors.grey[300],
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                  minHeight: 12,
+                ),
+              ],
             ],
           ],
         ),
