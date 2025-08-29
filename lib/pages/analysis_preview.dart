@@ -23,72 +23,94 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     });
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://46.101.223.88:5000/analyze'),
+      final uri = Uri.parse("http://46.101.223.88:5000/analyze"); // 🔗 tuo server
+      final request = http.MultipartRequest("POST", uri);
+
+      request.files.add(
+        await http.MultipartFile.fromPath("file", widget.imagePath),
       );
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
 
       final response = await request.send();
       final body = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        final data = json.decode(body);
         setState(() {
-          _result = data;
+          _result = json.decode(body);
         });
       } else {
-        throw Exception('Errore server: ${response.statusCode}');
+        throw Exception("Errore server: ${response.statusCode}");
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Errore analisi: $e")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi: $e")),
+      );
     } finally {
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Anteprima")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(
+        title: const Text("Anteprima"),
+        backgroundColor: Colors.blue,
+      ),
+      body: SingleChildScrollView(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // ✅ Mostra la foto esattamente 1024×1024
-            AspectRatio(
-              aspectRatio: 1,
-              child: Image.file(
-                File(widget.imagePath),
-                fit: BoxFit.contain, // niente stretch
-              ),
-            ),
             const SizedBox(height: 20),
 
-            if (_loading) const CircularProgressIndicator(),
-
-            if (!_loading && _result == null)
-              ElevatedButton(
-                onPressed: _analyzeImage,
-                child: const Text("Analizza"),
-              ),
-
-            if (_result != null) ...[
-              const SizedBox(height: 20),
-              Text("✅ Analisi completata"),
-              if (_result!['percentuale'] != null)
-                Text("Percentuale: ${_result!['percentuale']}%"),
-              const SizedBox(height: 10),
-              if (_result!['overlay_url'] != null)
-                Image.network(
-                  "http://46.101.223.88:5000${_result!['overlay_url']}",
-                  height: 250,
+            // ✅ Mostra immagine crop 1024×1024
+            Center(
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.green, width: 3),
                 ),
-            ],
+                child: Image.file(
+                  File(widget.imagePath),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 🔘 Pulsante Analizza
+            ElevatedButton(
+              onPressed: _loading ? null : _analyzeImage,
+              child: _loading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Analizza"),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 📊 Risultato analisi
+            if (_result != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "📊 Risultati:",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      const JsonEncoder.withIndent("  ").convert(_result),
+                      style: const TextStyle(fontFamily: "monospace"),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
