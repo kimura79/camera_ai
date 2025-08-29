@@ -374,10 +374,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
         setState(() {});
 
-      // 👉 Apri schermata di anteprima analisi
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AnalysisPreview(imagePath: shot.path),
+      MaterialPageRoute(
+      builder: (_) => AnalysisPreview(imagePath: newPath), // ✅ crop 1:1 1024×1024
         ),
       );
       }
