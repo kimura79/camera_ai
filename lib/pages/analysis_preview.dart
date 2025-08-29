@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:photo_manager/photo_manager.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
@@ -15,15 +17,17 @@ class AnalysisPreview extends StatefulWidget {
 class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
   Map<String, dynamic>? _result;
+  String? _savedOverlayPath;
 
   Future<void> _analyzeImage() async {
     setState(() {
       _loading = true;
       _result = null;
+      _savedOverlayPath = null;
     });
 
     try {
-      final uri = Uri.parse("http://46.101.223.88:5000/analyze"); // 🔗 tuo server
+      final uri = Uri.parse("http://46.101.223.88:5000/analyze");
       final request = http.MultipartRequest("POST", uri);
 
       request.files.add(
@@ -34,9 +38,16 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final body = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
+        final decoded = json.decode(body);
         setState(() {
-          _result = json.decode(body);
+          _result = decoded;
         });
+
+        // ✅ scarica overlay e salva in galleria
+        if (decoded["overlay_url"] != null) {
+          final overlayUrl = "http://46.101.223.88:5000${decoded["overlay_url"]}";
+          await _downloadAndSaveOverlay(overlayUrl);
+        }
       } else {
         throw Exception("Errore server: ${response.statusCode}");
       }
@@ -48,6 +59,46 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _downloadAndSaveOverlay(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final Uint8List bytes = response.bodyBytes;
+
+        final PermissionState pState =
+            await PhotoManager.requestPermissionExtend();
+        if (!pState.hasAccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+          return;
+        }
+
+        final filename = "overlay_${DateTime.now().millisecondsSinceEpoch}.png";
+        final asset = await PhotoManager.editor.saveImage(
+          bytes,
+          filename: filename,
+        );
+
+        if (asset != null) {
+          final tempDir = await Directory.systemTemp.createTemp("epi_overlay");
+          final filePath = "${tempDir.path}/$filename";
+          final file = File(filePath);
+          await file.writeAsBytes(bytes);
+          setState(() {
+            _savedOverlayPath = filePath;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Overlay salvato in galleria")),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Errore salvataggio overlay: $e");
     }
   }
 
@@ -69,16 +120,16 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           children: [
             const SizedBox(height: 10),
 
-            // ✅ Mostra foto scattata (crop 1024×1024) — più grande e centrata
+            // ✅ Foto 1024x1024
             Container(
-              width: MediaQuery.of(context).size.width * 0.9, // più largo
-              height: MediaQuery.of(context).size.width * 0.9, // quadrato 1:1
+              width: MediaQuery.of(context).size.width * 0.9,
+              height: MediaQuery.of(context).size.width * 0.9,
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.green, width: 3),
               ),
               child: Image.file(
                 File(widget.imagePath),
-                fit: BoxFit.cover, // riempie tutto il quadrato
+                fit: BoxFit.cover,
               ),
             ),
 
@@ -93,45 +144,26 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // 📊 Risultato analisi
-            if (_result != null) ...[
+            // ✅ Mostra overlay restituito
+            if (overlayUrl != null) ...[
               const Text(
-                "📊 Risultati:",
+                "🖼️ Overlay:",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
-
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Text(
-                  const JsonEncoder.withIndent("  ").convert(_result),
-                  style: const TextStyle(fontFamily: "monospace"),
+              Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.width * 0.9,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue, width: 3),
+                ),
+                child: Image.network(
+                  overlayUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, stack) =>
+                      const Center(child: Text("Errore caricamento overlay")),
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              // 🔥 Mostra overlay restituito dal server
-              if (overlayUrl != null) ...[
-                const Text(
-                  "🖼️ Overlay:",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  height: MediaQuery.of(context).size.width * 0.9,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue, width: 3),
-                  ),
-                  child: Image.network(
-                    overlayUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (ctx, err, stack) =>
-                        const Center(child: Text("Errore caricamento overlay")),
-                  ),
-                ),
-              ],
             ],
           ],
         ),
