@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 // ✅ import per livella:
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
 
 // ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
