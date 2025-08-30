@@ -554,7 +554,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
-
+buildDistanzaCmOverlay(
+  ipdPx: _lastIpdPx,
+  ipdMm: _ipdMm,
+  targetMmPerPx: _targetMmPerPx,
+  alignY: -0.05, // o 0.0 o 0.1 secondo dove vuoi posizionarlo
+),
             // ✅ Livella orizzontale centrata NEL riquadro (stessa Align)
             Align(
               alignment: const Alignment(0, -0.3),
