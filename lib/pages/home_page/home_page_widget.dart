@@ -561,14 +561,15 @@ buildDistanzaCmOverlay(
   alignY: -0.05, // o 0.0 o 0.1 secondo dove vuoi posizionarlo
 ),
             // ✅ Livella orizzontale centrata NEL riquadro (stessa Align)
-            Align(
-              alignment: const Alignment(0, -0.3),
-              child: _buildLivellaOrizzontale3Linee(
-                width: squareSize * 0.82, // sta dentro il bordo
-                height: 62,
-                okThresholdDeg: 1.0,
-              ),
-            ),
+            if (_mode == CaptureMode.volto)
+  Align(
+    alignment: const Alignment(0, -0.3),
+    child: _buildLivellaOrizzontale3Linee(
+      width: squareSize * 0.82,
+      height: 62,
+      okThresholdDeg: 1.0,
+    ),
+  ),
 
             // Chip in alto
             Positioned(
