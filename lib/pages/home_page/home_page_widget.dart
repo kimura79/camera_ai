@@ -541,6 +541,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
+            // ⬜️ Riquadro 1:1
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -552,12 +553,25 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
+
+            // ✅ Livella orizzontale centrata NEL riquadro (stessa Align)
+            Align(
+              alignment: const Alignment(0, -0.3),
+              child: _buildLivellaOrizzontale3Linee(
+                width: squareSize * 0.82, // sta dentro il bordo
+                height: 62,
+                okThresholdDeg: 1.0,
+              ),
+            ),
+
+            // Chip in alto
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
+            // Selettore modalità
             Positioned(
               bottom: 180,
               left: 0,
@@ -727,11 +741,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
           children: [
             Positioned.fill(child: _buildCameraPreview()),
 
-            // 👇 Livella visibile SOLO in modalità VOLTO (passiamo mode)
+            // 👇 Livella verticale (solo VOLTO)
             buildLivellaVerticaleOverlay(
               mode: _mode,
               topOffsetPx: 65.0,
             ),
+
+            // (N.B. la livella orizzontale ora è disegnata DENTRO il riquadro, in _buildCameraPreview)
 
             Align(
               alignment: Alignment.bottomCenter,
@@ -837,6 +853,76 @@ Widget buildLivellaVerticaleOverlay({
               );
             },
           ),
+        ),
+      );
+    },
+  );
+}
+
+// =======================
+// Helper: livella orizzontale “3 semirette” centrata nel riquadro
+// =======================
+Widget _buildLivellaOrizzontale3Linee({
+  required double width,
+  required double height,
+  double okThresholdDeg = 1.0,
+}) {
+  Widget _segment(double w, double h, Color c) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(h),
+        ),
+      );
+
+  return StreamBuilder<AccelerometerEvent>(
+    stream: accelerometerEventStream(),
+    builder: (context, snap) {
+      double rollDeg = 0.0; // 0 = orizzontale in portrait
+      if (snap.hasData) {
+        final ax = snap.data!.x;
+        final ay = snap.data!.y;
+        // Stima semplice del roll in portrait: atan2(X, Y)
+        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
+      }
+
+      final bool isOk = rollDeg.abs() <= okThresholdDeg;
+      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
+      final Color bg = Colors.black54;
+
+      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double midRot = (rollDeg) * math.pi / 180;
+
+      return Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isOk ? Colors.greenAccent : Colors.white24,
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Transform.rotate(
+              angle: topRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+            Transform.rotate(
+              angle: midRot,
+              child: _segment(width - 20, 3, lineColor),
+            ),
+            Transform.rotate(
+              angle: botRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+          ],
         ),
       );
     },
