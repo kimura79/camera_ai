@@ -9,7 +9,8 @@ class CameraSplashPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color brandBlue = Color(0xFF0D1B2A);
+    // Blu preso dal mockup allegato
+    const Color brandBlue = Color(0xFF1A4B84);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -55,15 +56,19 @@ class CameraSplashPage extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(220, 55), // larghezza e altezza fissa
+                    minimumSize: const Size(220, 55),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 4, // ombra leggera
+                    elevation: 4,
                   ),
                   child: const Text(
                     "Fotocamera",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontFamily: 'Helvetica',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -89,7 +94,11 @@ class CameraSplashPage extends StatelessWidget {
                   ),
                   child: const Text(
                     "Pre/Post",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontFamily: 'Helvetica',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
