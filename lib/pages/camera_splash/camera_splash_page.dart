@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 // importa le pagine reali
 import '/pages/home_page/home_page_widget.dart';
 import '/pages/pre_post/pre_post_widget.dart';
-import '/pages/analyze_existing/analyze_existing_image_page.dart';
 
 class CameraSplashPage extends StatelessWidget {
   const CameraSplashPage({super.key});
@@ -59,25 +58,6 @@ class CameraSplashPage extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                   ),
                   child: const Text("Fotocamera"),
-                ),
-                const SizedBox(height: 20),
-
-                // 🔹 Pulsante: Analizza
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AnalyzeExistingImagePage(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: brandBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  ),
-                  child: const Text("Analizza"),
                 ),
                 const SizedBox(height: 20),
 
