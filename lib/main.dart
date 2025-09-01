@@ -11,6 +11,8 @@ import 'index.dart';
 
 // 👉 Pagina camera aggiornata
 import 'pages/home_page/home_page_widget.dart';
+// 👉 Splash page Epidermys
+import 'pages/camera_splash/camera_splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +51,7 @@ class _MyAppState extends State<MyApp> {
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
 
-  /// TRUE = avvia direttamente la camera (test rapido)
+  /// TRUE = avvia direttamente la splash (Epidermys)
   /// FALSE = usa il router FlutterFlow (produzione)
   static const bool kLaunchDirectHome = true;
 
@@ -83,7 +85,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Avvio diretto della pagina fotocamera
+    // 👉 Avvio diretto della pagina splash (non più camera)
     if (kLaunchDirectHome) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -100,7 +102,7 @@ class _MyAppState extends State<MyApp> {
         theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
         darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
         themeMode: _themeMode,
-        home: const HomePageWidget(),
+        home: const CameraSplashPage(), // 👈 Splash come entry point
       );
     }
 
