@@ -48,11 +48,12 @@ class ApiService {
     String autore = "anonimo",
   }) async {
     try {
-      final uri = Uri.parse("$baseUrl/analyze");
+      // 🔄 adesso usa l'endpoint /judge
+      final uri = Uri.parse("$baseUrl/judge");
       var request = http.MultipartRequest("POST", uri);
 
-      // File NON viene rimandato, mandiamo solo i campi (il server lo associa al record)
-      request.fields['file'] = filename;
+      // File NON viene rimandato, mandiamo solo i campi
+      request.fields['filename'] = filename;
       request.fields['analysis_type'] = analysisType;
       request.fields['autore'] = autore;
       request.fields['giudizio'] = giudizio.toString();
