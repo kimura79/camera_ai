@@ -19,7 +19,7 @@ class CameraSplashPage extends StatelessWidget {
           // Logo
           Image.asset(
             'assets/images/epidermys_logo.png',
-            height: 100,
+            height: 120,
           ),
           const SizedBox(height: 20),
 
@@ -55,9 +55,16 @@ class CameraSplashPage extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                    minimumSize: const Size(220, 55), // larghezza e altezza fissa
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 4, // ombra leggera
                   ),
-                  child: const Text("Fotocamera"),
+                  child: const Text(
+                    "Fotocamera",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -74,9 +81,16 @@ class CameraSplashPage extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                    minimumSize: const Size(220, 55),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 4,
                   ),
-                  child: const Text("Pre/Post"),
+                  child: const Text(
+                    "Pre/Post",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
