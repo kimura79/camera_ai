@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
 // 🆕 import servizio API
-import 'package:camera_ai/services/api_service.dart';
+import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
