@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
+// 🆕 import servizio API
+import 'package:camera_ai/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
@@ -182,13 +184,18 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 children: List.generate(10, (index) {
                   int voto = index + 1;
                   return GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Hai dato voto $voto"),
-                        ),
+                    onTap: () async {
+                      bool ok = await ApiService.sendJudgement(
+                        filename: path.basename(widget.imagePath),
+                        giudizio: voto,
+                        analysisType: "macchie",
+                        autore: "anonimo",
                       );
-                      // 🔗 qui collegheremo upload voto → server
+                      if (ok && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("✅ Giudizio $voto inviato")),
+                        );
+                      }
                     },
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 4),
