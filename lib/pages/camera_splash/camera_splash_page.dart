@@ -19,7 +19,7 @@ class CameraSplashPage extends StatelessWidget {
         children: [
           // Logo
           Image.asset(
-            'assets/images/epidermys_logo.png',
+            'assets/images/epidermys_logo.PNG',
             height: 120,
           ),
           const SizedBox(height: 20),
