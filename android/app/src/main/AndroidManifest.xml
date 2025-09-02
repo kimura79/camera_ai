@@ -5,7 +5,7 @@
 
 
     <application
-        android:label="Custom Camera Component"
+        android:label="Epidermys"
         tools:replace="android:label"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
