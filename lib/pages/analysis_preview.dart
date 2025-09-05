@@ -72,9 +72,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
 
-      if (resp.statusCode == 200) {
-        final decoded = json.decode(body);
+      // ✅ parsing JSON in background isolate
+      final decoded = await compute(jsonDecode, body);
 
+      if (resp.statusCode == 200) {
         if (tipo == "all") {
           _parseRughe(decoded["rughe"]);
           _parseMacchie(decoded["macchie"]);
@@ -261,79 +262,108 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         backgroundColor: Colors.blue,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 10),
-
-            // Foto originale
-            Container(
-              width: MediaQuery.of(context).size.width * 0.9,
-              height: MediaQuery.of(context).size.width * 0.9,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 3),
-              ),
-              child: Image.file(
-                File(widget.imagePath),
-                fit: BoxFit.cover,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🔘 Pulsanti analisi
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                ElevatedButton(
-                  onPressed:
-                      _loading ? null : () => _callAnalysis("analyze_rughe", "rughe"),
-                  child: const Text("Analizza Rughe"),
+                const SizedBox(height: 10),
+
+                // Foto originale
+                Container(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.width * 0.9,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.green, width: 3),
+                  ),
+                  child: Image.file(
+                    File(widget.imagePath),
+                    fit: BoxFit.cover,
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed:
-                      _loading ? null : () => _callAnalysis("analyze_macchie", "macchie"),
-                  child: const Text("Analizza Macchie"),
+
+                const SizedBox(height: 24),
+
+                // 🔘 Pulsante "Analizza Tutto"
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed:
+                        _loading ? null : () => _callAnalysis("analyze_all", "all"),
+                    child: const Text("Analizza Tutto"),
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed:
-                      _loading ? null : () => _callAnalysis("analyze_melasma", "melasma"),
-                  child: const Text("Analizza Melasma"),
+
+                const SizedBox(height: 16),
+
+                // 🔘 Riga pulsanti Rughe / Macchie / Melasma
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _callAnalysis("analyze_rughe", "rughe"),
+                        child: const Text("Rughe"),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _callAnalysis("analyze_macchie", "macchie"),
+                        child: const Text("Macchie"),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _callAnalysis("analyze_melasma", "melasma"),
+                        child: const Text("Melasma"),
+                      ),
+                    ),
+                  ],
                 ),
-                ElevatedButton(
-                  onPressed:
-                      _loading ? null : () => _callAnalysis("analyze_all", "all"),
-                  child: const Text("Analizza Tutto"),
+
+                const SizedBox(height: 24),
+
+                // Blocchi analisi
+                _buildAnalysisBlock(
+                  title: "Rughe",
+                  overlayUrl: _rugheOverlayUrl,
+                  percentuale: _rughePercentuale,
+                  analysisType: "rughe",
+                ),
+                _buildAnalysisBlock(
+                  title: "Macchie",
+                  overlayUrl: _macchieOverlayUrl,
+                  percentuale: _macchiePercentuale,
+                  analysisType: "macchie",
+                ),
+                _buildAnalysisBlock(
+                  title: "Melasma",
+                  overlayUrl: _melasmaOverlayUrl,
+                  percentuale: _melasmaPercentuale,
+                  analysisType: "melasma",
                 ),
               ],
             ),
+          ),
 
-            const SizedBox(height: 24),
-
-            // Blocchi analisi
-            _buildAnalysisBlock(
-              title: "Rughe",
-              overlayUrl: _rugheOverlayUrl,
-              percentuale: _rughePercentuale,
-              analysisType: "rughe",
+          // ✅ Indicator di caricamento al centro
+          if (_loading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
-            _buildAnalysisBlock(
-              title: "Macchie",
-              overlayUrl: _macchieOverlayUrl,
-              percentuale: _macchiePercentuale,
-              analysisType: "macchie",
-            ),
-            _buildAnalysisBlock(
-              title: "Melasma",
-              overlayUrl: _melasmaOverlayUrl,
-              percentuale: _melasmaPercentuale,
-              analysisType: "melasma",
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
