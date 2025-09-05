@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+// importa la tua pagina di analisi
+import 'package:custom_camera_component/pages/analysis_preview.dart';
+
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
 
@@ -52,9 +55,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             itemCount: media.length,
             itemBuilder: (context, index) {
               return FutureBuilder<Uint8List?>(
-                future: media[index].thumbnailDataWithSize(
-                  const ThumbnailSize(200, 200),
-                ),
+                future: media[index]
+                    .thumbnailDataWithSize(const ThumbnailSize(200, 200)),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.done &&
                       snapshot.data != null) {
@@ -114,6 +116,19 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         postImage = result;
         postPercent = _fakeAnalysis();
       });
+
+      // 🔹 Dopo lo scatto apro direttamente la pagina di analisi
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AnalysisPreview(
+              imagePath: result.path,
+              mode: "fullface", // oppure "particolare"
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -239,9 +254,12 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _switchCamera() async {
     if (widget.cameras.length < 2) return;
-    currentCamera = (currentCamera == widget.cameras.first)
+    final newCamera = (currentCamera == widget.cameras.first)
         ? widget.cameras.last
         : widget.cameras.first;
+    setState(() {
+      currentCamera = newCamera;
+    });
     await _initCamera();
   }
 
@@ -316,7 +334,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                           ),
                         ),
 
-                        // Pulsante scatto centrale (doppio cerchio stile iOS)
+                        // Pulsante scatto centrale stile iOS
                         GestureDetector(
                           onTap: _takePicture,
                           child: Container(
@@ -324,7 +342,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                             height: 90,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 4),
+                              border: Border.all(color: Colors.white, width: 3),
                             ),
                             child: Center(
                               child: Container(
