@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart'; // per compute
+import 'package:google_fonts/google_fonts.dart';
 import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
@@ -170,6 +171,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     required String? overlayUrl,
     required double? percentuale,
     required String analysisType,
+    required Color color,
   }) {
     if (overlayUrl == null) return const SizedBox.shrink();
 
@@ -178,14 +180,18 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       children: [
         Text(
           "🔬 Analisi: $title",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: GoogleFonts.montserrat(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 10),
         Container(
           width: MediaQuery.of(context).size.width * 0.9,
           height: MediaQuery.of(context).size.width * 0.9,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.blue, width: 3),
+            border: Border.all(color: color, width: 3),
           ),
           child: Image.network(
             overlayUrl,
@@ -198,56 +204,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         if (percentuale != null)
           Text(
             "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
+              color: color,
             ),
           ),
         const SizedBox(height: 20),
-        const Text(
-          "Come giudichi questa analisi? Dai un voto da 1 a 10",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (index) {
-            int voto = index + 1;
-            return GestureDetector(
-              onTap: () async {
-                bool ok = await ApiService.sendJudgement(
-                  filename: path.basename(widget.imagePath),
-                  giudizio: voto,
-                  analysisType: analysisType,
-                  autore: "anonimo",
-                );
-                if (ok && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("✅ Giudizio $voto inviato per $analysisType"),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "$voto",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 40),
       ],
     );
   }
@@ -255,13 +218,14 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        backgroundColor: Colors.black,
         title: Text(
           widget.mode == "particolare"
               ? "Anteprima (Particolare)"
               : "Anteprima (Volto intero)",
         ),
-        backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -275,7 +239,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               width: MediaQuery.of(context).size.width * 0.9,
               height: MediaQuery.of(context).size.width * 0.9,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 3),
+                border: Border.all(color: Colors.white24, width: 2),
               ),
               child: Image.file(
                 File(widget.imagePath),
@@ -285,26 +249,26 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // 🔘 Pulsanti analisi
+            // 🔘 Pulsanti analisi in stile home page
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                ElevatedButton(
-                  onPressed: _loading ? null : () => _callAnalysis("analyze_rughe", "rughe"),
-                  child: const Text("Analizza Rughe"),
+                _buildActionButton(
+                  text: "Analizza Rughe",
+                  onTap: () => _callAnalysis("analyze_rughe", "rughe"),
                 ),
-                ElevatedButton(
-                  onPressed: _loading ? null : () => _callAnalysis("analyze_macchie", "macchie"),
-                  child: const Text("Analizza Macchie"),
+                _buildActionButton(
+                  text: "Analizza Macchie",
+                  onTap: () => _callAnalysis("analyze_macchie", "macchie"),
                 ),
-                ElevatedButton(
-                  onPressed: _loading ? null : () => _callAnalysis("analyze_melasma", "melasma"),
-                  child: const Text("Analizza Melasma"),
+                _buildActionButton(
+                  text: "Analizza Melasma",
+                  onTap: () => _callAnalysis("analyze_melasma", "melasma"),
                 ),
-                ElevatedButton(
-                  onPressed: _loading ? null : () => _callAnalysis("analyze_all", "all"),
-                  child: const Text("Analizza Tutto"),
+                _buildActionButton(
+                  text: "Analizza Tutto",
+                  onTap: () => _callAnalysis("analyze_all", "all"),
                 ),
               ],
             ),
@@ -317,20 +281,49 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               overlayUrl: _rugheOverlayUrl,
               percentuale: _rughePercentuale,
               analysisType: "rughe",
+              color: Colors.cyanAccent,
             ),
             _buildAnalysisBlock(
               title: "Macchie",
               overlayUrl: _macchieOverlayUrl,
               percentuale: _macchiePercentuale,
               analysisType: "macchie",
+              color: Colors.orangeAccent,
             ),
             _buildAnalysisBlock(
               title: "Melasma",
               overlayUrl: _melasmaOverlayUrl,
               percentuale: _melasmaPercentuale,
               analysisType: "melasma",
+              color: Colors.purpleAccent,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // === Pulsanti custom stile HomePage ===
+  Widget _buildActionButton({required String text, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: _loading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: _loading ? Colors.white10 : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _loading ? Colors.white24 : Colors.white,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: _loading ? Colors.white38 : Colors.black,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
         ),
       ),
     );
