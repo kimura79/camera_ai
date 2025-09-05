@@ -43,7 +43,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     });
 
     try {
-      // === UNA SOLA CHIAMATA ALL'ENDPOINT UNIFICATO ===
       final uri = Uri.parse("http://46.101.223.88:5000/analyze_all");
       final req = http.MultipartRequest("POST", uri);
       req.files.add(
@@ -79,7 +78,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               : null;
         }
 
-        // 🔐 Salvataggio overlay in galleria con nomi distinti
+        // 🔐 Salvataggio overlay in galleria
         Future<void> saveOverlay(String? url, String tipo) async {
           if (url == null) return;
           final overlayResp = await http.get(Uri.parse(url));
@@ -160,7 +159,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           Text(
             "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
             style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
 
         const SizedBox(height: 20),
@@ -185,8 +186,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 if (ok && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text(
-                            "✅ Giudizio $voto inviato per $analysisType")),
+                      content: Text(
+                          "✅ Giudizio $voto inviato per $analysisType"),
+                    ),
                   );
                 }
               },
