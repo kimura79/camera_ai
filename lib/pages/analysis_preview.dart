@@ -9,7 +9,7 @@ import 'package:custom_camera_component/services/api_service.dart';
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
   final String analysisType; // "rughe" o "macchie"
-  final String mode; // "fullface" o "particolare" (valido solo per rughe)
+  final String mode; // "fullface" o "particolare" (solo per rughe)
 
   const AnalysisPreview({
     super.key,
@@ -51,7 +51,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
 
-      // aggiungo mode solo per rughe
+      // aggiungi mode solo per rughe
       if (widget.analysisType == "rughe") {
         request.fields["mode"] = widget.mode;
       }
@@ -86,7 +86,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               );
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Overlay salvato in galleria")),
+                  SnackBar(
+                      content: Text(
+                          "✅ Overlay ${widget.analysisType} salvato in galleria")),
                 );
               }
             }
@@ -142,7 +144,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               onPressed: _loading ? null : _analyzeImage,
               child: _loading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Analizza"),
+                  : Text("Analizza ${widget.analysisType}"),
             ),
 
             const SizedBox(height: 24),
@@ -200,7 +202,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                       if (ok && mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                              content: Text("✅ Giudizio $voto inviato per ${widget.analysisType}")),
+                              content: Text(
+                                  "✅ Giudizio $voto inviato per ${widget.analysisType}")),
                         );
                       }
                     },
