@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:camera/camera.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -17,16 +17,29 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   double? prePercent;
   double? postPercent;
 
-  final ImagePicker _picker = ImagePicker();
-
-  // === Carica PRE dalla galleria ===
+  // === Carica PRE dalla galleria con photo_manager ===
   Future<void> _pickPreImage() async {
-    final XFile? image =
-        await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
-    if (image != null) {
+    final PermissionState ps = await PhotoManager.requestPermissionExtend();
+    if (!ps.isAuth) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Permesso galleria negato")),
+      );
+      return;
+    }
+
+    final List<AssetPathEntity> paths =
+        await PhotoManager.getAssetPathList(type: RequestType.image);
+    if (paths.isEmpty) return;
+
+    final List<AssetEntity> media =
+        await paths.first.getAssetListPaged(page: 0, size: 60);
+    if (media.isEmpty) return;
+
+    final File? file = await media.first.file;
+    if (file != null) {
       setState(() {
-        preImage = File(image.path);
-        prePercent = _fakeAnalysis(); // analisi fittizia
+        preImage = file;
+        prePercent = _fakeAnalysis();
       });
     }
   }
@@ -46,21 +59,22 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) => CameraOverlayPage(camera: firstCamera, guideImage: preImage!),
+        builder: (context) =>
+            CameraOverlayPage(camera: firstCamera, guideImage: preImage!),
       ),
     );
 
     if (result != null) {
       setState(() {
         postImage = result;
-        postPercent = _fakeAnalysis(); // analisi fittizia
+        postPercent = _fakeAnalysis();
       });
     }
   }
 
   // === funzione analisi simulata ===
   double _fakeAnalysis() {
-    return 20 + Random().nextInt(50).toDouble(); // valore casuale %
+    return 20 + Random().nextInt(50).toDouble();
   }
 
   @override
@@ -91,7 +105,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         ),
                         child: preImage == null
                             ? const Center(
-                                child: Icon(Icons.add, size: 60, color: Colors.blue),
+                                child: Icon(Icons.add,
+                                    size: 60, color: Colors.blue),
                               )
                             : Image.file(preImage!, fit: BoxFit.cover),
                       ),
@@ -109,7 +124,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         ),
                         child: postImage == null
                             ? const Center(
-                                child: Icon(Icons.add, size: 60, color: Colors.green),
+                                child: Icon(Icons.add,
+                                    size: 60, color: Colors.green),
                               )
                             : Image.file(postImage!, fit: BoxFit.cover),
                       ),
@@ -151,7 +167,8 @@ class CameraOverlayPage extends StatefulWidget {
   final CameraDescription camera;
   final File guideImage;
 
-  const CameraOverlayPage({super.key, required this.camera, required this.guideImage});
+  const CameraOverlayPage(
+      {super.key, required this.camera, required this.guideImage});
 
   @override
   State<CameraOverlayPage> createState() => _CameraOverlayPageState();
