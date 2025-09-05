@@ -45,11 +45,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     final overlayResp = await http.get(Uri.parse(url));
     if (overlayResp.statusCode == 200) {
       final bytes = overlayResp.bodyBytes;
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
       if (pState.isAuth) {
         await PhotoManager.editor.saveImage(
           bytes,
-          filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+          filename:
+              "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
         );
       }
     }
@@ -76,19 +78,17 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final decoded = await compute(jsonDecode, body);
 
       if (resp.statusCode == 200) {
-        setState(() {
-          if (tipo == "all") {
-            _parseRughe(decoded["rughe"]);
-            _parseMacchie(decoded["macchie"]);
-            _parseMelasma(decoded["melasma"]);
-          } else if (tipo == "rughe") {
-            _parseRughe(decoded);
-          } else if (tipo == "macchie") {
-            _parseMacchie(decoded);
-          } else if (tipo == "melasma") {
-            _parseMelasma(decoded);
-          }
-        });
+        if (tipo == "all") {
+          _parseRughe(decoded["rughe"]);
+          _parseMacchie(decoded["macchie"]);
+          _parseMelasma(decoded["melasma"]);
+        } else if (tipo == "rughe") {
+          _parseRughe(decoded);
+        } else if (tipo == "macchie") {
+          _parseMacchie(decoded);
+        } else if (tipo == "melasma") {
+          _parseMelasma(decoded);
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -174,6 +174,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }) {
     if (overlayUrl == null) return const SizedBox.shrink();
 
+    final double side = MediaQuery.of(context).size.width * 0.9;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -183,14 +185,14 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         const SizedBox(height: 10),
         Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          height: MediaQuery.of(context).size.width * 0.9,
+          width: side,
+          height: side, // 👈 sempre quadrato
           decoration: BoxDecoration(
             border: Border.all(color: Colors.blue, width: 3),
           ),
           child: Image.network(
             overlayUrl,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain, // 👈 niente schiacciamenti
             errorBuilder: (ctx, err, stack) =>
                 const Center(child: Text("Errore caricamento overlay")),
           ),
@@ -255,6 +257,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   @override
   Widget build(BuildContext context) {
+    final double side = MediaQuery.of(context).size.width * 0.9;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -273,16 +277,16 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               children: [
                 const SizedBox(height: 10),
 
-                // Foto originale
+                // Foto originale 1:1
                 Container(
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  height: MediaQuery.of(context).size.width * 0.9,
+                  width: side,
+                  height: side, // 👈 sempre quadrato
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.green, width: 3),
                   ),
                   child: Image.file(
                     File(widget.imagePath),
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain, // 👈 no schiacciamenti
                   ),
                 ),
 
