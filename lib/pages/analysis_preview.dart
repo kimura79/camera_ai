@@ -43,74 +43,70 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     });
 
     try {
-      // === RUGHE ===
-      final rugheUri = Uri.parse("http://46.101.223.88:5000/analyze_rughe");
-      final rugheReq = http.MultipartRequest("POST", rugheUri);
-      rugheReq.files.add(
+      // === UNA SOLA CHIAMATA ALL'ENDPOINT UNIFICATO ===
+      final uri = Uri.parse("http://46.101.223.88:5000/analyze_all");
+      final req = http.MultipartRequest("POST", uri);
+      req.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
-      rugheReq.fields["mode"] = widget.mode;
+      req.fields["mode"] = widget.mode;
 
-      final rugheResp = await rugheReq.send();
-      final rugheBody = await rugheResp.stream.bytesToString();
+      final resp = await req.send();
+      final body = await resp.stream.bytesToString();
 
-      if (rugheResp.statusCode == 200) {
-        final decoded = json.decode(rugheBody);
-        _rugheResult = decoded;
-        _rugheOverlayUrl = decoded["overlay_url"] != null
-            ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
-            : null;
-        _rughePercentuale = decoded["percentuale"] != null
-            ? (decoded["percentuale"] as num).toDouble()
-            : null;
-      }
+      if (resp.statusCode == 200) {
+        final decoded = json.decode(body);
 
-      // === MACCHIE ===
-      final macchieUri =
-          Uri.parse("http://46.101.223.88:5000/analyze_macchie");
-      final macchieReq = http.MultipartRequest("POST", macchieUri);
-      macchieReq.files.add(
-        await http.MultipartFile.fromPath("file", widget.imagePath),
-      );
+        // Rughe
+        if (decoded["rughe"] != null) {
+          _rugheResult = decoded["rughe"];
+          _rugheOverlayUrl = decoded["rughe"]["overlay_url"] != null
+              ? "http://46.101.223.88:5000${decoded["rughe"]["overlay_url"]}"
+              : null;
+          _rughePercentuale = decoded["rughe"]["percentuale"] != null
+              ? (decoded["rughe"]["percentuale"] as num).toDouble()
+              : null;
+        }
 
-      final macchieResp = await macchieReq.send();
-      final macchieBody = await macchieResp.stream.bytesToString();
+        // Macchie
+        if (decoded["macchie"] != null) {
+          _macchieResult = decoded["macchie"];
+          _macchieOverlayUrl = decoded["macchie"]["overlay_url"] != null
+              ? "http://46.101.223.88:5000${decoded["macchie"]["overlay_url"]}"
+              : null;
+          _macchiePercentuale = decoded["macchie"]["percentuale"] != null
+              ? (decoded["macchie"]["percentuale"] as num).toDouble()
+              : null;
+        }
 
-      if (macchieResp.statusCode == 200) {
-        final decoded = json.decode(macchieBody);
-        _macchieResult = decoded;
-        _macchieOverlayUrl = decoded["overlay_url"] != null
-            ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
-            : null;
-        _macchiePercentuale = decoded["percentuale"] != null
-            ? (decoded["percentuale"] as num).toDouble()
-            : null;
-      }
-
-      // 🔐 Salvataggio overlay in galleria (solo se disponibili)
-      Future<void> saveOverlay(String? url) async {
-        if (url == null) return;
-        final overlayResp = await http.get(Uri.parse(url));
-        if (overlayResp.statusCode == 200) {
-          final bytes = overlayResp.bodyBytes;
-          final PermissionState pState =
-              await PhotoManager.requestPermissionExtend();
-          if (pState.isAuth) {
-            await PhotoManager.editor.saveImage(
-              bytes,
-              filename: "overlay_${DateTime.now().millisecondsSinceEpoch}.png",
-            );
+        // 🔐 Salvataggio overlay in galleria con nomi distinti
+        Future<void> saveOverlay(String? url, String tipo) async {
+          if (url == null) return;
+          final overlayResp = await http.get(Uri.parse(url));
+          if (overlayResp.statusCode == 200) {
+            final bytes = overlayResp.bodyBytes;
+            final PermissionState pState =
+                await PhotoManager.requestPermissionExtend();
+            if (pState.isAuth) {
+              await PhotoManager.editor.saveImage(
+                bytes,
+                filename:
+                    "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+              );
+            }
           }
         }
-      }
 
-      await saveOverlay(_rugheOverlayUrl);
-      await saveOverlay(_macchieOverlayUrl);
+        await saveOverlay(_rugheOverlayUrl, "rughe");
+        await saveOverlay(_macchieOverlayUrl, "macchie");
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Analisi completata")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Analisi completata")),
+          );
+        }
+      } else {
+        throw Exception("Errore server: ${resp.statusCode}");
       }
     } catch (e) {
       if (mounted) {
