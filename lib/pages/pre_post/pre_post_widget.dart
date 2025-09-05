@@ -230,18 +230,19 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     _initCamera();
   }
 
-  void _initCamera() {
+  Future<void> _initCamera() async {
+    await _controller?.dispose();
     _controller = CameraController(currentCamera, ResolutionPreset.high);
     _initializeControllerFuture = _controller!.initialize();
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
-  void _switchCamera() {
+  Future<void> _switchCamera() async {
     if (widget.cameras.length < 2) return;
     currentCamera = (currentCamera == widget.cameras.first)
         ? widget.cameras.last
         : widget.cameras.first;
-    _initCamera();
+    await _initCamera();
   }
 
   @override
@@ -254,6 +255,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     try {
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
+      if (!mounted) return;
       Navigator.pop(context, File(image.path));
     } catch (e) {
       debugPrint("Errore scatto: $e");
@@ -300,9 +302,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                         Padding(
                           padding: const EdgeInsets.only(left: 32),
                           child: GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
+                            onTap: () => Navigator.pop(context),
                             child: Container(
                               width: 45,
                               height: 45,
@@ -316,16 +316,25 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                           ),
                         ),
 
-                        // Pulsante scatto centrale
+                        // Pulsante scatto centrale (doppio cerchio stile iOS)
                         GestureDetector(
                           onTap: _takePicture,
                           child: Container(
-                            width: 80,
-                            height: 80,
+                            width: 90,
+                            height: 90,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 6),
-                              color: Colors.white,
+                              border: Border.all(color: Colors.white, width: 4),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 70,
+                                height: 70,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
                         ),
