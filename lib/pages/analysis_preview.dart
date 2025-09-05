@@ -68,6 +68,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       req.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
+
+      // 🔹 Invia sempre il mode scelto (fullface o particolare)
       req.fields["mode"] = widget.mode;
 
       final resp = await req.send();
@@ -232,7 +234,11 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Anteprima"),
+        title: Text(
+          widget.mode == "particolare"
+              ? "Anteprima (Particolare)"
+              : "Anteprima (Volto intero)",
+        ),
         backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
