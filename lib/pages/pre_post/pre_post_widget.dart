@@ -17,7 +17,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   double? prePercent;
   double? postPercent;
 
-  // === Carica PRE dalla galleria con photo_manager ===
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -27,6 +27,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
+    // prendo tutte le immagini della galleria
     final List<AssetPathEntity> paths =
         await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
@@ -35,7 +36,47 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
-    final File? file = await media.first.file;
+    // mostro la lista in un semplice dialog di selezione
+    final file = await showDialog<File?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Seleziona foto PRE"),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemCount: media.length,
+            itemBuilder: (context, index) {
+              return FutureBuilder<Uint8List?>(
+                future: media[index].thumbnailDataWithSize(const ThumbnailSize(200, 200)),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      snapshot.data != null) {
+                    return GestureDetector(
+                      onTap: () async {
+                        final File? f = await media[index].file;
+                        if (f != null && context.mounted) {
+                          Navigator.pop(context, f);
+                        }
+                      },
+                      child: Image.memory(snapshot.data!, fit: BoxFit.cover),
+                    );
+                  } else {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
     if (file != null) {
       setState(() {
         preImage = file;
@@ -44,7 +85,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera (overlay guida pre) ===
+  // === Scatta POST con camera ===
   Future<void> _capturePostImage() async {
     if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +116,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === funzione analisi simulata ===
   double _fakeAnalysis() {
     return 20 + Random().nextInt(50).toDouble();
   }
@@ -94,7 +134,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // BOX PRE
+            // BOX PRE (sopra)
             GestureDetector(
               onTap: _pickPreImage,
               child: Container(
@@ -113,7 +153,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
 
-            // BOX POST
+            // BOX POST (sotto)
             GestureDetector(
               onTap: _capturePostImage,
               child: Container(
@@ -160,7 +200,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Pagina Camera con overlay guida 1024x1024 + switch camera ===
+// === Camera con overlay guida centrata 1024x1024 + switch camera ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -235,7 +275,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
               children: [
                 CameraPreview(_controller!),
 
-                // Overlay guida centrato 1024x1024
+                // Overlay guida centrata 1024x1024
                 Center(
                   child: SizedBox(
                     width: min(1024, screenW),
@@ -247,7 +287,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // Pulsante scatto
+                // Pulsanti scatto e switch
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
