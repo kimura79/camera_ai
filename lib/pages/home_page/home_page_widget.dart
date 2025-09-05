@@ -457,9 +457,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => AnalysisPreview(imagePath: newPath),
+            builder: (_) => AnalysisPreview(
+              imagePath: newPath,
+              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
           ),
-        );
+        ),
+      );
+
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
