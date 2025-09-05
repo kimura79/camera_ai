@@ -252,9 +252,23 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _switchCamera() async {
     if (widget.cameras.length < 2) return;
-    currentCamera = (currentCamera == widget.cameras.first)
-        ? widget.cameras.last
-        : widget.cameras.first;
+
+    if (currentCamera.lensDirection == CameraLensDirection.front) {
+      // passa a posteriore
+      final back = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = back;
+    } else {
+      // passa a frontale
+      final front = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = front;
+    }
+
     await _initCamera();
   }
 
