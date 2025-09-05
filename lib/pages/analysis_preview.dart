@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
-// 🆕 import servizio API
 import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
@@ -21,17 +20,19 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Map<String, dynamic>? _result;
   String? _overlayUrl;
   double? _percentuale;
+  String _analysisType = "rughe_full"; // default volto
 
-  Future<void> _analyzeImage() async {
+  Future<void> _analyzeImage(String endpoint, String analysisType) async {
     setState(() {
       _loading = true;
       _result = null;
       _overlayUrl = null;
       _percentuale = null;
+      _analysisType = analysisType;
     });
 
     try {
-      final uri = Uri.parse("http://46.101.223.88:5000/analyze"); // 🔗 server
+      final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
       final request = http.MultipartRequest("POST", uri);
 
       request.files.add(
@@ -53,7 +54,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               : null;
         });
 
-        // 🔐 Se arriva overlay → salvalo in galleria
+        // 🔐 Salvataggio overlay in galleria
         if (_overlayUrl != null) {
           final overlayResp = await http.get(Uri.parse(_overlayUrl!));
           if (overlayResp.statusCode == 200) {
@@ -104,7 +105,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           children: [
             const SizedBox(height: 10),
 
-            // ✅ Foto originale
+            // Foto originale
             Container(
               width: MediaQuery.of(context).size.width * 0.9,
               height: MediaQuery.of(context).size.width * 0.9,
@@ -119,24 +120,40 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            ElevatedButton(
-              onPressed: _loading ? null : _analyzeImage,
-              child: _loading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Analizza"),
+            // Due pulsanti: volto intero e particolare
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              children: [
+                ElevatedButton(
+                  onPressed: _loading
+                      ? null
+                      : () => _analyzeImage("analyze_rughe_fullface", "rughe_full"),
+                  child: _loading && _analysisType == "rughe_full"
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Analizza Volto Intero"),
+                ),
+                ElevatedButton(
+                  onPressed: _loading
+                      ? null
+                      : () => _analyzeImage("analyze_rughe_particolare", "rughe_part"),
+                  child: _loading && _analysisType == "rughe_part"
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Analizza Particolare"),
+                ),
+              ],
             ),
 
             const SizedBox(height: 24),
 
-            // 📊 Risultato analisi
+            // Risultato analisi
             if (_overlayUrl != null) ...[
-              const Text(
-                "🔬 Analisi Macchie",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                "🔬 Analisi: $_analysisType",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
 
-              // Overlay
               Container(
                 width: MediaQuery.of(context).size.width * 0.9,
                 height: MediaQuery.of(context).size.width * 0.9,
@@ -151,29 +168,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 ),
               ),
 
-              const SizedBox(height: 20),
-
-              // 📊 Percentuale + barra
-              if (_percentuale != null) ...[
-                Text(
-                  "Percentuale macchie: ${_percentuale!.toStringAsFixed(2)}%",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: (_percentuale! / 100).clamp(0.0, 1.0),
-                  backgroundColor: Colors.grey[300],
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                  minHeight: 12,
-                ),
-              ],
-
               const SizedBox(height: 30),
 
-              // 🆕 Giudizio medico
               const Text(
                 "Come giudichi questa analisi? Dai un voto da 1 a 10",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -188,12 +184,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                       bool ok = await ApiService.sendJudgement(
                         filename: path.basename(widget.imagePath),
                         giudizio: voto,
-                        analysisType: "macchie",
+                        analysisType: _analysisType,
                         autore: "anonimo",
                       );
                       if (ok && mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("✅ Giudizio $voto inviato")),
+                          SnackBar(
+                              content: Text("✅ Giudizio $voto inviato per $_analysisType")),
                         );
                       }
                     },
