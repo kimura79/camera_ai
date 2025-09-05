@@ -8,8 +8,15 @@ import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
+  final String analysisType; // "rughe" o "macchie"
+  final String mode; // "fullface" o "particolare" (valido solo per rughe)
 
-  const AnalysisPreview({super.key, required this.imagePath});
+  const AnalysisPreview({
+    super.key,
+    required this.imagePath,
+    this.analysisType = "rughe",
+    this.mode = "fullface",
+  });
 
   @override
   State<AnalysisPreview> createState() => _AnalysisPreviewState();
@@ -20,24 +27,34 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Map<String, dynamic>? _result;
   String? _overlayUrl;
   double? _percentuale;
-  String _analysisType = "rughe_full"; // default volto
 
-  Future<void> _analyzeImage(String endpoint, String analysisType) async {
+  Future<void> _analyzeImage() async {
     setState(() {
       _loading = true;
       _result = null;
       _overlayUrl = null;
       _percentuale = null;
-      _analysisType = analysisType;
     });
 
     try {
+      String endpoint;
+      if (widget.analysisType == "macchie") {
+        endpoint = "analyze_macchie";
+      } else {
+        endpoint = "analyze_rughe";
+      }
+
       final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
       final request = http.MultipartRequest("POST", uri);
 
       request.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
+
+      // aggiungo mode solo per rughe
+      if (widget.analysisType == "rughe") {
+        request.fields["mode"] = widget.mode;
+      }
 
       final response = await request.send();
       final body = await response.stream.bytesToString();
@@ -120,28 +137,12 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // Due pulsanti: volto intero e particolare
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 16,
-              children: [
-                ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () => _analyzeImage("analyze_rughe_fullface", "rughe_full"),
-                  child: _loading && _analysisType == "rughe_full"
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Analizza Volto Intero"),
-                ),
-                ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () => _analyzeImage("analyze_rughe_particolare", "rughe_part"),
-                  child: _loading && _analysisType == "rughe_part"
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Analizza Particolare"),
-                ),
-              ],
+            // 🔘 Un solo pulsante analizza
+            ElevatedButton(
+              onPressed: _loading ? null : _analyzeImage,
+              child: _loading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Analizza"),
             ),
 
             const SizedBox(height: 24),
@@ -149,7 +150,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             // Risultato analisi
             if (_overlayUrl != null) ...[
               Text(
-                "🔬 Analisi: $_analysisType",
+                "🔬 Analisi: ${widget.analysisType}",
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
@@ -170,6 +171,15 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
               const SizedBox(height: 30),
 
+              if (_percentuale != null)
+                Text(
+                  "Percentuale area: ${_percentuale!.toStringAsFixed(2)}%",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+
+              const SizedBox(height: 20),
+
               const Text(
                 "Come giudichi questa analisi? Dai un voto da 1 a 10",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -184,13 +194,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                       bool ok = await ApiService.sendJudgement(
                         filename: path.basename(widget.imagePath),
                         giudizio: voto,
-                        analysisType: _analysisType,
+                        analysisType: widget.analysisType,
                         autore: "anonimo",
                       );
                       if (ok && mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                              content: Text("✅ Giudizio $voto inviato per $_analysisType")),
+                              content: Text("✅ Giudizio $voto inviato per ${widget.analysisType}")),
                         );
                       }
                     },
