@@ -76,17 +76,19 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final decoded = await compute(jsonDecode, body);
 
       if (resp.statusCode == 200) {
-        if (tipo == "all") {
-          _parseRughe(decoded["rughe"]);
-          _parseMacchie(decoded["macchie"]);
-          _parseMelasma(decoded["melasma"]);
-        } else if (tipo == "rughe") {
-          _parseRughe(decoded);
-        } else if (tipo == "macchie") {
-          _parseMacchie(decoded);
-        } else if (tipo == "melasma") {
-          _parseMelasma(decoded);
-        }
+        setState(() {
+          if (tipo == "all") {
+            _parseRughe(decoded["rughe"]);
+            _parseMacchie(decoded["macchie"]);
+            _parseMelasma(decoded["melasma"]);
+          } else if (tipo == "rughe") {
+            _parseRughe(decoded);
+          } else if (tipo == "macchie") {
+            _parseMacchie(decoded);
+          } else if (tipo == "melasma") {
+            _parseMelasma(decoded);
+          }
+        });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
