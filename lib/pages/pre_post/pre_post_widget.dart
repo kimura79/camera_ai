@@ -28,7 +28,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    // prendo tutte le immagini della galleria
     final List<AssetPathEntity> paths =
         await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
@@ -37,7 +36,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
-    // mostro la lista in un semplice dialog di selezione
     final file = await showDialog<File?>(
       context: context,
       builder: (context) => AlertDialog(
@@ -54,7 +52,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             itemCount: media.length,
             itemBuilder: (context, index) {
               return FutureBuilder<Uint8List?>(
-                future: media[index].thumbnailDataWithSize(const ThumbnailSize(200, 200)),
+                future: media[index].thumbnailDataWithSize(
+                  const ThumbnailSize(200, 200),
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.done &&
                       snapshot.data != null) {
@@ -135,7 +135,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // BOX PRE (sopra)
+            // BOX PRE
             GestureDetector(
               onTap: _pickPreImage,
               child: Container(
@@ -154,7 +154,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
 
-            // BOX POST (sotto)
+            // BOX POST
             GestureDetector(
               onTap: _capturePostImage,
               child: Container(
@@ -201,7 +201,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida centrata 1024x1024 + switch camera ===
+// === Camera con overlay guida 1024x1024 + stile iPhone ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -265,7 +265,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     final double screenW = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Scatta Foto Post")),
+      backgroundColor: Colors.black,
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
@@ -288,23 +288,64 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // Pulsanti scatto e switch
+                // Pulsanti stile iPhone
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.only(bottom: 25),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        FloatingActionButton(
-                          heroTag: "switch",
-                          onPressed: _switchCamera,
-                          child: const Icon(Icons.cameraswitch),
+                        // Pulsante galleria a sinistra
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                            },
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.image,
+                                  color: Colors.white, size: 26),
+                            ),
+                          ),
                         ),
-                        FloatingActionButton(
-                          heroTag: "capture",
-                          onPressed: _takePicture,
-                          child: const Icon(Icons.camera_alt),
+
+                        // Pulsante scatto centrale
+                        GestureDetector(
+                          onTap: _takePicture,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 6),
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+
+                        // Pulsante switch camera a destra
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
                         ),
                       ],
                     ),
