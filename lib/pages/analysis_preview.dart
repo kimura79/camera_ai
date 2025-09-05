@@ -9,7 +9,7 @@ import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
-  final String mode; // "fullface" o "particolare" per le rughe
+  final String mode; // "fullface" o "particolare"
 
   const AnalysisPreview({
     super.key,
@@ -32,6 +32,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _macchieOverlayUrl;
   double? _macchiePercentuale;
 
+  Map<String, dynamic>? _melasmaResult;
+  String? _melasmaOverlayUrl;
+  double? _melasmaPercentuale;
+
   // === Funzione isolate per salvataggio overlay ===
   static Future<void> _saveOverlayIsolate(Map<String, String> params) async {
     final url = params["url"];
@@ -53,27 +57,18 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  Future<void> _analyzeImage() async {
+  // === API helper ===
+  Future<void> _callAnalysis(String endpoint, String tipo) async {
     setState(() {
       _loading = true;
-      _rugheResult = null;
-      _rugheOverlayUrl = null;
-      _rughePercentuale = null;
-      _macchieResult = null;
-      _macchieOverlayUrl = null;
-      _macchiePercentuale = null;
     });
 
     try {
-      final uri = Uri.parse("http://46.101.223.88:5000/analyze_all");
+      final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
       final req = http.MultipartRequest("POST", uri);
-
-      // 🔹 File immagine
       req.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
-
-      // 🔹 Invia sempre il mode scelto (fullface o particolare)
       req.fields["mode"] = widget.mode;
 
       final resp = await req.send();
@@ -82,45 +77,21 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       if (resp.statusCode == 200) {
         final decoded = json.decode(body);
 
-        // Rughe
-        if (decoded["rughe"] != null) {
-          _rugheResult = decoded["rughe"];
-          _rugheOverlayUrl = decoded["rughe"]["overlay_url"] != null
-              ? "http://46.101.223.88:5000${decoded["rughe"]["overlay_url"]}"
-              : null;
-          _rughePercentuale = decoded["rughe"]["percentuale"] != null
-              ? (decoded["rughe"]["percentuale"] as num).toDouble()
-              : null;
-        }
-
-        // Macchie
-        if (decoded["macchie"] != null) {
-          _macchieResult = decoded["macchie"];
-          _macchieOverlayUrl = decoded["macchie"]["overlay_url"] != null
-              ? "http://46.101.223.88:5000${decoded["macchie"]["overlay_url"]}"
-              : null;
-          _macchiePercentuale = decoded["macchie"]["percentuale"] != null
-              ? (decoded["macchie"]["percentuale"] as num).toDouble()
-              : null;
-        }
-
-        // 🔐 Salvataggio overlay in background isolate
-        if (_rugheOverlayUrl != null) {
-          compute(_saveOverlayIsolate, {
-            "url": _rugheOverlayUrl!,
-            "tipo": "rughe",
-          });
-        }
-        if (_macchieOverlayUrl != null) {
-          compute(_saveOverlayIsolate, {
-            "url": _macchieOverlayUrl!,
-            "tipo": "macchie",
-          });
+        if (tipo == "all") {
+          _parseRughe(decoded["rughe"]);
+          _parseMacchie(decoded["macchie"]);
+          _parseMelasma(decoded["melasma"]);
+        } else if (tipo == "rughe") {
+          _parseRughe(decoded);
+        } else if (tipo == "macchie") {
+          _parseMacchie(decoded);
+        } else if (tipo == "melasma") {
+          _parseMelasma(decoded);
         }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Analisi completata")),
+            SnackBar(content: Text("✅ Analisi $tipo completata")),
           );
         }
       } else {
@@ -141,6 +112,59 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
+  // === Parsers ===
+  void _parseRughe(dynamic data) {
+    if (data == null) return;
+    _rugheResult = data;
+    _rugheOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
+    _rughePercentuale =
+        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+
+    if (_rugheOverlayUrl != null) {
+      compute(_saveOverlayIsolate, {
+        "url": _rugheOverlayUrl!,
+        "tipo": "rughe",
+      });
+    }
+  }
+
+  void _parseMacchie(dynamic data) {
+    if (data == null) return;
+    _macchieResult = data;
+    _macchieOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
+    _macchiePercentuale =
+        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+
+    if (_macchieOverlayUrl != null) {
+      compute(_saveOverlayIsolate, {
+        "url": _macchieOverlayUrl!,
+        "tipo": "macchie",
+      });
+    }
+  }
+
+  void _parseMelasma(dynamic data) {
+    if (data == null) return;
+    _melasmaResult = data;
+    _melasmaOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
+    _melasmaPercentuale =
+        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+
+    if (_melasmaOverlayUrl != null) {
+      compute(_saveOverlayIsolate, {
+        "url": _melasmaOverlayUrl!,
+        "tipo": "melasma",
+      });
+    }
+  }
+
+  // === Blocchi UI ===
   Widget _buildAnalysisBlock({
     required String title,
     required String? overlayUrl,
@@ -157,7 +181,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
-
         Container(
           width: MediaQuery.of(context).size.width * 0.9,
           height: MediaQuery.of(context).size.width * 0.9,
@@ -171,9 +194,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 const Center(child: Text("Errore caricamento overlay")),
           ),
         ),
-
         const SizedBox(height: 10),
-
         if (percentuale != null)
           Text(
             "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
@@ -182,9 +203,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
         const SizedBox(height: 20),
-
         const Text(
           "Come giudichi questa analisi? Dai un voto da 1 a 10",
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -205,8 +224,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 if (ok && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content:
-                          Text("✅ Giudizio $voto inviato per $analysisType"),
+                      content: Text("✅ Giudizio $voto inviato per $analysisType"),
                     ),
                   );
                 }
@@ -238,7 +256,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // 🔹 Titolo dinamico in base a mode
         title: Text(
           widget.mode == "particolare"
               ? "Anteprima (Particolare)"
@@ -268,12 +285,28 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // 🔘 Un solo pulsante "Analizza"
-            ElevatedButton(
-              onPressed: _loading ? null : _analyzeImage,
-              child: _loading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Analizza"),
+            // 🔘 Pulsanti analisi
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton(
+                  onPressed: _loading ? null : () => _callAnalysis("analyze_rughe", "rughe"),
+                  child: const Text("Analizza Rughe"),
+                ),
+                ElevatedButton(
+                  onPressed: _loading ? null : () => _callAnalysis("analyze_macchie", "macchie"),
+                  child: const Text("Analizza Macchie"),
+                ),
+                ElevatedButton(
+                  onPressed: _loading ? null : () => _callAnalysis("analyze_melasma", "melasma"),
+                  child: const Text("Analizza Melasma"),
+                ),
+                ElevatedButton(
+                  onPressed: _loading ? null : () => _callAnalysis("analyze_all", "all"),
+                  child: const Text("Analizza Tutto"),
+                ),
+              ],
             ),
 
             const SizedBox(height: 24),
@@ -290,6 +323,12 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               overlayUrl: _macchieOverlayUrl,
               percentuale: _macchiePercentuale,
               analysisType: "macchie",
+            ),
+            _buildAnalysisBlock(
+              title: "Melasma",
+              overlayUrl: _melasmaOverlayUrl,
+              percentuale: _melasmaPercentuale,
+              analysisType: "melasma",
             ),
           ],
         ),
