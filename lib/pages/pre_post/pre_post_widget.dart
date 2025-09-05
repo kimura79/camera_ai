@@ -32,7 +32,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (paths.isEmpty) return;
 
     final List<AssetEntity> media =
-        await paths.first.getAssetListPaged(page: 0, size: 60);
+        await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final File? file = await media.first.file;
@@ -59,8 +59,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            CameraOverlayPage(camera: firstCamera, guideImage: preImage!),
+        builder: (context) => CameraOverlayPage(
+          cameras: cameras,
+          initialCamera: firstCamera,
+          guideImage: preImage!,
+        ),
       ),
     );
 
@@ -84,56 +87,51 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       diff = postPercent! - prePercent!;
     }
 
+    final double boxSize = MediaQuery.of(context).size.width;
+
     return Scaffold(
       appBar: AppBar(title: const Text("Pre/Post")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  // BOX PRE
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _pickPreImage,
-                      child: Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.blueAccent, width: 2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: preImage == null
-                            ? const Center(
-                                child: Icon(Icons.add,
-                                    size: 60, color: Colors.blue),
-                              )
-                            : Image.file(preImage!, fit: BoxFit.cover),
-                      ),
-                    ),
-                  ),
-                  // BOX POST
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _capturePostImage,
-                      child: Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.green, width: 2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: postImage == null
-                            ? const Center(
-                                child: Icon(Icons.add,
-                                    size: 60, color: Colors.green),
-                              )
-                            : Image.file(postImage!, fit: BoxFit.cover),
-                      ),
-                    ),
-                  ),
-                ],
+            // BOX PRE
+            GestureDetector(
+              onTap: _pickPreImage,
+              child: Container(
+                width: boxSize,
+                height: boxSize,
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blueAccent, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: preImage == null
+                    ? const Center(
+                        child: Icon(Icons.add, size: 80, color: Colors.blue),
+                      )
+                    : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
+
+            // BOX POST
+            GestureDetector(
+              onTap: _capturePostImage,
+              child: Container(
+                width: boxSize,
+                height: boxSize,
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.green, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: postImage == null
+                    ? const Center(
+                        child: Icon(Icons.add, size: 80, color: Colors.green),
+                      )
+                    : Image.file(postImage!, fit: BoxFit.cover),
+              ),
+            ),
+
             const SizedBox(height: 16),
             if (prePercent != null || postPercent != null)
               Column(
@@ -162,13 +160,18 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Pagina Camera con overlay guida ===
+// === Pagina Camera con overlay guida 1024x1024 + switch camera ===
 class CameraOverlayPage extends StatefulWidget {
-  final CameraDescription camera;
+  final List<CameraDescription> cameras;
+  final CameraDescription initialCamera;
   final File guideImage;
 
-  const CameraOverlayPage(
-      {super.key, required this.camera, required this.guideImage});
+  const CameraOverlayPage({
+    super.key,
+    required this.cameras,
+    required this.initialCamera,
+    required this.guideImage,
+  });
 
   @override
   State<CameraOverlayPage> createState() => _CameraOverlayPageState();
@@ -177,12 +180,27 @@ class CameraOverlayPage extends StatefulWidget {
 class _CameraOverlayPageState extends State<CameraOverlayPage> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
+  late CameraDescription currentCamera;
 
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(widget.camera, ResolutionPreset.medium);
+    currentCamera = widget.initialCamera;
+    _initCamera();
+  }
+
+  void _initCamera() {
+    _controller = CameraController(currentCamera, ResolutionPreset.high);
     _initializeControllerFuture = _controller!.initialize();
+    setState(() {});
+  }
+
+  void _switchCamera() {
+    if (widget.cameras.length < 2) return;
+    currentCamera = (currentCamera == widget.cameras.first)
+        ? widget.cameras.last
+        : widget.cameras.first;
+    _initCamera();
   }
 
   @override
@@ -203,29 +221,51 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   @override
   Widget build(BuildContext context) {
+    final double screenW = MediaQuery.of(context).size.width;
+
     return Scaffold(
       appBar: AppBar(title: const Text("Scatta Foto Post")),
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
+          if (snapshot.connectionState == ConnectionState.done &&
+              _controller != null) {
             return Stack(
+              alignment: Alignment.center,
               children: [
                 CameraPreview(_controller!),
-                // Overlay guida (foto pre semitrasparente)
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: 0.4,
-                    child: Image.file(widget.guideImage, fit: BoxFit.cover),
+
+                // Overlay guida centrato 1024x1024
+                Center(
+                  child: SizedBox(
+                    width: min(1024, screenW),
+                    height: min(1024, screenW),
+                    child: Opacity(
+                      opacity: 0.4,
+                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
+                    ),
                   ),
                 ),
+
+                // Pulsante scatto
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: FloatingActionButton(
-                      onPressed: _takePicture,
-                      child: const Icon(Icons.camera_alt),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        FloatingActionButton(
+                          heroTag: "switch",
+                          onPressed: _switchCamera,
+                          child: const Icon(Icons.cameraswitch),
+                        ),
+                        FloatingActionButton(
+                          heroTag: "capture",
+                          onPressed: _takePicture,
+                          child: const Icon(Icons.camera_alt),
+                        ),
+                      ],
                     ),
                   ),
                 ),
