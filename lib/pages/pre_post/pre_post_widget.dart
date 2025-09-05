@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
+// 🔹 per flip immagine
+import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -254,14 +256,12 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     if (widget.cameras.length < 2) return;
 
     if (currentCamera.lensDirection == CameraLensDirection.front) {
-      // passa a posteriore
       final back = widget.cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => widget.cameras.first,
       );
       currentCamera = back;
     } else {
-      // passa a frontale
       final front = widget.cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => widget.cameras.first,
@@ -283,7 +283,21 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
       if (!mounted) return;
-      Navigator.pop(context, File(image.path));
+
+      File file = File(image.path);
+
+      // 🔹 Se la camera è frontale → specchia l'immagine
+      if (currentCamera.lensDirection == CameraLensDirection.front) {
+        final bytes = await file.readAsBytes();
+        final decoded = img.decodeImage(bytes);
+        if (decoded != null) {
+          final flipped = img.flipHorizontal(decoded);
+          final flippedBytes = img.encodeJpg(flipped);
+          file = await file.writeAsBytes(flippedBytes, flush: true);
+        }
+      }
+
+      Navigator.pop(context, file);
     } catch (e) {
       debugPrint("Errore scatto: $e");
     }
