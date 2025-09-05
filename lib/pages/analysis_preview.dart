@@ -41,11 +41,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     final overlayResp = await http.get(Uri.parse(url));
     if (overlayResp.statusCode == 200) {
       final bytes = overlayResp.bodyBytes;
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
       if (pState.isAuth) {
         await PhotoManager.editor.saveImage(
           bytes,
-          filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+          filename:
+              "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
         );
       }
     }
@@ -65,6 +67,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     try {
       final uri = Uri.parse("http://46.101.223.88:5000/analyze_all");
       final req = http.MultipartRequest("POST", uri);
+
+      // 🔹 File immagine
       req.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
@@ -201,8 +205,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 if (ok && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(
-                          "✅ Giudizio $voto inviato per $analysisType"),
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
                     ),
                   );
                 }
@@ -234,6 +238,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // 🔹 Titolo dinamico in base a mode
         title: Text(
           widget.mode == "particolare"
               ? "Anteprima (Particolare)"
