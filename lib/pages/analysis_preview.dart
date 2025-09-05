@@ -8,13 +8,11 @@ import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
-  final String analysisType; // "rughe" o "macchie"
-  final String mode; // "fullface" o "particolare" (solo per rughe)
+  final String mode; // "fullface" o "particolare" per le rughe
 
   const AnalysisPreview({
     super.key,
     required this.imagePath,
-    this.analysisType = "rughe",
     this.mode = "fullface",
   });
 
@@ -24,78 +22,95 @@ class AnalysisPreview extends StatefulWidget {
 
 class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
-  Map<String, dynamic>? _result;
-  String? _overlayUrl;
-  double? _percentuale;
+
+  Map<String, dynamic>? _rugheResult;
+  String? _rugheOverlayUrl;
+  double? _rughePercentuale;
+
+  Map<String, dynamic>? _macchieResult;
+  String? _macchieOverlayUrl;
+  double? _macchiePercentuale;
 
   Future<void> _analyzeImage() async {
     setState(() {
       _loading = true;
-      _result = null;
-      _overlayUrl = null;
-      _percentuale = null;
+      _rugheResult = null;
+      _rugheOverlayUrl = null;
+      _rughePercentuale = null;
+      _macchieResult = null;
+      _macchieOverlayUrl = null;
+      _macchiePercentuale = null;
     });
 
     try {
-      String endpoint;
-      if (widget.analysisType == "macchie") {
-        endpoint = "analyze_macchie";
-      } else {
-        endpoint = "analyze_rughe";
+      // === RUGHE ===
+      final rugheUri = Uri.parse("http://46.101.223.88:5000/analyze_rughe");
+      final rugheReq = http.MultipartRequest("POST", rugheUri);
+      rugheReq.files.add(
+        await http.MultipartFile.fromPath("file", widget.imagePath),
+      );
+      rugheReq.fields["mode"] = widget.mode;
+
+      final rugheResp = await rugheReq.send();
+      final rugheBody = await rugheResp.stream.bytesToString();
+
+      if (rugheResp.statusCode == 200) {
+        final decoded = json.decode(rugheBody);
+        _rugheResult = decoded;
+        _rugheOverlayUrl = decoded["overlay_url"] != null
+            ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
+            : null;
+        _rughePercentuale = decoded["percentuale"] != null
+            ? (decoded["percentuale"] as num).toDouble()
+            : null;
       }
 
-      final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
-      final request = http.MultipartRequest("POST", uri);
-
-      request.files.add(
+      // === MACCHIE ===
+      final macchieUri =
+          Uri.parse("http://46.101.223.88:5000/analyze_macchie");
+      final macchieReq = http.MultipartRequest("POST", macchieUri);
+      macchieReq.files.add(
         await http.MultipartFile.fromPath("file", widget.imagePath),
       );
 
-      // aggiungi mode solo per rughe
-      if (widget.analysisType == "rughe") {
-        request.fields["mode"] = widget.mode;
+      final macchieResp = await macchieReq.send();
+      final macchieBody = await macchieResp.stream.bytesToString();
+
+      if (macchieResp.statusCode == 200) {
+        final decoded = json.decode(macchieBody);
+        _macchieResult = decoded;
+        _macchieOverlayUrl = decoded["overlay_url"] != null
+            ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
+            : null;
+        _macchiePercentuale = decoded["percentuale"] != null
+            ? (decoded["percentuale"] as num).toDouble()
+            : null;
       }
 
-      final response = await request.send();
-      final body = await response.stream.bytesToString();
-
-      if (response.statusCode == 200) {
-        final decoded = json.decode(body);
-        setState(() {
-          _result = decoded;
-          _overlayUrl = decoded["overlay_url"] != null
-              ? "http://46.101.223.88:5000${decoded["overlay_url"]}"
-              : null;
-          _percentuale = decoded["percentuale"] != null
-              ? (decoded["percentuale"] as num).toDouble()
-              : null;
-        });
-
-        // 🔐 Salvataggio overlay in galleria
-        if (_overlayUrl != null) {
-          final overlayResp = await http.get(Uri.parse(_overlayUrl!));
-          if (overlayResp.statusCode == 200) {
-            final bytes = overlayResp.bodyBytes;
-            final PermissionState pState =
-                await PhotoManager.requestPermissionExtend();
-            if (pState.isAuth) {
-              await PhotoManager.editor.saveImage(
-                bytes,
-                filename:
-                    "overlay_${DateTime.now().millisecondsSinceEpoch}.png",
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(
-                          "✅ Overlay ${widget.analysisType} salvato in galleria")),
-                );
-              }
-            }
+      // 🔐 Salvataggio overlay in galleria (solo se disponibili)
+      Future<void> saveOverlay(String? url) async {
+        if (url == null) return;
+        final overlayResp = await http.get(Uri.parse(url));
+        if (overlayResp.statusCode == 200) {
+          final bytes = overlayResp.bodyBytes;
+          final PermissionState pState =
+              await PhotoManager.requestPermissionExtend();
+          if (pState.isAuth) {
+            await PhotoManager.editor.saveImage(
+              bytes,
+              filename: "overlay_${DateTime.now().millisecondsSinceEpoch}.png",
+            );
           }
         }
-      } else {
-        throw Exception("Errore server: ${response.statusCode}");
+      }
+
+      await saveOverlay(_rugheOverlayUrl);
+      await saveOverlay(_macchieOverlayUrl);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Analisi completata")),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -104,10 +119,102 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         );
       }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
+  }
+
+  Widget _buildAnalysisBlock({
+    required String title,
+    required String? overlayUrl,
+    required double? percentuale,
+    required String analysisType,
+  }) {
+    if (overlayUrl == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          "🔬 Analisi: $title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+
+        Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.width * 0.9,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.blue, width: 3),
+          ),
+          child: Image.network(
+            overlayUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (ctx, err, stack) =>
+                const Center(child: Text("Errore caricamento overlay")),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        if (percentuale != null)
+          Text(
+            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+            style: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+
+        const SizedBox(height: 20),
+
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
+            return GestureDetector(
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: path.basename(widget.imagePath),
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
+                );
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            "✅ Giudizio $voto inviato per $analysisType")),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 40),
+      ],
+    );
   }
 
   @override
@@ -139,93 +246,29 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
             const SizedBox(height: 24),
 
-            // 🔘 Un solo pulsante analizza
+            // 🔘 Un solo pulsante "Analizza"
             ElevatedButton(
               onPressed: _loading ? null : _analyzeImage,
               child: _loading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : Text("Analizza ${widget.analysisType}"),
+                  : const Text("Analizza"),
             ),
 
             const SizedBox(height: 24),
 
-            // Risultato analisi
-            if (_overlayUrl != null) ...[
-              Text(
-                "🔬 Analisi: ${widget.analysisType}",
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-
-              Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                height: MediaQuery.of(context).size.width * 0.9,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue, width: 3),
-                ),
-                child: Image.network(
-                  _overlayUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, err, stack) =>
-                      const Center(child: Text("Errore caricamento overlay")),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              if (_percentuale != null)
-                Text(
-                  "Percentuale area: ${_percentuale!.toStringAsFixed(2)}%",
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-
-              const SizedBox(height: 20),
-
-              const Text(
-                "Come giudichi questa analisi? Dai un voto da 1 a 10",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(10, (index) {
-                  int voto = index + 1;
-                  return GestureDetector(
-                    onTap: () async {
-                      bool ok = await ApiService.sendJudgement(
-                        filename: path.basename(widget.imagePath),
-                        giudizio: voto,
-                        analysisType: widget.analysisType,
-                        autore: "anonimo",
-                      );
-                      if (ok && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(
-                                  "✅ Giudizio $voto inviato per ${widget.analysisType}")),
-                        );
-                      }
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        "$voto",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
+            // Blocchi analisi
+            _buildAnalysisBlock(
+              title: "Rughe",
+              overlayUrl: _rugheOverlayUrl,
+              percentuale: _rughePercentuale,
+              analysisType: "rughe",
+            ),
+            _buildAnalysisBlock(
+              title: "Macchie",
+              overlayUrl: _macchieOverlayUrl,
+              percentuale: _macchiePercentuale,
+              analysisType: "macchie",
+            ),
           ],
         ),
       ),
