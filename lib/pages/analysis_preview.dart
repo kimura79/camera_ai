@@ -1,9 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
+import 'package:flutter/foundation.dart'; // per compute
 import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
@@ -30,6 +31,25 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Map<String, dynamic>? _macchieResult;
   String? _macchieOverlayUrl;
   double? _macchiePercentuale;
+
+  // === Funzione isolate per salvataggio overlay ===
+  static Future<void> _saveOverlayIsolate(Map<String, String> params) async {
+    final url = params["url"];
+    final tipo = params["tipo"];
+    if (url == null || tipo == null) return;
+
+    final overlayResp = await http.get(Uri.parse(url));
+    if (overlayResp.statusCode == 200) {
+      final bytes = overlayResp.bodyBytes;
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (pState.isAuth) {
+        await PhotoManager.editor.saveImage(
+          bytes,
+          filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+        );
+      }
+    }
+  }
 
   Future<void> _analyzeImage() async {
     setState(() {
@@ -78,26 +98,19 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               : null;
         }
 
-        // 🔐 Salvataggio overlay in galleria
-        Future<void> saveOverlay(String? url, String tipo) async {
-          if (url == null) return;
-          final overlayResp = await http.get(Uri.parse(url));
-          if (overlayResp.statusCode == 200) {
-            final bytes = overlayResp.bodyBytes;
-            final PermissionState pState =
-                await PhotoManager.requestPermissionExtend();
-            if (pState.isAuth) {
-              await PhotoManager.editor.saveImage(
-                bytes,
-                filename:
-                    "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-              );
-            }
-          }
+        // 🔐 Salvataggio overlay in background isolate
+        if (_rugheOverlayUrl != null) {
+          compute(_saveOverlayIsolate, {
+            "url": _rugheOverlayUrl!,
+            "tipo": "rughe",
+          });
         }
-
-        await saveOverlay(_rugheOverlayUrl, "rughe");
-        await saveOverlay(_macchieOverlayUrl, "macchie");
+        if (_macchieOverlayUrl != null) {
+          compute(_saveOverlayIsolate, {
+            "url": _macchieOverlayUrl!,
+            "tipo": "macchie",
+          });
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
