@@ -26,6 +26,98 @@ import '/index.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
+// ✅ NUOVA PAGINA: risultati analisi con overlay macchie + rughe
+class AnalysisResultsPage extends StatelessWidget {
+  final String baseImagePath;
+  final String macchieOverlayPath;
+  final String rugheOverlayPath;
+
+  const AnalysisResultsPage({
+    super.key,
+    required this.baseImagePath,
+    required this.macchieOverlayPath,
+    required this.rugheOverlayPath,
+  });
+
+  Widget _buildResultItem({
+    required String title,
+    required String overlayPath,
+    required String scaleText,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.montserrat(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Image.file(
+          File(overlayPath),
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color, width: 2),
+          ),
+          child: Text(
+            scaleText,
+            style: TextStyle(
+              fontSize: 14,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text("Risultati Analisi"),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // 🔹 Overlay macchie
+            _buildResultItem(
+              title: "Macchie Cutanee",
+              overlayPath: macchieOverlayPath,
+              scaleText: "Scala di giudizio: Lieve → Grave",
+              color: Colors.orangeAccent,
+            ),
+            // 🔹 Overlay rughe
+            _buildResultItem(
+              title: "Rughe",
+              overlayPath: rugheOverlayPath,
+              scaleText: "Scala di giudizio: Superficiale → Profonda",
+              color: Colors.cyanAccent,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
@@ -153,7 +245,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Stream → ML Kit ATTIVO in entrambe le modalità (volto + particolare) ======
+  // ====== Stream → ML Kit
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
     if (now.difference(_lastProc).inMilliseconds < 300) return;
@@ -204,7 +296,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     });
   }
 
-  // ====== Helpers ML Kit ======
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
       case 90:
@@ -259,37 +350,31 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
-      // 1) Scatto + decodifica
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // 2) Per la front: flip SUBITO per allineare alle coordinate della preview specchiata
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      // 3) Geometria della preview (FittedBox.cover) + overlay (stessa logica dell'UI)
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble(); // previewSize è landscape
+      final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
 
       final Size screen = MediaQuery.of(context).size;
       final double screenW = screen.width;
       final double screenH = screen.height;
 
-      // scala di BoxFit.cover
       final double scale = math.max(screenW / previewW, screenH / previewH);
       final double dispW = previewW * scale;
       final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0; // offset sinistro del contenuto
-      final double dy = (screenH - dispH) / 2.0; // offset superiore del contenuto
+      final double dx = (screenW - dispW) / 2.0;
+      final double dy = (screenH - dispH) / 2.0;
 
-      // lato corto visibile
       final double shortSideScreen = math.min(screenW, screenH);
 
-      // dimensione del riquadro come overlay
       double squareSizeScreen;
       if (_lastIpdPx > 0) {
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
@@ -297,37 +382,35 @@ class _HomePageWidgetState extends State<HomePageWidget>
         squareSizeScreen =
             (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
       } else {
-        squareSizeScreen = shortSideScreen * 0.70; // fallback
+        squareSizeScreen = shortSideScreen * 0.70;
       }
 
-      // centro riquadro con offset -0.3 (stessa Align dell'overlay)
       final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
+      final double centerYScreen =
+          screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
 
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen  = centerYScreen - squareSizeScreen / 2.0;
+      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
-      // 4) Trasforma SCHERMO → preview visibile → spazio preview → RAW
       final double leftInShown = leftScreen - dx;
-      final double topInShown  = topScreen  - dy;
+      final double topInShown = topScreen - dy;
 
       final double leftPreview = leftInShown / scale;
-      final double topPreview  = topInShown  / scale;
+      final double topPreview = topInShown / scale;
       final double sidePreview = squareSizeScreen / scale;
 
-      final double ratioX = original.width  / previewW;
+      final double ratioX = original.width / previewW;
       final double ratioY = original.height / previewH;
 
-      int cropX    = (leftPreview * ratioX).round();
-      int cropY    = (topPreview  * ratioY).round();
+      int cropX = (leftPreview * ratioX).round();
+      int cropY = (topPreview * ratioY).round();
       int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
 
-      // 5) Clamping ai bordi
-      cropSide = cropSide.clamp(1, math.min(original.width, original.height));
-      cropX    = cropX.clamp(0, original.width  - cropSide);
-      cropY    = cropY.clamp(0, original.height - cropSide);
+      cropSide =
+          cropSide.clamp(1, math.min(original.width, original.height));
+      cropX = cropX.clamp(0, original.width - cropSide);
+      cropY = cropY.clamp(0, original.height - cropSide);
 
-      // 6) Crop RAW esattamente corrispondente al riquadro overlay
       img.Image cropped = img.copyCrop(
         original,
         x: cropX,
@@ -336,11 +419,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         height: cropSide,
       );
 
-      // 7) Resize a 1024×1024 (PNG ≈ 1–3 MB per foto "vera")
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      // 🔐 Permessi + salvataggio PNG nativo in Galleria (iOS/Android)
       final PermissionState pState = await PhotoManager.requestPermissionExtend();
       if (!pState.hasAccess) {
         if (mounted) {
@@ -354,32 +435,31 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final String baseName =
           '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
 
-      // ✅ Salva PNG "as-is" nella galleria (mantiene PNG, nessuna ricodifica)
       final AssetEntity? asset = await PhotoManager.editor.saveImage(
         pngBytes,
-        filename: '$baseName.png', // ✅ richiesto da photo_manager
+        filename: '$baseName.png',
       );
       if (asset == null) throw Exception('Salvataggio PNG fallito');
 
-      // Thumbnail locale per la preview (stessa estensione .png)
       final String newPath = (await _tempThumbPath('$baseName.png'));
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
       debugPrint('✅ PNG salvato — bytes: ${pngBytes.length} '
-          '(${(pngBytes.length / (1024*1024)).toStringAsFixed(2)} MB)');
+          '(${(pngBytes.length / (1024 * 1024)).toStringAsFixed(2)} MB)');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
+          const SnackBar(
+              content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
         );
         setState(() {});
 
-      Navigator.of(context).push(
-      MaterialPageRoute(
-      builder: (_) => AnalysisPreview(imagePath: newPath), // ✅ crop 1:1 1024×1024
-        ),
-      );
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AnalysisPreview(imagePath: newPath),
+          ),
+        );
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -476,7 +556,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
-  // ============ ✅ UNICA FUNZIONE MODIFICATA: preview specchiata SOLO dove serve ============
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -489,25 +568,21 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
 
-    // Alcune piattaforme (iOS) specchiano già la front preview.
     final bool needsMirror = isFront && Platform.isAndroid;
 
-    // Dimensioni natie della preview (in landscape)
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
 
-    // ---- PREVIEW FULLSCREEN tipo Fotocamera (cover) ----
     final Widget inner = SizedBox(
-      width: p.height, // invertiti perché la previewSize è landscape
+      width: p.height,
       height: p.width,
       child: CameraPreview(ctrl),
     );
 
     final Widget previewFull = FittedBox(
-      fit: BoxFit.cover, // riempi tutto lo schermo
+      fit: BoxFit.cover,
       child: inner,
     );
 
-    // ✅ Specchia TUTTA la preview solo se necessario (Android front)
     final Widget preview = needsMirror
         ? Transform(
             alignment: Alignment.center,
@@ -516,7 +591,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-    // ---- OVERLAY sulla stessa area visibile (cover) ----
     Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
@@ -529,7 +603,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70; // fallback
+          squareSize = shortSide * 0.70;
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -542,7 +616,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
-            // ⬜️ Riquadro 1:1
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -554,31 +627,27 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
-buildDistanzaCmOverlay(
-  ipdPx: _lastIpdPx,
-  ipdMm: _ipdMm,
-  targetMmPerPx: _targetMmPerPx,
-  alignY: -0.05, // o 0.0 o 0.1 secondo dove vuoi posizionarlo
-),
-            // ✅ Livella orizzontale centrata NEL riquadro (stessa Align)
+            buildDistanzaCmOverlay(
+              ipdPx: _lastIpdPx,
+              ipdMm: _ipdMm,
+              targetMmPerPx: _targetMmPerPx,
+              alignY: -0.05,
+            ),
             if (_mode == CaptureMode.volto)
-  Align(
-    alignment: const Alignment(0, -0.3),
-    child: _buildLivellaOrizzontale3Linee(
-      width: squareSize * 0.82,
-      height: 62,
-      okThresholdDeg: 1.0,
-    ),
-  ),
-
-            // Chip in alto
+              Align(
+                alignment: const Alignment(0, -0.3),
+                child: _buildLivellaOrizzontale3Linee(
+                  width: squareSize * 0.82,
+                  height: 62,
+                  okThresholdDeg: 1.0,
+                ),
+              ),
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
-            // Selettore modalità
             Positioned(
               bottom: 180,
               left: 0,
@@ -593,7 +662,7 @@ buildDistanzaCmOverlay(
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: preview), // <- preview (eventualmente specchiata)
+        Positioned.fill(child: preview),
         Positioned.fill(child: overlay),
       ],
     );
@@ -610,7 +679,6 @@ buildDistanzaCmOverlay(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // ✅ THUMBNAIL A SINISTRA
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -641,8 +709,6 @@ buildDistanzaCmOverlay(
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
-
-            // PULSANTE SCATTO AL CENTRO
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -681,8 +747,6 @@ buildDistanzaCmOverlay(
                 ),
               ),
             ),
-
-            // ✅ REVERSE CAMERA A DESTRA
             GestureDetector(
               onTap: _switchCamera,
               child: Container(
@@ -702,7 +766,6 @@ buildDistanzaCmOverlay(
     );
   }
 
-  // ====== Lifecycle ======
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final ctrl = _controller;
@@ -747,15 +810,10 @@ buildDistanzaCmOverlay(
         child: Stack(
           children: [
             Positioned.fill(child: _buildCameraPreview()),
-
-            // 👇 Livella verticale (solo VOLTO)
             buildLivellaVerticaleOverlay(
               mode: _mode,
               topOffsetPx: 65.0,
             ),
-
-            // (N.B. la livella orizzontale ora è disegnata DENTRO il riquadro, in _buildCameraPreview)
-
             Align(
               alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
@@ -767,22 +825,15 @@ buildDistanzaCmOverlay(
   }
 }
 
-// =======================
-// Livella overlay — GRADI sotto al badge alto (posizionamento assoluto)
-// Mostra gradi + badge. Gradi diventano verdi se ≈90° (telefono perpendicolare).
-// Visibile SOLO in modalità VOLTO se si passa `mode: _mode`.
-// =======================
 Widget buildLivellaVerticaleOverlay({
-  CaptureMode? mode,              // <- PASSA _mode qui per nasconderla in "particolare"
-  double okThresholdDeg = 1.0,    // tolleranza per "verde" attorno a 90°
-  double topOffsetPx = 65.0,      // distanza dal top (dopo la SafeArea). Alza/abbassa qui.
-  // parametri mantenuti per compatibilità (non usati graficamente)
+  CaptureMode? mode,
+  double okThresholdDeg = 1.0,
+  double topOffsetPx = 65.0,
   Alignment alignment = Alignment.centerRight,
   double size = 120,
   double bubbleSize = 16,
   double fullScaleDeg = 10.0,
 }) {
-  // Se il chiamante passa la modalità ed è "particolare", non mostrare nulla
   if (mode != null && mode != CaptureMode.volto) {
     return const SizedBox.shrink();
   }
@@ -807,7 +858,7 @@ Widget buildLivellaVerticaleOverlay({
                 final az = snap.data!.z;
                 final g = math.sqrt(ax * ax + ay * ay + az * az);
                 if (g > 0) {
-                  double c = (-az) / g; // 0° = orizzontale, 90° = verticale
+                  double c = (-az) / g;
                   c = c.clamp(-1.0, 1.0);
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
@@ -815,16 +866,18 @@ Widget buildLivellaVerticaleOverlay({
 
               final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
               final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-              final Color badgeBg  = isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
-              final Color badgeBor = isOk ? Colors.greenAccent : Colors.white24;
+              final Color badgeBg =
+                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBor =
+                  isOk ? Colors.greenAccent : Colors.white24;
               final String badgeTxt = isOk ? "OK" : "Inclina";
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Gradi (font ridotto)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(12),
@@ -839,9 +892,9 @@ Widget buildLivellaVerticaleOverlay({
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Badge subito sotto
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: badgeBg,
                       borderRadius: BorderRadius.circular(999),
@@ -866,9 +919,6 @@ Widget buildLivellaVerticaleOverlay({
   );
 }
 
-// =======================
-// Helper: livella orizzontale “3 semirette” centrata nel riquadro
-// =======================
 Widget _buildLivellaOrizzontale3Linee({
   required double width,
   required double height,
@@ -886,11 +936,10 @@ Widget _buildLivellaOrizzontale3Linee({
   return StreamBuilder<AccelerometerEvent>(
     stream: accelerometerEventStream(),
     builder: (context, snap) {
-      double rollDeg = 0.0; // 0 = orizzontale in portrait
+      double rollDeg = 0.0;
       if (snap.hasData) {
         final ax = snap.data!.x;
         final ay = snap.data!.y;
-        // Stima semplice del roll in portrait: atan2(X, Y)
         rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
       }
 
