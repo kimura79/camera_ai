@@ -237,6 +237,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   late CameraDescription currentCamera;
+  bool _shooting = false;
 
   @override
   void initState() {
@@ -280,6 +281,9 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _takePicture() async {
     try {
+      if (_shooting) return;
+      setState(() => _shooting = true);
+
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
       if (!mounted) return;
@@ -313,6 +317,8 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       Navigator.pop(context, file);
     } catch (e) {
       debugPrint("Errore scatto: $e");
+    } finally {
+      if (mounted) setState(() => _shooting = false);
     }
   }
 
@@ -370,25 +376,42 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                           ),
                         ),
 
-                        // Pulsante scatto centrale (doppio cerchio stile iOS)
+                        // 🔹 Pulsante scatto centrale stile home_page_widget
                         GestureDetector(
                           onTap: _takePicture,
-                          child: Container(
-                            width: 90,
-                            height: 90,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 4),
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: 70,
-                                height: 70,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
                                 ),
-                              ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 6),
+                                  ),
+                                ),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 80),
+                                  width: _shooting ? 58 : 64,
+                                  height: _shooting ? 58 : 64,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
