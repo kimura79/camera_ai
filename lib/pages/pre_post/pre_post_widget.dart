@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
-// 🔹 per flip immagine
+// 🔹 per flip immagine e resize/crop
 import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
@@ -286,15 +286,28 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
       File file = File(image.path);
 
-      // 🔹 Se la camera è frontale → specchia l'immagine
-      if (currentCamera.lensDirection == CameraLensDirection.front) {
-        final bytes = await file.readAsBytes();
-        final decoded = img.decodeImage(bytes);
-        if (decoded != null) {
-          final flipped = img.flipHorizontal(decoded);
-          final flippedBytes = img.encodeJpg(flipped);
-          file = await file.writeAsBytes(flippedBytes, flush: true);
+      // 🔹 Decodifica immagine
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+
+      if (decoded != null) {
+        // 🔹 Crop centrale quadrato
+        final side = decoded.width < decoded.height ? decoded.width : decoded.height;
+        final x = (decoded.width - side) ~/ 2;
+        final y = (decoded.height - side) ~/ 2;
+        img.Image cropped = img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+
+        // 🔹 Resize 1024x1024
+        cropped = img.copyResize(cropped, width: 1024, height: 1024);
+
+        // 🔹 Se frontale → specchia
+        if (currentCamera.lensDirection == CameraLensDirection.front) {
+          cropped = img.flipHorizontal(cropped);
         }
+
+        // 🔹 Salva su nuovo file
+        final outPath = "${file.path}_square.jpg";
+        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
       }
 
       Navigator.pop(context, file);
