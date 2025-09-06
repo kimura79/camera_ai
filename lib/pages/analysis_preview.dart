@@ -79,9 +79,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
       if (resp.statusCode == 200) {
         if (tipo == "all") {
-          _parseRughe(decoded["rughe"]);
-          _parseMacchie(decoded["macchie"]);
-          _parseMelasma(decoded["melasma"]);
+          // ✅ correzione: il server ritorna annidato
+          _parseRughe(decoded["analyze_rughe"]);
+          _parseMacchie(decoded["analyze_macchie"]);
+          _parseMelasma(decoded["analyze_melasma"]);
         } else if (tipo == "rughe") {
           _parseRughe(decoded);
         } else if (tipo == "macchie") {
