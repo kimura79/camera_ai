@@ -248,8 +248,16 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _initCamera() async {
     await _controller?.dispose();
-    _controller = CameraController(currentCamera, ResolutionPreset.high);
-    _initializeControllerFuture = _controller!.initialize();
+    _controller = CameraController(
+      currentCamera,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    _initializeControllerFuture = _controller!.initialize().then((_) async {
+      // 🔹 forza flash OFF
+      await _controller!.setFlashMode(FlashMode.off);
+    });
     if (mounted) setState(() {});
   }
 
