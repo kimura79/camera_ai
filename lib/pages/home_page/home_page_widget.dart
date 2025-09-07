@@ -358,7 +358,32 @@ class _HomePageWidgetState extends State<HomePageWidget>
       if (isFront) {
         original = img.flipHorizontal(original);
       }
+// ====== Maschera volto con ML Kit (bounding box) ======
+final inputImage = InputImage.fromFilePath(shot.path);
+final faces = await _faceDetector.processImage(inputImage);
 
+if (faces.isNotEmpty) {
+  final f = faces.first;
+  final rect = f.boundingBox;
+
+  // Creiamo un canvas nero delle stesse dimensioni
+  img.Image masked = img.Image(original.width, original.height);
+  masked.fill(0xFF000000); // nero pieno
+
+  // Ritagliamo solo la zona del volto
+  int x = rect.left.round().clamp(0, original.width - 1);
+  int y = rect.top.round().clamp(0, original.height - 1);
+  int w = rect.width.round().clamp(1, original.width - x);
+  int h = rect.height.round().clamp(1, original.height - y);
+
+  img.Image faceRegion = img.copyCrop(original, x: x, y: y, width: w, height: h);
+
+  // Incolliamo il volto ritagliato sul canvas nero
+  masked = img.copyInto(masked, faceRegion, dstX: x, dstY: y);
+
+  // Aggiorniamo l’immagine originale con la versione mascherata
+  original = masked;
+}
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
