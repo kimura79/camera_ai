@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
-import 'package:flutter/foundation.dart'; // per compute
+import 'package:flutter/foundation.dart'; // per compute JSON
 import 'package:custom_camera_component/services/api_service.dart';
 
 class AnalysisPreview extends StatefulWidget {
@@ -36,22 +36,41 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaOverlayUrl;
   double? _melasmaPercentuale;
 
-  // === Funzione isolate per salvataggio overlay ===
-  static Future<void> _saveOverlayIsolate(Map<String, String> params) async {
-    final url = params["url"];
-    final tipo = params["tipo"];
-    if (url == null || tipo == null) return;
+  // === Salvataggio overlay sul main isolate ===
+  Future<void> _saveOverlayOnMain({
+    required String url,
+    required String tipo,
+  }) async {
+    try {
+      final overlayResp = await http.get(Uri.parse(url));
+      if (overlayResp.statusCode != 200) return;
 
-    final overlayResp = await http.get(Uri.parse(url));
-    if (overlayResp.statusCode == 200) {
       final bytes = overlayResp.bodyBytes;
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
-      if (pState.isAuth) {
-        await PhotoManager.editor.saveImage(
-          bytes,
-          filename:
-              "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      final bool granted = pState.isAuth || pState.hasAccess;
+      if (!granted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Permesso galleria negato")),
+        );
+        return;
+      }
+
+      final asset = await PhotoManager.editor.saveImage(
+        bytes,
+        title: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+      );
+
+      if (asset != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("✅ Overlay $tipo salvato in Galleria")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
         );
       }
     }
@@ -74,12 +93,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
 
-      // ✅ parsing JSON in background isolate
       final decoded = await compute(jsonDecode, body);
 
       if (resp.statusCode == 200) {
         if (tipo == "all") {
-          // ✅ correzione: il server ritorna annidato
           _parseRughe(decoded["analyze_rughe"]);
           _parseMacchie(decoded["analyze_macchie"]);
           _parseMelasma(decoded["analyze_melasma"]);
@@ -125,10 +142,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
 
     if (_rugheOverlayUrl != null) {
-      compute(_saveOverlayIsolate, {
-        "url": _rugheOverlayUrl!,
-        "tipo": "rughe",
-      });
+      _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
     }
   }
 
@@ -142,10 +156,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
 
     if (_macchieOverlayUrl != null) {
-      compute(_saveOverlayIsolate, {
-        "url": _macchieOverlayUrl!,
-        "tipo": "macchie",
-      });
+      _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
     }
   }
 
@@ -159,10 +170,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
 
     if (_melasmaOverlayUrl != null) {
-      compute(_saveOverlayIsolate, {
-        "url": _melasmaOverlayUrl!,
-        "tipo": "melasma",
-      });
+      _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
     }
   }
 
@@ -187,13 +195,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         const SizedBox(height: 10),
         Container(
           width: side,
-          height: side, // 👈 sempre quadrato
+          height: side,
           decoration: BoxDecoration(
             border: Border.all(color: Colors.blue, width: 3),
           ),
           child: Image.network(
             overlayUrl,
-            fit: BoxFit.contain, // 👈 niente schiacciamenti
+            fit: BoxFit.contain,
             errorBuilder: (ctx, err, stack) =>
                 const Center(child: Text("Errore caricamento overlay")),
           ),
@@ -278,16 +286,16 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               children: [
                 const SizedBox(height: 10),
 
-                // Foto originale 1:1
+                // Foto originale
                 Container(
                   width: side,
-                  height: side, // 👈 sempre quadrato
+                  height: side,
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.green, width: 3),
                   ),
                   child: Image.file(
                     File(widget.imagePath),
-                    fit: BoxFit.contain, // 👈 no schiacciamenti
+                    fit: BoxFit.contain,
                   ),
                 ),
 
@@ -362,7 +370,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             ),
           ),
 
-          // ✅ Indicator di caricamento al centro
           if (_loading)
             Container(
               color: Colors.black54,
