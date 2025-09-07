@@ -441,13 +441,14 @@ class _HomePageWidgetState extends State<HomePageWidget>
         setState(() {});
 
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AnalysisPreview(
-              imagePath: newPath,
-              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-            ),
-          ),
-        );
+				  MaterialPageRoute(
+			    builder: (_) => AnalysisResultsPage(
+			      baseImagePath: newPath,
+			      macchieOverlayPath: "/path/da/sostituire/macchie.png",
+			      rugheOverlayPath: "/path/da/sostituire/rughe.png",
+					    ),
+					  ),
+					);
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
