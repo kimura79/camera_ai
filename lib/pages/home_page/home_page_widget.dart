@@ -366,23 +366,22 @@ class _HomePageWidgetState extends State<HomePageWidget>
 		  final f = faces.first;
 		  final rect = f.boundingBox;
 
-		  // Creiamo un canvas nero delle stesse dimensioni
-		  img.Image masked = img.Image(original.width, original.height);
-		  masked.fill(0xFF000000); // nero pieno
+		  // Crea immagine nera della stessa dimensione dell'originale
+			img.Image masked = img.Image(width: original.width, height: original.height);
+			masked = img.fill(masked, color: 0xFF000000);
 
-		  // Ritagliamo solo la zona del volto
-		  int x = rect.left.round().clamp(0, original.width - 1);
-		  int y = rect.top.round().clamp(0, original.height - 1);
-		  int w = rect.width.round().clamp(1, original.width - x);
-		  int h = rect.height.round().clamp(1, original.height - y);
+			// Ritaglia solo il volto
+			int x = rect.left.round().clamp(0, original.width - 1);
+			int y = rect.top.round().clamp(0, original.height - 1);
+			int w = rect.width.round().clamp(1, original.width - x);
+			int h = rect.height.round().clamp(1, original.height - y);
 
-		  img.Image faceRegion = img.copyCrop(original, x: x, y: y, width: w, height: h);
+			img.Image faceRegion = img.copyCrop(original, x: x, y: y, width: w, height: h);
 
-		  // Incolliamo il volto ritagliato sul canvas nero
-		  masked = img.copyInto(masked, faceRegion, dstX: x, dstY: y);
-			
-		  // Aggiorniamo l’immagine originale con la versione mascherata
-		  original = masked;
+			// Incolla il volto sulla maschera nera
+			masked = img.compositeImage(masked, faceRegion, dstX: x, dstY: y);
+
+			original = masked;
 			}
 
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
