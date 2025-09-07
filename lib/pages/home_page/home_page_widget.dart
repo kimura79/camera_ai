@@ -8,16 +8,11 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
-// ⛔️ tolto: image_gallery_saver
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
-// ✅ aggiunto:
 import 'package:photo_manager/photo_manager.dart';
-// ✅ import per livella:
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
-
-// ML Kit usato in modalità "volto"
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -97,14 +92,12 @@ class AnalysisResultsPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // 🔹 Overlay macchie
             _buildResultItem(
               title: "Macchie Cutanee",
               overlayPath: macchieOverlayPath,
               scaleText: "Scala di giudizio: Lieve → Grave",
               color: Colors.orangeAccent,
             ),
-            // 🔹 Overlay rughe
             _buildResultItem(
               title: "Rughe",
               overlayPath: rugheOverlayPath,
@@ -144,31 +137,25 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   String? _lastShotPath;
 
-  // Modalità selezionata
   CaptureMode _mode = CaptureMode.volto;
 
-  // ====== Parametri scala ======
-  final double _targetMmPerPx = 0.117; // mm/px
+  final double _targetMmPerPx = 0.117;
 
-  // Volto (ML Kit, IPD)
   double _ipdMm = 63.0;
-  double get _targetPxVolto => _ipdMm / _targetMmPerPx; // ~539 px
-  double _lastIpdPx = 0.0; // IPD misurata in px nella preview
+  double get _targetPxVolto => _ipdMm / _targetMmPerPx;
+  double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
 
-  // Particolare (12 cm)
-  static const double _targetMmPart = 120.0; // 12 cm
-  double get _targetPxPart => _targetMmPart / _targetMmPerPx; // ~1026 px
+  static const double _targetMmPart = 120.0;
+  double get _targetPxPart => _targetMmPart / _targetMmPerPx;
 
-  // Usa calibrazione IPD anche per particolare
   bool get _scaleOkPart {
     if (_lastIpdPx <= 0) return false;
     final mmPerPxAttuale = _ipdMm / _lastIpdPx;
     final err = (mmPerPxAttuale - _targetMmPerPx).abs() / _targetMmPerPx;
-    return err <= 0.05; // ±5%
+    return err <= 0.05;
   }
 
-  // ====== ML Kit ======
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
@@ -214,7 +201,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0); // 🔒 Zoom fisso 1×
+      await ctrl.setZoomLevel(1.0);
       await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
@@ -245,7 +232,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Stream → ML Kit
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
     if (now.difference(_lastProc).inMilliseconds < 300) return;
@@ -335,7 +321,31 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
-        final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
+  // ====== Scatto + salvataggio ======
+  Future<void> _takeAndSavePicture() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
+
+    setState(() => _shooting = true);
+    try {
+      if (_streamRunning) {
+        await ctrl.stopImageStream();
+        _streamRunning = false;
+      }
+
+      final bool isFront =
+          ctrl.description.lensDirection == CameraLensDirection.front;
+
+      final XFile shot = await ctrl.takePicture();
+      final Uint8List origBytes = await File(shot.path).readAsBytes();
+      img.Image? original = img.decodeImage(origBytes);
+      if (original == null) throw Exception('Decodifica immagine fallita');
+
+      if (isFront) {
+        original = img.flipHorizontal(original);
+      }
+
+      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
 
@@ -397,7 +407,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
       if (!pState.hasAccess) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -420,8 +431,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
-      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length} '
-          '(${(pngBytes.length / (1024 * 1024)).toStringAsFixed(2)} MB)');
+      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -435,10 +445,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
             builder: (_) => AnalysisPreview(
               imagePath: newPath,
               mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+            ),
           ),
-        ),
-      );
-
+        );
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
