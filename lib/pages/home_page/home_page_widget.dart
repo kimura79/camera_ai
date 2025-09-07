@@ -368,7 +368,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
 		  // Crea immagine nera della stessa dimensione dell'originale
 			img.Image masked = img.Image(width: original.width, height: original.height);
-			masked = img.fill(masked, color: 0xFF000000);
+			masked = img.fill(masked, color: img.getColor(0, 0, 0));
 
 			// Ritaglia solo il volto
 			int x = rect.left.round().clamp(0, original.width - 1);
