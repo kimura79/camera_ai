@@ -384,6 +384,48 @@ class _HomePageWidgetState extends State<HomePageWidget>
 			original = masked;
 			}
 
+      // === Usa ML Kit per trovare il volto ===
+      final inputImage = InputImage.fromFilePath(shot.path);
+      final faces = await _faceDetector.processImage(inputImage);
+
+      if (faces.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ Nessun volto rilevato')),
+          );
+        }
+        return; // ➝ Interrompi senza salvare
+      }
+
+      final f = faces.first;
+      final rect = f.boundingBox;
+
+      // Espandi un po' il rettangolo (padding 15%)
+      double padX = rect.width * 0.15;
+      double padY = rect.height * 0.15;
+      int cropX = (rect.left - padX).clamp(0.0, original.width.toDouble()).toInt();
+      int cropY = (rect.top - padY).clamp(0.0, original.height.toDouble()).toInt();
+      int cropW = (rect.width + 2 * padX).clamp(1.0, (original.width - cropX).toDouble()).toInt();
+      int cropH = (rect.height + 2 * padY).clamp(1.0, (original.height - cropY).toDouble()).toInt();
+
+      // Ritaglio volto
+      img.Image cropped = img.copyCrop(
+        original,
+        x: cropX,
+        y: cropY,
+        width: cropW,
+        height: cropH,
+      );
+
+      // Ridimensiona a 1024x1024
+      img.Image resized = img.copyResize(
+        cropped,
+        width: 1024,
+        height: 1024,
+      );
+
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
+
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
