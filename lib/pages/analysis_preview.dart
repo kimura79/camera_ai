@@ -58,9 +58,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       }
 
       final asset = await PhotoManager.editor.saveImage(
-        bytes,
-        title: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-      );
+				  bytes,
+				  filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+			);
 
       if (asset != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
