@@ -335,31 +335,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
-  // ====== Scatto + salvataggio ======
-  Future<void> _takeAndSavePicture() async {
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
-
-    setState(() => _shooting = true);
-    try {
-      if (_streamRunning) {
-        await ctrl.stopImageStream();
-        _streamRunning = false;
-      }
-
-      final bool isFront =
-          ctrl.description.lensDirection == CameraLensDirection.front;
-
-      final XFile shot = await ctrl.takePicture();
-      final Uint8List origBytes = await File(shot.path).readAsBytes();
-      img.Image? original = img.decodeImage(origBytes);
-      if (original == null) throw Exception('Decodifica immagine fallita');
-
-      if (isFront) {
-        original = img.flipHorizontal(original);
-      }
-		
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
+        final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
 
@@ -372,7 +348,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final double dispH = previewH * scale;
       final double dx = (screenW - dispW) / 2.0;
       final double dy = (screenH - dispH) / 2.0;
-
       final double shortSideScreen = math.min(screenW, screenH);
 
       double squareSizeScreen;
