@@ -136,6 +136,40 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     return 20 + Random().nextInt(50).toDouble();
   }
 
+  // === Crea immagine affiancata e salva in galleria ===
+  Future<void> _saveComparisonImage() async {
+    if (preImage == null || postImage == null) return;
+
+    final preBytes = await preImage!.readAsBytes();
+    final postBytes = await postImage!.readAsBytes();
+    final pre = img.decodeImage(preBytes);
+    final post = img.decodeImage(postBytes);
+
+    if (pre == null || post == null) return;
+
+    final resizedPre = img.copyResize(pre, width: 1024, height: 1024);
+    final resizedPost = img.copyResize(post, width: 1024, height: 1024);
+
+    final combined =
+        img.Image(resizedPre.width * 2, resizedPre.height); // 2048x1024
+    img.copyInto(combined, resizedPre, dstX: 0, dstY: 0);
+    img.copyInto(combined, resizedPost, dstX: resizedPre.width, dstY: 0);
+
+    final jpg = img.encodeJpg(combined, quality: 90);
+
+    final assetPath = await PhotoManager.getAssetPathList(
+        onlyAll: true, type: RequestType.image);
+    if (assetPath.isNotEmpty) {
+      final saved = await PhotoManager.editor.saveImage(jpg,
+          title: "pre_post_${DateTime.now().millisecondsSinceEpoch}.jpg");
+      if (saved != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Immagine salvata in galleria")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double? diff;
@@ -189,15 +223,38 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
 
             const SizedBox(height: 16),
+
             if (prePercent != null || postPercent != null)
               Column(
                 children: [
                   if (prePercent != null)
-                    Text("Pre: ${prePercent!.toStringAsFixed(1)}%",
-                        style: const TextStyle(fontSize: 16)),
+                    Column(
+                      children: [
+                        Text("Pre: ${prePercent!.toStringAsFixed(1)}%",
+                            style: const TextStyle(fontSize: 16)),
+                        LinearProgressIndicator(
+                          value: prePercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.blueAccent,
+                          minHeight: 12,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   if (postPercent != null)
-                    Text("Post: ${postPercent!.toStringAsFixed(1)}%",
-                        style: const TextStyle(fontSize: 16)),
+                    Column(
+                      children: [
+                        Text("Post: ${postPercent!.toStringAsFixed(1)}%",
+                            style: const TextStyle(fontSize: 16)),
+                        LinearProgressIndicator(
+                          value: postPercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.green,
+                          minHeight: 12,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   if (diff != null)
                     Text(
                       "Differenza: ${diff.toStringAsFixed(1)}%",
@@ -207,6 +264,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         color: diff > 0 ? Colors.red : Colors.green,
                       ),
                     ),
+                  const SizedBox(height: 16),
+
+                  // 🔹 Pulsante per salvare immagine affiancata
+                  ElevatedButton.icon(
+                    onPressed: _saveComparisonImage,
+                    icon: const Icon(Icons.download),
+                    label: const Text("Scarica confronto"),
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
           ],
@@ -255,7 +321,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
     _initializeControllerFuture = _controller!.initialize().then((_) async {
-      // 🔹 forza flash OFF
       await _controller!.setFlashMode(FlashMode.off);
     });
     if (mounted) setState(() {});
@@ -298,26 +363,23 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
       File file = File(image.path);
 
-      // 🔹 Decodifica immagine
       final bytes = await file.readAsBytes();
       final decoded = img.decodeImage(bytes);
 
       if (decoded != null) {
-        // 🔹 Crop centrale quadrato
-        final side = decoded.width < decoded.height ? decoded.width : decoded.height;
+        final side =
+            decoded.width < decoded.height ? decoded.width : decoded.height;
         final x = (decoded.width - side) ~/ 2;
         final y = (decoded.height - side) ~/ 2;
-        img.Image cropped = img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+        img.Image cropped =
+            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
 
-        // 🔹 Resize 1024x1024
         cropped = img.copyResize(cropped, width: 1024, height: 1024);
 
-        // 🔹 Se frontale → specchia
         if (currentCamera.lensDirection == CameraLensDirection.front) {
           cropped = img.flipHorizontal(cropped);
         }
 
-        // 🔹 Salva su nuovo file
         final outPath = "${file.path}_square.jpg";
         file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
       }
@@ -366,7 +428,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Pulsante galleria a sinistra
                         Padding(
                           padding: const EdgeInsets.only(left: 32),
                           child: GestureDetector(
@@ -383,8 +444,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                             ),
                           ),
                         ),
-
-                        // 🔹 Pulsante scatto centrale stile home_page_widget
                         GestureDetector(
                           onTap: _takePicture,
                           behavior: HitTestBehavior.opaque,
@@ -407,11 +466,13 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                                   height: 78,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 6),
+                                    border:
+                                        Border.all(color: Colors.white, width: 6),
                                   ),
                                 ),
                                 AnimatedContainer(
-                                  duration: const Duration(milliseconds: 80),
+                                  duration:
+                                      const Duration(milliseconds: 80),
                                   width: _shooting ? 58 : 64,
                                   height: _shooting ? 58 : 64,
                                   decoration: const BoxDecoration(
@@ -423,8 +484,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                             ),
                           ),
                         ),
-
-                        // Pulsante switch camera a destra
                         Padding(
                           padding: const EdgeInsets.only(right: 32),
                           child: GestureDetector(
