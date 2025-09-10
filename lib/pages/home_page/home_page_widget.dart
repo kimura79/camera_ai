@@ -493,7 +493,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       text = 'Centra il viso – scatta solo col verde';
     } else {
       c = _scaleOkPart ? Colors.green : Colors.amber;
-      text = 'Particolare 12 cm – scatta solo col verde';
+      text = 'Avvicinati e scatta solo col verde';
     }
 
     return Container(
