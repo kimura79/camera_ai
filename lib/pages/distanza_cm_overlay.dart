@@ -6,13 +6,12 @@ import 'package:custom_camera_component/pages/home_page/home_page_widget.dart' s
 
 /// 🔹 Overlay per mostrare la distanza stimata in cm.
 /// - In modalità VOLTO: mantiene la logica originale (stabile).
-/// - In modalità PARTICOLARE: usa la formula geometrica basata sul FOV.
-/// - Adatta il FOV se la camera è frontale vs posteriore.
+/// - In modalità PARTICOLARE: scala aggiornata + moltiplicatore di calibrazione.
 Widget buildDistanzaCmOverlay({
   required double ipdPx,
   required bool isFrontCamera,
   double ipdMm = 63.0,
-  double targetMmPerPx = 0.117,
+  double targetMmPerPx = 0.117,   // target: 12 cm in 1024 px
   double alignY = 0.4,
   CaptureMode mode = CaptureMode.volto,
 }) {
@@ -22,28 +21,23 @@ Widget buildDistanzaCmOverlay({
     testo = '— cm';
   } else {
     if (mode == CaptureMode.volto) {
-      // ✅ logica originale per il volto intero
+      // ✅ logica originale per volto intero
       final mmPerPxAttuale = ipdMm / ipdPx;
       final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
       testo = '${distCm.toStringAsFixed(1)} cm';
     } else {
-      // ✅ formula geometrica per particolari
+      // ✅ logica aggiornata per particolari
       final mmPerPxAttuale = ipdMm / ipdPx;
       final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
 
-      // FOV differenziato
-      double fovDeg;
-      if (isFrontCamera) {
-        fovDeg = 60.0; // frontale iPhone
-      } else {
-        fovDeg = Platform.isAndroid ? 67.0 : 64.0; // back: Android / iPhone
-      }
+      // distanza stimata in cm (senza FOV)
+      final distanzaCm = larghezzaRealeMm / 10.0;
 
-      final double fovRad = fovDeg * math.pi / 180.0;
-      final distanzaMm = larghezzaRealeMm / (2 * math.tan(fovRad / 2));
-      final distanzaCm = distanzaMm / 10.0;
+      // moltiplicatore empirico per calibrare (senza dimezzamenti)
+      final calibrazione = 2.0;
+      final distanzaCorrettaCm = distanzaCm * calibrazione;
 
-      testo = '${distanzaCm.toStringAsFixed(1)} cm';
+      testo = '${distanzaCorrettaCm.toStringAsFixed(1)} cm';
     }
   }
 
