@@ -16,9 +16,7 @@ Widget buildDistanzaCmOverlay({
   CaptureMode mode = CaptureMode.volto,
 }) {
   String testo;
-  Color borderColorText = Colors.yellow;   // colore del badge testo
-  Color borderColorFrame = Colors.yellow; // colore del quadrato 1024×1024
-  double distanzaCm = 0.0;
+  Color borderColor = Colors.yellow;
 
   if (ipdPx <= 0 || !ipdPx.isFinite) {
     testo = '— cm';
@@ -26,60 +24,43 @@ Widget buildDistanzaCmOverlay({
     if (mode == CaptureMode.volto) {
       // ✅ logica originale per volto intero (NON TOCCATA)
       final mmPerPxAttuale = ipdMm / ipdPx;
-      distanzaCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
-      testo = '${distanzaCm.toStringAsFixed(1)} cm';
-      borderColorText = Colors.green;
-      borderColorFrame = Colors.green; // volto sempre verde quando in range
+      final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
+      testo = '${distCm.toStringAsFixed(1)} cm';
+      borderColor = Colors.green; // volto sempre verde quando in range
     } else {
       // ✅ logica aggiornata per PARTICOLARE
       final mmPerPxAttuale = ipdMm / ipdPx;
       final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
 
       // distanza stimata in cm (moltiplicatore calibrato ×2)
-      distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+      final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
 
       testo = '${distanzaCm.toStringAsFixed(1)} cm';
 
       // Verde solo se vicino a 12 cm (11–13 cm)
       if ((distanzaCm - 12.0).abs() <= 1.0) {
-        borderColorText = Colors.green;
-        borderColorFrame = Colors.green;
+        borderColor = Colors.green;
       }
     }
   }
 
-  return Stack(
-    alignment: Alignment.center,
-    children: [
-      // 🔹 Quadrato grande 1024×1024
-      Container(
-        width: 1024,
-        height: 1024,
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColorFrame, width: 3),
-          borderRadius: BorderRadius.circular(8),
+  return Align(
+    alignment: Alignment(0, alignY),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 2.0),
+      ),
+      child: Text(
+        testo,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
         ),
       ),
-      // 🔹 Badge distanza cm
-      Align(
-        alignment: Alignment(0, alignY),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColorText, width: 2.0),
-          ),
-          child: Text(
-            testo,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    ],
+    ),
   );
 }
