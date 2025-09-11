@@ -88,66 +88,52 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 
   // === Scatta POST con camera ===
-Future<void> _capturePostImage() async {
-  if (preImage == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
-    );
-    return;
-  }
+  Future<void> _capturePostImage() async {
+    if (preImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
+      );
+      return;
+    }
 
-  final cameras = await availableCameras();
-  final firstCamera = cameras.first;
+    final cameras = await availableCameras();
+    final firstCamera = cameras.first;
 
-  final result = await Navigator.push<File?>(
-    context,
-    MaterialPageRoute(
-      builder: (context) => CameraOverlayPage(
-        cameras: cameras,
-        initialCamera: firstCamera,
-        guideImage: preImage!,
-      ),
-    ),
-  );
-
-  if (result != null) {
-    // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
-    final analyzed = await Navigator.push<File?>(
+    final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) => AnalysisPreview(
-          imagePath: result.path,
-          mode: "fullface",
+        builder: (context) => CameraOverlayPage(
+          cameras: cameras,
+          initialCamera: firstCamera,
+          guideImage: preImage!,
         ),
       ),
     );
 
-    // Se AnalysisPreview restituisce un file, aggiorniamo con quello
-    if (analyzed != null) {
-      setState(() {
-        postImage = analyzed;
-        postPercent = _fakeAnalysis();
-      });
-    } else {
-      // fallback: mantieni la foto grezza
-      setState(() {
-        postImage = result;
-        postPercent = _fakeAnalysis();
-      });
-    }
-  }
-}
-
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AnalysisPreview(
-              imagePath: result.path,
-              mode: "fullface",
-            ),
+    if (result != null) {
+      // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
+      final analyzed = await Navigator.push<File?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "fullface",
           ),
-        );
+        ),
+      );
+
+      // Se AnalysisPreview restituisce un file, aggiorniamo con quello
+      if (analyzed != null) {
+        setState(() {
+          postImage = analyzed;
+          postPercent = _fakeAnalysis();
+        });
+      } else {
+        // fallback: mantieni la foto grezza
+        setState(() {
+          postImage = result;
+          postPercent = _fakeAnalysis();
+        });
       }
     }
   }
@@ -223,7 +209,6 @@ Future<void> _capturePostImage() async {
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
-
             GestureDetector(
               onTap: _capturePostImage,
               child: Container(
@@ -241,9 +226,7 @@ Future<void> _capturePostImage() async {
                     : Image.file(postImage!, fit: BoxFit.cover),
               ),
             ),
-
             const SizedBox(height: 16),
-
             if (prePercent != null || postPercent != null)
               Column(
                 children: [
@@ -285,7 +268,6 @@ Future<void> _capturePostImage() async {
                       ),
                     ),
                   const SizedBox(height: 16),
-
                   ElevatedButton.icon(
                     onPressed: _saveComparisonImage,
                     icon: const Icon(Icons.download),
@@ -361,7 +343,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       );
       currentCamera = front;
     }
-
     await _initCamera();
   }
 
@@ -426,7 +407,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
               alignment: Alignment.center,
               children: [
                 CameraPreview(_controller!),
-
                 Center(
                   child: SizedBox(
                     width: min(1024, screenW),
@@ -437,7 +417,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     ),
                   ),
                 ),
-
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
