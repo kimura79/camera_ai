@@ -195,7 +195,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          "🔬 Analisi: $title",
+          "Analisi: $title",
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
