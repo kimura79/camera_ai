@@ -195,7 +195,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          "Analisi: $title",
+          "🔬 Analisi: $title",
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
@@ -221,45 +221,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               fontWeight: FontWeight.bold,
             ),
           ),
-        const SizedBox(height: 20),
-
-        // 🔘 Pulsante per usare overlay e tornare al Pre/Post
-        ElevatedButton.icon(
-          onPressed: () async {
-            try {
-              final resp = await http.get(Uri.parse(overlayUrl));
-              if (resp.statusCode == 200) {
-                final dir = await Directory.systemTemp.createTemp();
-                final file = File(
-                  path.join(
-                    dir.path,
-                    "overlay_${analysisType}_${DateTime.now().millisecondsSinceEpoch}.png",
-                  ),
-                );
-                await file.writeAsBytes(resp.bodyBytes);
-                if (context.mounted) {
-                  Navigator.pop(context, file);
-                }
-              } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text("❌ Errore scaricamento overlay")),
-                  );
-                }
-              }
-            } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("❌ Errore: $e")),
-                );
-              }
-            }
-          },
-          icon: const Icon(Icons.check),
-          label: const Text("Usa questo overlay"),
-        ),
-
         const SizedBox(height: 20),
 
         const Text(
