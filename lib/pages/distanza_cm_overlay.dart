@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
 
-enum CaptureMode { volto, particolare }
 
 /// 🔹 Overlay per mostrare la distanza stimata in cm sotto il riquadro 1:1.
 /// - In modalità VOLTO: mantiene la logica originale (stabile).
@@ -14,7 +13,7 @@ Widget buildDistanzaCmOverlay({
   double ipdMm = 63.0,            // distanza pupille reale in mm
   double targetMmPerPx = 0.117,   // scala target
   double alignY = 0.4,            // posizione verticale
-  CaptureMode mode = CaptureMode.volto,
+  required CaptureMode mode,      // 👈 enum importato da home_page_widget.dart
 }) {
   String testo;
 
@@ -34,7 +33,7 @@ Widget buildDistanzaCmOverlay({
       // FOV differenziato
       double fovDeg;
       if (isFrontCamera) {
-        fovDeg = 60.0; // frontale iPhone normale
+        fovDeg = 60.0; // frontale iPhone
       } else {
         fovDeg = Platform.isAndroid ? 67.0 : 64.0; // back: Android / iPhone
       }
