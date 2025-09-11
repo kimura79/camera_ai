@@ -88,33 +88,55 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 
   // === Scatta POST con camera ===
-  Future<void> _capturePostImage() async {
-    if (preImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
-      );
-      return;
-    }
+Future<void> _capturePostImage() async {
+  if (preImage == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
+    );
+    return;
+  }
 
-    final cameras = await availableCameras();
-    final firstCamera = cameras.first;
+  final cameras = await availableCameras();
+  final firstCamera = cameras.first;
 
-    final result = await Navigator.push<File?>(
+  final result = await Navigator.push<File?>(
+    context,
+    MaterialPageRoute(
+      builder: (context) => CameraOverlayPage(
+        cameras: cameras,
+        initialCamera: firstCamera,
+        guideImage: preImage!,
+      ),
+    ),
+  );
+
+  if (result != null) {
+    // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
+    final analyzed = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) => CameraOverlayPage(
-          cameras: cameras,
-          initialCamera: firstCamera,
-          guideImage: preImage!,
+        builder: (context) => AnalysisPreview(
+          imagePath: result.path,
+          mode: "fullface",
         ),
       ),
     );
 
-    if (result != null) {
+    // Se AnalysisPreview restituisce un file, aggiorniamo con quello
+    if (analyzed != null) {
+      setState(() {
+        postImage = analyzed;
+        postPercent = _fakeAnalysis();
+      });
+    } else {
+      // fallback: mantieni la foto grezza
       setState(() {
         postImage = result;
         postPercent = _fakeAnalysis();
       });
+    }
+  }
+}
 
       if (mounted) {
         Navigator.push(
