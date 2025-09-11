@@ -7,7 +7,7 @@ import 'dart:io' show Platform;
 Widget buildDistanzaCmOverlay({
   required double ipdPx,          // distanza pupille in pixel
   double ipdMm = 63.0,            // distanza pupille reale in mm (default: 63 mm)
-  double targetMmPerPx = 0.117,   // scala target
+  double targetMmPerPx = 0.117,   // scala target (non più usata per il calcolo diretto)
   double alignY = 0.4,            // posizione verticale
 }) {
   String testo;
@@ -15,24 +15,24 @@ Widget buildDistanzaCmOverlay({
   if (ipdPx <= 0 || !ipdPx.isFinite) {
     testo = '— cm';
   } else {
-    // 1. Calcolo scala attuale (mm/px)
+    // 1. Calcolo scala attuale (mm/px) dall'IPD
     final mmPerPxAttuale = ipdMm / ipdPx;
 
-    // 2. Larghezza reale del crop 1024 px
+    // 2. Larghezza reale corrispondente al crop 1024 px
     final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
 
-    // 3. Angolo di campo medio
+    // 3. Angolo di campo medio (dipende dalla piattaforma)
     double fovDeg = 64.0; // default iPhone 11–15
     if (Platform.isAndroid) {
-      fovDeg = 67.0; // media Pixel/Samsung
+      fovDeg = 67.0; // media Pixel / Samsung
     }
     final double fovRad = fovDeg * math.pi / 180.0;
 
-    // 4. Distanza stimata in mm → cm
+    // 4. Distanza stimata in mm → cm (formula geometrica)
     final distanzaMm = larghezzaRealeMm / (2 * math.tan(fovRad / 2));
     final distanzaCm = distanzaMm / 10.0;
 
-    // 5. Testo
+    // 5. Testo da mostrare
     testo = '${distanzaCm.toStringAsFixed(1)} cm';
   }
 
