@@ -1,3 +1,6 @@
+# Usa il repo ufficiale CocoaPods invece del CDN
+source 'https://github.com/CocoaPods/Specs.git'
+
 # iOS min target per ML Kit e Camera
 platform :ios, '14.0'
 
