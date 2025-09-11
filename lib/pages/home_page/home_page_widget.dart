@@ -150,11 +150,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
   double get _targetPxPart => _targetMmPart / _targetMmPerPx;
 
   bool get _scaleOkPart {
-    if (_lastIpdPx <= 0) return false;
-    final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-    final err = (mmPerPxAttuale - _targetMmPerPx).abs() / _targetMmPerPx;
-    return err <= 0.05;
-  }
+  if (_lastIpdPx <= 0) return false;
+
+  // Calcolo distanza stimata in cm per PARTICOLARE
+  final mmPerPxAttuale = _ipdMm / _lastIpdPx;
+  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0; // stesso calcolo badge
+
+  // Verde solo se 11–13 cm
+  return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
+ }
 
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
