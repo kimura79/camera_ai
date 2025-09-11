@@ -36,57 +36,48 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaOverlayUrl;
   double? _melasmaPercentuale;
 
-  // === Salvataggio overlay sul main isolate ===
+  // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
-  required String url,
-  required String tipo,
-}) async {
-  try {
-    final overlayResp = await http.get(Uri.parse(url));
-    if (overlayResp.statusCode != 200) return;
+    required String url,
+    required String tipo,
+  }) async {
+    try {
+      final overlayResp = await http.get(Uri.parse(url));
+      if (overlayResp.statusCode != 200) return;
 
-    final bytes = overlayResp.bodyBytes;
+      final bytes = overlayResp.bodyBytes;
 
-    final PermissionState pState = await PhotoManager.requestPermissionExtend();
-    final bool granted = pState.isAuth || pState.hasAccess;
-    if (!granted) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Permesso galleria negato")),
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
+      final bool granted = pState.isAuth || pState.hasAccess;
+      if (!granted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Permesso galleria negato")),
+        );
+        return;
+      }
+
+      // 🔹 Salva in galleria
+      await PhotoManager.editor.saveImage(
+        bytes,
+        filename:
+            "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
       );
-      return;
-    }
 
-    // 🔹 Salva in galleria
-    await PhotoManager.editor.saveImage(
-      bytes,
-      filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-    );
-
-    // 🔹 Salva anche in file temporaneo da restituire
-    final tempDir = await Directory.systemTemp.createTemp();
-    final file = File(path.join(
-      tempDir.path,
-      "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-    ));
-    await file.writeAsBytes(bytes);
-
-    if (mounted) {
-      // snackbar + ritorno al PrePostWidget con il file overlay
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ Overlay $tipo pronto")),
-      );
-      Navigator.pop(context, file);
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("✅ Overlay $tipo pronto")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
+        );
+      }
     }
   }
-}
-
 
   // === API helper ===
   Future<void> _callAnalysis(String endpoint, String tipo) async {
@@ -150,8 +141,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _rugheOverlayUrl = data["overlay_url"] != null
         ? "http://46.101.223.88:5000${data["overlay_url"]}"
         : null;
-    _rughePercentuale =
-        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+    _rughePercentuale = data["percentuale"] != null
+        ? (data["percentuale"] as num).toDouble()
+        : null;
 
     if (_rugheOverlayUrl != null) {
       _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
@@ -164,8 +156,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _macchieOverlayUrl = data["overlay_url"] != null
         ? "http://46.101.223.88:5000${data["overlay_url"]}"
         : null;
-    _macchiePercentuale =
-        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+    _macchiePercentuale = data["percentuale"] != null
+        ? (data["percentuale"] as num).toDouble()
+        : null;
 
     if (_macchieOverlayUrl != null) {
       _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
@@ -178,8 +171,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _melasmaOverlayUrl = data["overlay_url"] != null
         ? "http://46.101.223.88:5000${data["overlay_url"]}"
         : null;
-    _melasmaPercentuale =
-        data["percentuale"] != null ? (data["percentuale"] as num).toDouble() : null;
+    _melasmaPercentuale = data["percentuale"] != null
+        ? (data["percentuale"] as num).toDouble()
+        : null;
 
     if (_melasmaOverlayUrl != null) {
       _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
@@ -187,7 +181,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   // === Blocchi UI ===
-   Widget _buildAnalysisBlock({
+  Widget _buildAnalysisBlock({
     required String title,
     required String? overlayUrl,
     required double? percentuale,
@@ -237,7 +231,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               if (resp.statusCode == 200) {
                 final dir = await Directory.systemTemp.createTemp();
                 final file = File(
-                  path.join(dir.path, "overlay_${analysisType}_${DateTime.now().millisecondsSinceEpoch}.png"),
+                  path.join(
+                    dir.path,
+                    "overlay_${analysisType}_${DateTime.now().millisecondsSinceEpoch}.png",
+                  ),
                 );
                 await file.writeAsBytes(resp.bodyBytes);
                 if (context.mounted) {
@@ -246,7 +243,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               } else {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Errore scaricamento overlay")),
+                    const SnackBar(
+                        content: Text("❌ Errore scaricamento overlay")),
                   );
                 }
               }
@@ -284,7 +282,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 if (ok && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("✅ Giudizio $voto inviato per $analysisType"),
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
                     ),
                   );
                 }
@@ -316,116 +315,161 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Widget build(BuildContext context) {
     final double side = MediaQuery.of(context).size.width * 0.9;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.mode == "particolare"
-              ? "Anteprima (Particolare)"
-              : "Anteprima (Volto intero)",
-        ),
-        backgroundColor: Colors.blue,
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 10),
+    return WillPopScope(
+      onWillPop: () async {
+        File? fileToReturn;
 
-                // Foto originale
-                Container(
-                  width: side,
-                  height: side,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.green, width: 3),
-                  ),
-                  child: Image.file(
-                    File(widget.imagePath),
-                    fit: BoxFit.contain,
-                  ),
-                ),
+        // Priorità: melasma > macchie > rughe
+        if (_melasmaOverlayUrl != null) {
+          final resp = await http.get(Uri.parse(_melasmaOverlayUrl!));
+          if (resp.statusCode == 200) {
+            final dir = await Directory.systemTemp.createTemp();
+            fileToReturn = await File(
+              path.join(
+                dir.path,
+                "overlay_melasma_${DateTime.now().millisecondsSinceEpoch}.png",
+              ),
+            ).writeAsBytes(resp.bodyBytes);
+          }
+        } else if (_macchieOverlayUrl != null) {
+          final resp = await http.get(Uri.parse(_macchieOverlayUrl!));
+          if (resp.statusCode == 200) {
+            final dir = await Directory.systemTemp.createTemp();
+            fileToReturn = await File(
+              path.join(
+                dir.path,
+                "overlay_macchie_${DateTime.now().millisecondsSinceEpoch}.png",
+              ),
+            ).writeAsBytes(resp.bodyBytes);
+          }
+        } else if (_rugheOverlayUrl != null) {
+          final resp = await http.get(Uri.parse(_rugheOverlayUrl!));
+          if (resp.statusCode == 200) {
+            final dir = await Directory.systemTemp.createTemp();
+            fileToReturn = await File(
+              path.join(
+                dir.path,
+                "overlay_rughe_${DateTime.now().millisecondsSinceEpoch}.png",
+              ),
+            ).writeAsBytes(resp.bodyBytes);
+          }
+        }
 
-                const SizedBox(height: 24),
-
-                // 🔘 Pulsante "Analizza Tutto"
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed:
-                        _loading ? null : () => _callAnalysis("analyze_all", "all"),
-                    child: const Text("Analizza Tutto"),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 🔘 Riga pulsanti Rughe / Macchie / Melasma
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _loading
-                            ? null
-                            : () => _callAnalysis("analyze_rughe", "rughe"),
-                        child: const Text("Rughe"),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _loading
-                            ? null
-                            : () => _callAnalysis("analyze_macchie", "macchie"),
-                        child: const Text("Macchie"),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _loading
-                            ? null
-                            : () => _callAnalysis("analyze_melasma", "melasma"),
-                        child: const Text("Melasma"),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Blocchi analisi
-                _buildAnalysisBlock(
-                  title: "Rughe",
-                  overlayUrl: _rugheOverlayUrl,
-                  percentuale: _rughePercentuale,
-                  analysisType: "rughe",
-                ),
-                _buildAnalysisBlock(
-                  title: "Macchie",
-                  overlayUrl: _macchieOverlayUrl,
-                  percentuale: _macchiePercentuale,
-                  analysisType: "macchie",
-                ),
-                _buildAnalysisBlock(
-                  title: "Melasma",
-                  overlayUrl: _melasmaOverlayUrl,
-                  percentuale: _melasmaPercentuale,
-                  analysisType: "melasma",
-                ),
-              ],
-            ),
+        Navigator.pop(context, fileToReturn);
+        return false; // blocchiamo pop automatico
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.mode == "particolare"
+                ? "Anteprima (Particolare)"
+                : "Anteprima (Volto intero)",
           ),
+          backgroundColor: Colors.blue,
+        ),
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 10),
 
-          if (_loading)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                  // Foto originale
+                  Container(
+                    width: side,
+                    height: side,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.green, width: 3),
+                    ),
+                    child: Image.file(
+                      File(widget.imagePath),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 🔘 Pulsante "Analizza Tutto"
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading
+                          ? null
+                          : () => _callAnalysis("analyze_all", "all"),
+                      child: const Text("Analizza Tutto"),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 🔘 Riga pulsanti Rughe / Macchie / Melasma
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _loading
+                              ? null
+                              : () => _callAnalysis("analyze_rughe", "rughe"),
+                          child: const Text("Rughe"),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _loading
+                              ? null
+                              : () => _callAnalysis("analyze_macchie", "macchie"),
+                          child: const Text("Macchie"),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _loading
+                              ? null
+                              : () => _callAnalysis("analyze_melasma", "melasma"),
+                          child: const Text("Melasma"),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Blocchi analisi
+                  _buildAnalysisBlock(
+                    title: "Rughe",
+                    overlayUrl: _rugheOverlayUrl,
+                    percentuale: _rughePercentuale,
+                    analysisType: "rughe",
+                  ),
+                  _buildAnalysisBlock(
+                    title: "Macchie",
+                    overlayUrl: _macchieOverlayUrl,
+                    percentuale: _macchiePercentuale,
+                    analysisType: "macchie",
+                  ),
+                  _buildAnalysisBlock(
+                    title: "Melasma",
+                    overlayUrl: _melasmaOverlayUrl,
+                    percentuale: _melasmaPercentuale,
+                    analysisType: "melasma",
+                  ),
+                ],
               ),
             ),
-        ],
+
+            if (_loading)
+              Container(
+                color: Colors.black54,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
