@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
 
+import 'home_page_widget.dart' show CaptureMode;
 
-/// 🔹 Overlay per mostrare la distanza stimata in cm sotto il riquadro 1:1.
+/// 🔹 Overlay per mostrare la distanza stimata in cm.
 /// - In modalità VOLTO: mantiene la logica originale (stabile).
 /// - In modalità PARTICOLARE: usa la formula geometrica basata sul FOV.
 /// - Adatta il FOV se la camera è frontale vs posteriore.
 Widget buildDistanzaCmOverlay({
-  required double ipdPx,          // distanza pupille in pixel
-  required bool isFrontCamera,    // true se fotocamera frontale
-  double ipdMm = 63.0,            // distanza pupille reale in mm
-  double targetMmPerPx = 0.117,   // scala target
-  double alignY = 0.4,            // posizione verticale
-  required CaptureMode mode,      // 👈 enum importato da home_page_widget.dart
+  required double ipdPx,
+  required bool isFrontCamera,
+  double ipdMm = 63.0,
+  double targetMmPerPx = 0.117,
+  double alignY = 0.4,
+  CaptureMode mode = CaptureMode.volto,
 }) {
   String testo;
 
