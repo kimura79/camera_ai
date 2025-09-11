@@ -1,43 +1,42 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import 'dart:io' show Platform;
 
-import 'package:custom_camera_component/pages/home_page/home_page_widget.dart' show CaptureMode;
+import 'package:custom_camera_component/pages/home_page/home_page_widget.dart'
+    show CaptureMode;
 
 /// 🔹 Overlay per mostrare la distanza stimata in cm.
-/// - In modalità VOLTO: mantiene la logica originale (stabile).
-/// - In modalità PARTICOLARE: scala aggiornata + moltiplicatore di calibrazione.
+/// - VOLTO: logica originale.
+/// - PARTICOLARE: riquadro verde solo quando il crop = ~12 cm reali.
 Widget buildDistanzaCmOverlay({
   required double ipdPx,
   required bool isFrontCamera,
   double ipdMm = 63.0,
-  double targetMmPerPx = 0.117,   // target: 12 cm in 1024 px
+  double targetMmPerPx = 0.117, // target: 12 cm su 1024 px
   double alignY = 0.4,
   CaptureMode mode = CaptureMode.volto,
 }) {
-  String testo;
+  String testo = '— cm';
+  Color borderColor = Colors.yellow; // default giallo
 
-  if (ipdPx <= 0 || !ipdPx.isFinite) {
-    testo = '— cm';
-  } else {
+  if (ipdPx > 0 && ipdPx.isFinite) {
     if (mode == CaptureMode.volto) {
-      // ✅ logica originale per volto intero
+      // ✅ logica originale volto intero
       final mmPerPxAttuale = ipdMm / ipdPx;
       final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
       testo = '${distCm.toStringAsFixed(1)} cm';
+      borderColor = Colors.green;
     } else {
-      // ✅ logica aggiornata per particolari
+      // ✅ logica per particolari
       final mmPerPxAttuale = ipdMm / ipdPx;
       final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+      final larghezzaRealeCm = (larghezzaRealeMm / 10.0) * 2.0; // correzione ×2
 
-      // distanza stimata in cm (senza FOV)
-      final distanzaCm = larghezzaRealeMm / 10.0;
+      testo = '${larghezzaRealeCm.toStringAsFixed(1)} cm';
 
-      // moltiplicatore empirico per calibrare (senza dimezzamenti)
-      final calibrazione = 2.0;
-      final distanzaCorrettaCm = distanzaCm * calibrazione;
-
-      testo = '${distanzaCorrettaCm.toStringAsFixed(1)} cm';
+      // Riquadro verde solo se ≈ 12 cm
+      if (larghezzaRealeCm > 11.5 && larghezzaRealeCm < 12.5) {
+        borderColor = Colors.green;
+      }
     }
   }
 
@@ -48,7 +47,7 @@ Widget buildDistanzaCmOverlay({
       decoration: BoxDecoration(
         color: Colors.black54,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24, width: 1.0),
+        border: Border.all(color: borderColor, width: 2.0),
       ),
       child: Text(
         testo,
