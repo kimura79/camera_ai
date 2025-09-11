@@ -38,43 +38,55 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   // === Salvataggio overlay sul main isolate ===
   Future<void> _saveOverlayOnMain({
-    required String url,
-    required String tipo,
-  }) async {
-    try {
-      final overlayResp = await http.get(Uri.parse(url));
-      if (overlayResp.statusCode != 200) return;
+  required String url,
+  required String tipo,
+}) async {
+  try {
+    final overlayResp = await http.get(Uri.parse(url));
+    if (overlayResp.statusCode != 200) return;
 
-      final bytes = overlayResp.bodyBytes;
+    final bytes = overlayResp.bodyBytes;
 
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
-      final bool granted = pState.isAuth || pState.hasAccess;
-      if (!granted) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Permesso galleria negato")),
-        );
-        return;
-      }
+    final PermissionState pState = await PhotoManager.requestPermissionExtend();
+    final bool granted = pState.isAuth || pState.hasAccess;
+    if (!granted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Permesso galleria negato")),
+      );
+      return;
+    }
 
-      final asset = await PhotoManager.editor.saveImage(
-				  bytes,
-				  filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-			);
+    // 🔹 Salva in galleria
+    await PhotoManager.editor.saveImage(
+      bytes,
+      filename: "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+    );
 
-      if (asset != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Overlay $tipo salvato in Galleria")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
-        );
-      }
+    // 🔹 Salva anche in file temporaneo da restituire
+    final tempDir = await Directory.systemTemp.createTemp();
+    final file = File(path.join(
+      tempDir.path,
+      "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+    ));
+    await file.writeAsBytes(bytes);
+
+    if (mounted) {
+      // snackbar + ritorno al PrePostWidget con il file overlay
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Overlay $tipo pronto")),
+      );
+      Navigator.pop(context, file);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
+      );
     }
   }
+}
+
 
   // === API helper ===
   Future<void> _callAnalysis(String endpoint, String tipo) async {
