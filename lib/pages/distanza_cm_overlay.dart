@@ -22,32 +22,32 @@ Widget buildDistanzaCmOverlay({
     testo = '— cm';
   } else {
     if (mode == CaptureMode.volto) {
-  final mmPerPxAttuale = ipdMm / ipdPx;
-  final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
+      final mmPerPxAttuale = ipdMm / ipdPx;
+      final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
 
-  if (distCm > 5 && distCm < 50) {
-    testo = '${distCm.toStringAsFixed(1)} cm';
-  } else {
-    testo = '— cm';  // valori assurdi nascosti
-  }
+      // ✅ corretto: mostra cm se tra 5 e 100, non sparisce a 50 cm
+      if (distCm > 5 && distCm < 100) {
+        testo = '${distCm.toStringAsFixed(1)} cm';
+      } else {
+        testo = '— cm';  // valori assurdi nascosti
+      }
 
-  borderColor = Colors.green;
-} else {
-  final mmPerPxAttuale = ipdMm / ipdPx;
-  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+      borderColor = Colors.green;
+    } else {
+      final mmPerPxAttuale = ipdMm / ipdPx;
+      final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+      final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
 
-  if (distanzaCm > 5 && distanzaCm < 50) {
-    testo = '${distanzaCm.toStringAsFixed(1)} cm';
-  } else {
-    testo = '— cm';
-  }
+      if (distanzaCm > 5 && distanzaCm < 50) {
+        testo = '${distanzaCm.toStringAsFixed(1)} cm';
+      } else {
+        testo = '— cm';
+      }
 
-  if ((distanzaCm - 12.0).abs() <= 1.0) {
-    borderColor = Colors.green;
-  }
-}
-
+      if ((distanzaCm - 12.0).abs() <= 1.0) {
+        borderColor = Colors.green;
+      }
+    }
   }
 
   return Align(
