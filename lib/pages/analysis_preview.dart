@@ -62,6 +62,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         return;
       }
 
+      // 🔹 Salva in galleria
       await PhotoManager.editor.saveImage(
         bytes,
         filename:
@@ -98,6 +99,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
+
       final decoded = await compute(jsonDecode, body);
 
       if (resp.statusCode == 200) {
@@ -295,6 +297,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       onWillPop: () async {
         File? fileToReturn;
 
+        // Priorità: melasma > macchie > rughe > pori
         if (_melasmaOverlayUrl != null) {
           final resp = await http.get(Uri.parse(_melasmaOverlayUrl!));
           if (resp.statusCode == 200) {
@@ -342,7 +345,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         }
 
         Navigator.pop(context, fileToReturn);
-        return false;
+        return false; // blocchiamo pop automatico
       },
       child: Scaffold(
         appBar: AppBar(
