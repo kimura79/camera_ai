@@ -594,9 +594,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
+          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70;
+          squareSize = shortSide * 0.70; // dimensione stabile se non trova pupille
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -632,7 +632,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               Align(
                 alignment: const Alignment(0, -0.3),
                 child: _buildLivellaOrizzontale3Linee(
-                  width: squareSize * 0.82,
+                  width: math.max(squareSize * 0.82, 300.0),
                   height: 62,
                   okThresholdDeg: 1.0,
                 ),
