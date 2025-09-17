@@ -22,26 +22,32 @@ Widget buildDistanzaCmOverlay({
     testo = '— cm';
   } else {
     if (mode == CaptureMode.volto) {
-      // ✅ logica originale per volto intero (NON TOCCATA)
-      final mmPerPxAttuale = ipdMm / ipdPx;
-      final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
-      testo = '${distCm.toStringAsFixed(1)} cm';
-      borderColor = Colors.green; // volto sempre verde quando in range
-    } else {
-      // ✅ logica aggiornata per PARTICOLARE
-      final mmPerPxAttuale = ipdMm / ipdPx;
-      final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+  final mmPerPxAttuale = ipdMm / ipdPx;
+  final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
 
-      // distanza stimata in cm (moltiplicatore calibrato ×2)
-      final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+  if (distCm > 5 && distCm < 50) {
+    testo = '${distCm.toStringAsFixed(1)} cm';
+  } else {
+    testo = '— cm';  // valori assurdi nascosti
+  }
 
-      testo = '${distanzaCm.toStringAsFixed(1)} cm';
+  borderColor = Colors.green;
+} else {
+  final mmPerPxAttuale = ipdMm / ipdPx;
+  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
 
-      // Verde solo se vicino a 12 cm (11–13 cm)
-      if ((distanzaCm - 12.0).abs() <= 1.0) {
-        borderColor = Colors.green;
-      }
-    }
+  if (distanzaCm > 5 && distanzaCm < 50) {
+    testo = '${distanzaCm.toStringAsFixed(1)} cm';
+  } else {
+    testo = '— cm';
+  }
+
+  if ((distanzaCm - 12.0).abs() <= 1.0) {
+    borderColor = Colors.green;
+  }
+}
+
   }
 
   return Align(
