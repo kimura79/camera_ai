@@ -36,6 +36,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaOverlayUrl;
   double? _melasmaPercentuale;
 
+  Map<String, dynamic>? _poriResult;
+  String? _poriOverlayUrl;
+  double? _poriPercentuale;
+
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
     required String url,
@@ -58,7 +62,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         return;
       }
 
-      // 🔹 Salva in galleria
       await PhotoManager.editor.saveImage(
         bytes,
         filename:
@@ -95,20 +98,17 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
-
       final decoded = await compute(jsonDecode, body);
 
       if (resp.statusCode == 200) {
-        if (tipo == "all") {
-          _parseRughe(decoded["analyze_rughe"]);
-          _parseMacchie(decoded["analyze_macchie"]);
-          _parseMelasma(decoded["analyze_melasma"]);
-        } else if (tipo == "rughe") {
+        if (tipo == "rughe") {
           _parseRughe(decoded);
         } else if (tipo == "macchie") {
           _parseMacchie(decoded);
         } else if (tipo == "melasma") {
           _parseMelasma(decoded);
+        } else if (tipo == "pori") {
+          _parsePori(decoded);
         }
 
         if (mounted) {
@@ -177,6 +177,21 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
     if (_melasmaOverlayUrl != null) {
       _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
+    }
+  }
+
+  void _parsePori(dynamic data) {
+    if (data == null) return;
+    _poriResult = data;
+    _poriOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
+    _poriPercentuale = data["percentuale"] != null
+        ? (data["percentuale"] as num).toDouble()
+        : null;
+
+    if (_poriOverlayUrl != null) {
+      _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
     }
   }
 
@@ -280,7 +295,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       onWillPop: () async {
         File? fileToReturn;
 
-        // Priorità: melasma > macchie > rughe
         if (_melasmaOverlayUrl != null) {
           final resp = await http.get(Uri.parse(_melasmaOverlayUrl!));
           if (resp.statusCode == 200) {
@@ -314,10 +328,21 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
               ),
             ).writeAsBytes(resp.bodyBytes);
           }
+        } else if (_poriOverlayUrl != null) {
+          final resp = await http.get(Uri.parse(_poriOverlayUrl!));
+          if (resp.statusCode == 200) {
+            final dir = await Directory.systemTemp.createTemp();
+            fileToReturn = await File(
+              path.join(
+                dir.path,
+                "overlay_pori_${DateTime.now().millisecondsSinceEpoch}.png",
+              ),
+            ).writeAsBytes(resp.bodyBytes);
+          }
         }
 
         Navigator.pop(context, fileToReturn);
-        return false; // blocchiamo pop automatico
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -352,20 +377,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
                   const SizedBox(height: 24),
 
-                  // 🔘 Pulsante "Analizza Tutto"
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _loading
-                          ? null
-                          : () => _callAnalysis("analyze_all", "all"),
-                      child: const Text("Analizza Tutto"),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 🔘 Riga pulsanti Rughe / Macchie / Melasma
+                  // 🔘 Pulsanti 2x2
                   Row(
                     children: [
                       Expanded(
@@ -385,13 +397,26 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                           child: const Text("Macchie"),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
                       Expanded(
                         child: ElevatedButton(
                           onPressed: _loading
                               ? null
                               : () => _callAnalysis("analyze_melasma", "melasma"),
                           child: const Text("Melasma"),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _loading
+                              ? null
+                              : () => _callAnalysis("analyze_pori", "pori"),
+                          child: const Text("Pori"),
                         ),
                       ),
                     ],
@@ -417,6 +442,12 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                     overlayUrl: _melasmaOverlayUrl,
                     percentuale: _melasmaPercentuale,
                     analysisType: "melasma",
+                  ),
+                  _buildAnalysisBlock(
+                    title: "Pori",
+                    overlayUrl: _poriOverlayUrl,
+                    percentuale: _poriPercentuale,
+                    analysisType: "pori",
                   ),
                 ],
               ),
