@@ -376,6 +376,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                         : _poriFilename ?? "";
 
             return GestureDetector(
+              behavior: HitTestBehavior.opaque, // 👈 AGGIUNGI QUESTO
               onTap: () async {
                 bool ok = await ApiService.sendJudgement(
                   filename: filename,
