@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart'; // per compute JSON
 import 'package:custom_camera_component/services/api_service.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // 🔹 Copia la foto in un percorso sicuro che resta valido anche a schermo spento
 Future<String> copyToSafePath(String originalPath) async {
@@ -53,6 +54,23 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _poriOverlayUrl;
   double? _poriPercentuale;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkPendingJobs();
+  }
+
+  Future<void> _checkPendingJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      final jobId = prefs.getString("last_job_id_$tipo");
+      if (jobId != null) {
+        _resumeJob(tipo, jobId);
+        break;
+      }
+    }
+  }
+
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
     required String url,
@@ -75,7 +93,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         return;
       }
 
-      // 🔹 Salva in galleria
       await PhotoManager.editor.saveImage(
         bytes,
         filename:
@@ -96,143 +113,139 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  // === API helper ===
+  // === API helper sincrono (non usato in async) ===
   Future<void> _callAnalysis(String endpoint, String tipo) async {
-  setState(() {
-    _loading = true;
-  });
+    setState(() {
+      _loading = true;
+    });
 
-  try {
-    final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
-    final req = http.MultipartRequest("POST", uri);
-    final safePath = await copyToSafePath(widget.imagePath);
-req.files.add(
-  await http.MultipartFile.fromPath(
-    "file",
-    safePath,
-    filename: path.basename(safePath),
-  ),
-);
+    try {
+      final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
+      final req = http.MultipartRequest("POST", uri);
+      final safePath = await copyToSafePath(widget.imagePath);
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          safePath,
+          filename: path.basename(safePath),
+        ),
+      );
+      req.fields["mode"] = widget.mode;
 
-    req.fields["mode"] = widget.mode;
+      final resp = await req.send();
+      final body = await resp.stream.bytesToString();
 
-    final resp = await req.send();
-    final body = await resp.stream.bytesToString();
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(body);
 
-    if (resp.statusCode == 200) {
-      final decoded = jsonDecode(body);
+        if (tipo == "rughe") _parseRughe(decoded);
+        if (tipo == "macchie") _parseMacchie(decoded);
+        if (tipo == "melasma") _parseMelasma(decoded);
+        if (tipo == "pori") _parsePori(decoded);
 
-      if (tipo == "rughe") {
-        _parseRughe(decoded);
-      } else if (tipo == "macchie") {
-        _parseMacchie(decoded);
-      } else if (tipo == "melasma") {
-        _parseMelasma(decoded);
-      } else if (tipo == "pori") {
-        _parsePori(decoded);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ Analisi $tipo completata")),
+          );
+        }
+      } else {
+        throw Exception("Errore server: ${resp.statusCode}\n$body");
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore analisi: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // === Chiamata asincrona con job_id + polling ===
+  Future<void> _callAnalysisAsync(String tipo) async {
+    setState(() => _loading = true);
+    try {
+      final safePath = await copyToSafePath(widget.imagePath);
+
+      final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+      final req = http.MultipartRequest("POST", uri);
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          safePath,
+          filename: path.basename(safePath),
+        ),
+      );
+
+      final resp = await req.send();
+      final body = await resp.stream.bytesToString();
+
+      if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
+        throw Exception("Risposta non valida dal server: $body");
+      }
+
+      final decoded = jsonDecode(body);
+      if (decoded["job_id"] == null) {
+        throw Exception("Job ID mancante nella risposta");
+      }
+      final String jobId = decoded["job_id"];
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("last_job_id_$tipo", jobId);
+
+      await _resumeJob(tipo, jobId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore analisi: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resumeJob(String tipo, String jobId) async {
+    setState(() => _loading = true);
+
+    bool done = false;
+    Map<String, dynamic>? result;
+
+    while (!done && mounted) {
+      await Future.delayed(const Duration(seconds: 2));
+      final statusResp =
+          await http.get(Uri.parse("http://46.101.223.88:5000/status/$jobId"));
+      if (statusResp.statusCode != 200) continue;
+
+      final statusData = jsonDecode(statusResp.body);
+      if (statusData["status"] == "done") {
+        done = true;
+        result = statusData["result"];
+      } else if (statusData["status"] == "error") {
+        done = true;
+        result = {"error": statusData["result"]};
+      }
+    }
+
+    if (result != null) {
+      if (tipo == "rughe") _parseRughe(result);
+      if (tipo == "macchie") _parseMacchie(result);
+      if (tipo == "melasma") _parseMelasma(result);
+      if (tipo == "pori") _parsePori(result);
+
+      final prefs = await SharedPreferences.getInstance();
+      prefs.remove("last_job_id_$tipo");
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("✅ Analisi $tipo completata")),
         );
       }
-    } else {
-      throw Exception("Errore server: ${resp.statusCode}\n$body");
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Errore analisi: $e")),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _loading = false;
-      });
-    }
-  }
-}
-
-// === Chiamata asincrona con job_id + polling ===
-Future<void> _callAnalysisAsync(String tipo) async {
-  setState(() => _loading = true);
-  try {
-    final safePath = await copyToSafePath(widget.imagePath);
-
-    // 1. Upload asincrono
-    final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
-    final req = http.MultipartRequest("POST", uri);
-    req.files.add(
-      await http.MultipartFile.fromPath(
-        "file",
-        safePath,
-        filename: path.basename(safePath),
-      ),
-    );
-
-    final resp = await req.send();
-    final body = await resp.stream.bytesToString();
-
-    // 🔹 se non è JSON valido, mostro errore e stoppo
-    if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
-      throw Exception("Risposta non valida dal server: $body");
     }
 
-    final decoded = jsonDecode(body);
-    if (decoded["job_id"] == null) {
-      throw Exception("Job ID mancante nella risposta");
-    }
-    final String jobId = decoded["job_id"];
-
-    // 2. Polling
-    bool done = false;
-    Map<String, dynamic>? result;
-    int attempts = 0;
-    while (!done && attempts < 30) {
-      await Future.delayed(const Duration(seconds: 2));
-      attempts++;
-      final statusResp =
-          await http.get(Uri.parse("http://46.101.223.88:5000/status/$jobId"));
-      final statusBody = statusResp.body;
-
-      if (statusResp.statusCode != 200 || !statusBody.trim().startsWith("{")) {
-        throw Exception("Errore status job: $statusBody");
-      }
-
-      final statusData = jsonDecode(statusBody);
-      if (statusData["status"] == "done") {
-        done = true;
-        result = statusData["result"];
-      } else if (statusData["status"] == "error") {
-        throw Exception("Errore job: ${statusData["result"]}");
-      }
-    }
-
-    // 3. Parse risultato
-    if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ Analisi $tipo completata")),
-      );
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Errore analisi: $e")),
-      );
-    }
-  } finally {
     if (mounted) setState(() => _loading = false);
   }
-}
 
   // === Parsers ===
   void _parseRughe(dynamic data) {
@@ -244,7 +257,6 @@ Future<void> _callAnalysisAsync(String tipo) async {
     _rughePercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
-
     if (_rugheOverlayUrl != null) {
       _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
     }
@@ -259,7 +271,6 @@ Future<void> _callAnalysisAsync(String tipo) async {
     _macchiePercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
-
     if (_macchieOverlayUrl != null) {
       _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
     }
@@ -274,7 +285,6 @@ Future<void> _callAnalysisAsync(String tipo) async {
     _melasmaPercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
-
     if (_melasmaOverlayUrl != null) {
       _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
     }
@@ -289,7 +299,6 @@ Future<void> _callAnalysisAsync(String tipo) async {
     _poriPercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
-
     if (_poriOverlayUrl != null) {
       _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
     }
@@ -337,52 +346,6 @@ Future<void> _callAnalysisAsync(String tipo) async {
             ),
           ),
         const SizedBox(height: 20),
-
-        const Text(
-          "Come giudichi questa analisi? Dai un voto da 1 a 10",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (index) {
-            int voto = index + 1;
-            return GestureDetector(
-              onTap: () async {
-                bool ok = await ApiService.sendJudgement(
-                  filename: path.basename(widget.imagePath),
-                  giudizio: voto,
-                  analysisType: analysisType,
-                  autore: "anonimo",
-                );
-                if (ok && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text("✅ Giudizio $voto inviato per $analysisType"),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "$voto",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 40),
       ],
     );
   }
@@ -391,170 +354,112 @@ Future<void> _callAnalysisAsync(String tipo) async {
   Widget build(BuildContext context) {
     final double side = MediaQuery.of(context).size.width * 0.9;
 
-    return WillPopScope(
-      onWillPop: () async {
-        File? fileToReturn;
-
-        // Priorità: melasma > macchie > rughe > pori
-        if (_melasmaOverlayUrl != null) {
-          final resp = await http.get(Uri.parse(_melasmaOverlayUrl!));
-          if (resp.statusCode == 200) {
-            final dir = await Directory.systemTemp.createTemp();
-            fileToReturn = await File(
-              path.join(
-                dir.path,
-                "overlay_melasma_${DateTime.now().millisecondsSinceEpoch}.png",
-              ),
-            ).writeAsBytes(resp.bodyBytes);
-          }
-        } else if (_macchieOverlayUrl != null) {
-          final resp = await http.get(Uri.parse(_macchieOverlayUrl!));
-          if (resp.statusCode == 200) {
-            final dir = await Directory.systemTemp.createTemp();
-            fileToReturn = await File(
-              path.join(
-                dir.path,
-                "overlay_macchie_${DateTime.now().millisecondsSinceEpoch}.png",
-              ),
-            ).writeAsBytes(resp.bodyBytes);
-          }
-        } else if (_rugheOverlayUrl != null) {
-          final resp = await http.get(Uri.parse(_rugheOverlayUrl!));
-          if (resp.statusCode == 200) {
-            final dir = await Directory.systemTemp.createTemp();
-            fileToReturn = await File(
-              path.join(
-                dir.path,
-                "overlay_rughe_${DateTime.now().millisecondsSinceEpoch}.png",
-              ),
-            ).writeAsBytes(resp.bodyBytes);
-          }
-        } else if (_poriOverlayUrl != null) {
-          final resp = await http.get(Uri.parse(_poriOverlayUrl!));
-          if (resp.statusCode == 200) {
-            final dir = await Directory.systemTemp.createTemp();
-            fileToReturn = await File(
-              path.join(
-                dir.path,
-                "overlay_pori_${DateTime.now().millisecondsSinceEpoch}.png",
-              ),
-            ).writeAsBytes(resp.bodyBytes);
-          }
-        }
-
-        Navigator.pop(context, fileToReturn);
-        return false; // blocchiamo pop automatico
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.mode == "particolare"
-                ? "Anteprima (Particolare)"
-                : "Anteprima (Volto intero)",
-          ),
-          backgroundColor: Colors.blue,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.mode == "particolare"
+              ? "Anteprima (Particolare)"
+              : "Anteprima (Volto intero)",
         ),
-        body: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 10),
-
-                  // Foto originale
-                  Container(
-                    width: side,
-                    height: side,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.green, width: 3),
-                    ),
-                    child: Image.file(
-                      File(widget.imagePath),
-                      fit: BoxFit.contain,
-                    ),
+        backgroundColor: Colors.blue,
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: side,
+                  height: side,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.green, width: 3),
                   ),
-
-                  const SizedBox(height: 24),
-
-// 🔘 Pulsanti 2x2
-Row(
-  children: [
-    Expanded(
-      child: ElevatedButton(
-        onPressed: _loading ? null : () => _callAnalysisAsync("rughe"),
-        child: const Text("Rughe"),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: ElevatedButton(
-        onPressed: _loading ? null : () => _callAnalysisAsync("macchie"),
-        child: const Text("Macchie"),
-      ),
-    ),
-  ],
-),
-const SizedBox(height: 8),
-Row(
-  children: [
-    Expanded(
-      child: ElevatedButton(
-        onPressed: _loading ? null : () => _callAnalysisAsync("melasma"),
-        child: const Text("Melasma"),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: ElevatedButton(
-        onPressed: _loading ? null : () => _callAnalysisAsync("pori"),
-        child: const Text("Pori"),
-      ),
-    ),
-  ],
-),
-
-const SizedBox(height: 24),
-
-// Blocchi analisi
-_buildAnalysisBlock(
-  title: "Rughe",
-  overlayUrl: _rugheOverlayUrl,
-  percentuale: _rughePercentuale,
-  analysisType: "rughe",
-),
-_buildAnalysisBlock(
-  title: "Macchie",
-  overlayUrl: _macchieOverlayUrl,
-  percentuale: _macchiePercentuale,
-  analysisType: "macchie",
-),
-_buildAnalysisBlock(
-  title: "Melasma",
-  overlayUrl: _melasmaOverlayUrl,
-  percentuale: _melasmaPercentuale,
-  analysisType: "melasma",
-),
-_buildAnalysisBlock(
-  title: "Pori",
-  overlayUrl: _poriOverlayUrl,
-  percentuale: _poriPercentuale,
-  analysisType: "pori",
-),
-                ],
+                  child: Image.file(
+                    File(widget.imagePath),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed:
+                            _loading ? null : () => _callAnalysisAsync("rughe"),
+                        child: const Text("Rughe"),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _callAnalysisAsync("macchie"),
+                        child: const Text("Macchie"),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _callAnalysisAsync("melasma"),
+                        child: const Text("Melasma"),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed:
+                            _loading ? null : () => _callAnalysisAsync("pori"),
+                        child: const Text("Pori"),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildAnalysisBlock(
+                  title: "Rughe",
+                  overlayUrl: _rugheOverlayUrl,
+                  percentuale: _rughePercentuale,
+                  analysisType: "rughe",
+                ),
+                _buildAnalysisBlock(
+                  title: "Macchie",
+                  overlayUrl: _macchieOverlayUrl,
+                  percentuale: _macchiePercentuale,
+                  analysisType: "macchie",
+                ),
+                _buildAnalysisBlock(
+                  title: "Melasma",
+                  overlayUrl: _melasmaOverlayUrl,
+                  percentuale: _melasmaPercentuale,
+                  analysisType: "melasma",
+                ),
+                _buildAnalysisBlock(
+                  title: "Pori",
+                  overlayUrl: _poriOverlayUrl,
+                  percentuale: _poriPercentuale,
+                  analysisType: "pori",
+                ),
+              ],
+            ),
+          ),
+          if (_loading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
               ),
             ),
-
-            if (_loading)
-              Container(
-                color: Colors.black54,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
