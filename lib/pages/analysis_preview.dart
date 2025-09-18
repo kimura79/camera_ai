@@ -70,32 +70,33 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   Future<void> _checkServer() async {
-    setState(() {
-      _checkingServer = true;
-    });
-    try {
-      final resp = await http
-          .get(Uri.parse("http://46.101.223.88:5000/status"))
-          .timeout(const Duration(seconds: 5));
-      if (resp.statusCode == 200) {
-        setState(() {
-          _serverReady = true;
-        });
-      } else {
-        setState(() {
-          _serverReady = false;
-        });
-      }
-    } catch (e) {
+  setState(() {
+    _checkingServer = true;
+  });
+
+  try {
+    final resp = await http
+        .get(Uri.parse("http://46.101.223.88:5000/status"))
+        .timeout(const Duration(seconds: 5));
+
+    if (resp.statusCode == 200) {
       setState(() {
-        _serverReady = false;
-      });
-    } finally {
-      setState(() {
+        _serverReady = true;
         _checkingServer = false;
       });
+      return; // ✅ server pronto → smetto di riprovare
     }
+  } catch (_) {
+    // ignoro errori, vado al retry
   }
+
+  // 🔄 se non è pronto, riprovo dopo 3 secondi
+  setState(() {
+    _serverReady = false;
+    _checkingServer = false;
+  });
+  Future.delayed(const Duration(seconds: 3), _checkServer);
+}
 
   Future<void> _checkPendingJobs() async {
     final prefs = await SharedPreferences.getInstance();
