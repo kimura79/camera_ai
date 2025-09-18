@@ -450,7 +450,7 @@ Row(
       child: ElevatedButton(
         onPressed: _loading
             ? null
-            : () => _callAnalysisAsync("rughe"),
+            : () => _callAnalysis("analyze_rughe", "rughe"),
         child: const Text("Rughe"),
       ),
     ),
@@ -459,7 +459,7 @@ Row(
       child: ElevatedButton(
         onPressed: _loading
             ? null
-            : () => _callAnalysisAsync("macchie"),
+            : () => _callAnalysis("analyze_macchie", "macchie"),
         child: const Text("Macchie"),
       ),
     ),
@@ -472,7 +472,7 @@ Row(
       child: ElevatedButton(
         onPressed: _loading
             ? null
-            : () => _callAnalysisAsync("melasma"),
+            : () => _callAnalysis("analyze_melasma", "melasma"),
         child: const Text("Melasma"),
       ),
     ),
@@ -481,7 +481,7 @@ Row(
       child: ElevatedButton(
         onPressed: _loading
             ? null
-            : () => _callAnalysisAsync("pori"),
+            : () => _callAnalysis("analyze_pori", "pori"),
         child: const Text("Pori"),
       ),
     ),
@@ -515,7 +515,6 @@ _buildAnalysisBlock(
   percentuale: _poriPercentuale,
   analysisType: "pori",
 ),
-
                 ],
               ),
             ),
