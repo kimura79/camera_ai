@@ -478,7 +478,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
 
                   const SizedBox(height: 24),
 
-                  // 🔘 Pulsanti 2x2
+// 🔘 Pulsanti 2x2
 Row(
   children: [
     Expanded(
