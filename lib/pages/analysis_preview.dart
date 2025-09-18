@@ -85,56 +85,56 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   // === API helper ===
   Future<void> _callAnalysis(String endpoint, String tipo) async {
-    setState(() {
-      _loading = true;
-    });
+  setState(() {
+    _loading = true;
+  });
 
-    try {
-      final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
-      final req = http.MultipartRequest("POST", uri);
-      req.files.add(
-        await http.MultipartFile.fromPath("file", widget.imagePath),
-      );
-      req.fields["mode"] = widget.mode;
+  try {
+    final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
+    final req = http.MultipartRequest("POST", uri);
+    req.files.add(
+      await http.MultipartFile.fromPath("file", widget.imagePath),
+    );
+    req.fields["mode"] = widget.mode;
 
-      final resp = await req.send();
-      final body = await resp.stream.bytesToString();
+    final resp = await req.send();
+    final body = await resp.stream.bytesToString();
 
-      final decoded = await compute(jsonDecode, body);
+    if (resp.statusCode == 200) {
+      final decoded = jsonDecode(body);
 
-      if (resp.statusCode == 200) {
-        if (tipo == "rughe") {
-          _parseRughe(decoded);
-        } else if (tipo == "macchie") {
-          _parseMacchie(decoded);
-        } else if (tipo == "melasma") {
-          _parseMelasma(decoded);
-        } else if (tipo == "pori") {
-          _parsePori(decoded);
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("✅ Analisi $tipo completata")),
-          );
-        }
-      } else {
-        throw Exception("Errore server: ${resp.statusCode}");
+      if (tipo == "rughe") {
+        _parseRughe(decoded);
+      } else if (tipo == "macchie") {
+        _parseMacchie(decoded);
+      } else if (tipo == "melasma") {
+        _parseMelasma(decoded);
+      } else if (tipo == "pori") {
+        _parsePori(decoded);
       }
-    } catch (e) {
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore analisi: $e")),
+          SnackBar(content: Text("✅ Analisi $tipo completata")),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+    } else {
+      throw Exception("Errore server: ${resp.statusCode}\n$body");
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi: $e")),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
     }
   }
+}
 
 // === Chiamata asincrona con job_id + polling ===
 Future<void> _callAnalysisAsync(String tipo) async {
