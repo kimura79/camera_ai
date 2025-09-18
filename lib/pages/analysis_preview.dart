@@ -62,41 +62,49 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaFilename;
   String? _poriFilename;
 
-  @override
+    @override 
   void initState() {
     super.initState();
+    _clearPendingJobs();   // 🔹 resetta eventuali job sospesi
     _checkPendingJobs();
     _checkServer();
   }
 
-  Future<void> _checkServer() async {
-  setState(() {
-    _checkingServer = true;
-  });
-
-  try {
-    final resp = await http
-        .get(Uri.parse("http://46.101.223.88:5000/status"))
-        .timeout(const Duration(seconds: 5));
-
-    if (resp.statusCode == 200) {
-      setState(() {
-        _serverReady = true;
-        _checkingServer = false;
-      });
-      return; // ✅ server pronto → smetto di riprovare
+  Future<void> _clearPendingJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      await prefs.remove("last_job_id_$tipo");
     }
-  } catch (_) {
-    // ignoro errori, vado al retry
   }
 
-  // 🔄 se non è pronto, riprovo dopo 3 secondi
-  setState(() {
-    _serverReady = false;
-    _checkingServer = false;
-  });
-  Future.delayed(const Duration(seconds: 3), _checkServer);
-}
+  Future<void> _checkServer() async {
+    setState(() {
+      _checkingServer = true;
+    });
+
+    try {
+      final resp = await http
+          .get(Uri.parse("http://46.101.223.88:5000/status"))
+          .timeout(const Duration(seconds: 5));
+
+      if (resp.statusCode == 200) {
+        setState(() {
+          _serverReady = true;
+          _checkingServer = false;
+        });
+        return; // ✅ server pronto → smetto di riprovare
+      }
+    } catch (_) {
+      // ignoro errori, vado al retry
+    }
+
+    // 🔄 se non è pronto, riprovo dopo 3 secondi
+    setState(() {
+      _serverReady = false;
+      _checkingServer = false;
+    });
+    Future.delayed(const Duration(seconds: 3), _checkServer);
+  }
 
   Future<void> _checkPendingJobs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -109,6 +117,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       }
     }
   }
+
 
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
