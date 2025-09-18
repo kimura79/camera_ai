@@ -313,108 +313,112 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
- // === Blocchi UI ===
-  Widget _buildAnalysisBlock({
-    required String title,
-    required String? overlayUrl,
-    required double? percentuale,
-    required String analysisType,
-  }) {
-    if (overlayUrl == null) return const SizedBox.shrink();
+// === Blocchi UI ===
+Widget _buildAnalysisBlock({
+  required String title,
+  required String? overlayUrl,
+  required double? percentuale,
+  required String analysisType,
+}) {
+  if (overlayUrl == null) return const SizedBox.shrink();
 
-    final double side = MediaQuery.of(context).size.width * 0.9;
+  final double side = MediaQuery.of(context).size.width * 0.9;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Text(
+        "🔬 Analisi: $title",
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 10),
+      Container(
+        width: side,
+        height: side,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue, width: 3),
+        ),
+        child: Image.network(
+          overlayUrl,
+          fit: BoxFit.contain,
+          errorBuilder: (ctx, err, stack) =>
+              const Center(child: Text("Errore caricamento overlay")),
+        ),
+      ),
+      const SizedBox(height: 10),
+      if (percentuale != null)
         Text(
-          "🔬 Analisi: $title",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: side,
-          height: side,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.blue, width: 3),
-          ),
-          child: Image.network(
-            overlayUrl,
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, err, stack) =>
-                const Center(child: Text("Errore caricamento overlay")),
+          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 10),
-        if (percentuale != null)
-          Text(
-            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        const SizedBox(height: 20),
+      const SizedBox(height: 20),
 
-        const Text(
-          "Come giudichi questa analisi? Dai un voto da 1 a 10",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (index) {
-            int voto = index + 1;
+      const Text(
+        "Come giudichi questa analisi? Dai un voto da 1 a 10",
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 12),
 
-            // ✅ usa filename reale salvato dal parser
-            String filename = analysisType == "rughe"
-                ? _rugheFilename ?? ""
-                : analysisType == "macchie"
-                    ? _macchieFilename ?? ""
-                    : analysisType == "melasma"
-                        ? _melasmaFilename ?? ""
-                        : _poriFilename ?? "";
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(10, (index) {
+          int voto = index + 1;
 
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque, // 👈 AGGIUNGI QUESTO
-              onTap: () async {
-                bool ok = await ApiService.sendJudgement(
-                  filename: filename,
-                  giudizio: voto,
-                  analysisType: analysisType,
-                  autore: "anonimo",
-                );
-                if (ok && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text("✅ Giudizio $voto inviato per $analysisType"),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "$voto",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
+          // ✅ Usa filename dal parser, fallback al nome del file scattato
+          String filename = analysisType == "rughe"
+              ? _rugheFilename
+              : analysisType == "macchie"
+                  ? _macchieFilename
+                  : analysisType == "melasma"
+                      ? _melasmaFilename
+                      : _poriFilename;
+
+          filename ??= path.basename(widget.imagePath);
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () async {
+              bool ok = await ApiService.sendJudgement(
+                filename: filename,
+                giudizio: voto,
+                analysisType: analysisType,
+                autore: "anonimo",
+              );
+              if (ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content:
+                        Text("✅ Giudizio $voto inviato per $analysisType"),
                   ),
+                );
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                "$voto",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
                 ),
               ),
-            );
-          }),
-        ),
-        const SizedBox(height: 40),
-      ],
-    );
-  }
+            ),
+          );
+        }),
+      ),
+
+      const SizedBox(height: 40),
+    ],
+  );
+}
 
   @override
   Widget build(BuildContext context) {
