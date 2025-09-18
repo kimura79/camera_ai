@@ -136,6 +136,69 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
+// === Chiamata asincrona con job_id + polling ===
+Future<void> _callAnalysisAsync(String tipo) async {
+  setState(() => _loading = true);
+  try {
+    // 1. Upload asincrono
+    final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+    final req = http.MultipartRequest("POST", uri);
+    req.files.add(await http.MultipartFile.fromPath("file", widget.imagePath));
+    final resp = await req.send();
+    final body = await resp.stream.bytesToString();
+    final decoded = jsonDecode(body);
+
+    if (resp.statusCode != 200 || decoded["job_id"] == null) {
+      throw Exception("Errore avvio job");
+    }
+    final String jobId = decoded["job_id"];
+
+    // 2. Polling ogni 2 secondi, max 60s
+    bool done = false;
+    Map<String, dynamic>? result;
+    int attempts = 0;
+    while (!done && mounted && attempts < 30) {
+      await Future.delayed(const Duration(seconds: 2));
+      attempts++;
+      final statusResp = await http.get(
+        Uri.parse("http://46.101.223.88:5000/status/$jobId"),
+      );
+      if (statusResp.statusCode != 200) {
+        throw Exception("Errore status job");
+      }
+      final statusData = jsonDecode(statusResp.body);
+      if (statusData["status"] == "done") {
+        done = true;
+        result = statusData["result"];
+      } else if (statusData["status"] == "error") {
+        throw Exception("Errore job: ${statusData["result"]}");
+      }
+    }
+
+    // 3. Parse risultato (uguale a prima)
+    if (result != null) {
+      if (tipo == "rughe") _parseRughe(result);
+      if (tipo == "macchie") _parseMacchie(result);
+      if (tipo == "melasma") _parseMelasma(result);
+      if (tipo == "pori") _parsePori(result);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Analisi $tipo completata")),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi: $e")),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _loading = false);
+  }
+}
+
   // === Parsers ===
   void _parseRughe(dynamic data) {
     if (data == null) return;
@@ -381,77 +444,78 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                   const SizedBox(height: 24),
 
                   // 🔘 Pulsanti 2x2
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _loading
-                              ? null
-                              : () => _callAnalysis("analyze_rughe", "rughe"),
-                          child: const Text("Rughe"),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _loading
-                              ? null
-                              : () => _callAnalysis("analyze_macchie", "macchie"),
-                          child: const Text("Macchie"),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _loading
-                              ? null
-                              : () => _callAnalysis("analyze_melasma", "melasma"),
-                          child: const Text("Melasma"),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _loading
-                              ? null
-                              : () => _callAnalysis("analyze_pori", "pori"),
-                          child: const Text("Pori"),
-                        ),
-                      ),
-                    ],
-                  ),
+Row(
+  children: [
+    Expanded(
+      child: ElevatedButton(
+        onPressed: _loading
+            ? null
+            : () => _callAnalysisAsync("rughe"),
+        child: const Text("Rughe"),
+      ),
+    ),
+    const SizedBox(width: 8),
+    Expanded(
+      child: ElevatedButton(
+        onPressed: _loading
+            ? null
+            : () => _callAnalysisAsync("macchie"),
+        child: const Text("Macchie"),
+      ),
+    ),
+  ],
+),
+const SizedBox(height: 8),
+Row(
+  children: [
+    Expanded(
+      child: ElevatedButton(
+        onPressed: _loading
+            ? null
+            : () => _callAnalysisAsync("melasma"),
+        child: const Text("Melasma"),
+      ),
+    ),
+    const SizedBox(width: 8),
+    Expanded(
+      child: ElevatedButton(
+        onPressed: _loading
+            ? null
+            : () => _callAnalysisAsync("pori"),
+        child: const Text("Pori"),
+      ),
+    ),
+  ],
+),
 
-                  const SizedBox(height: 24),
+const SizedBox(height: 24),
 
-                  // Blocchi analisi
-                  _buildAnalysisBlock(
-                    title: "Rughe",
-                    overlayUrl: _rugheOverlayUrl,
-                    percentuale: _rughePercentuale,
-                    analysisType: "rughe",
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Macchie",
-                    overlayUrl: _macchieOverlayUrl,
-                    percentuale: _macchiePercentuale,
-                    analysisType: "macchie",
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Melasma",
-                    overlayUrl: _melasmaOverlayUrl,
-                    percentuale: _melasmaPercentuale,
-                    analysisType: "melasma",
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Pori",
-                    overlayUrl: _poriOverlayUrl,
-                    percentuale: _poriPercentuale,
-                    analysisType: "pori",
-                  ),
+// Blocchi analisi
+_buildAnalysisBlock(
+  title: "Rughe",
+  overlayUrl: _rugheOverlayUrl,
+  percentuale: _rughePercentuale,
+  analysisType: "rughe",
+),
+_buildAnalysisBlock(
+  title: "Macchie",
+  overlayUrl: _macchieOverlayUrl,
+  percentuale: _macchiePercentuale,
+  analysisType: "macchie",
+),
+_buildAnalysisBlock(
+  title: "Melasma",
+  overlayUrl: _melasmaOverlayUrl,
+  percentuale: _melasmaPercentuale,
+  analysisType: "melasma",
+),
+_buildAnalysisBlock(
+  title: "Pori",
+  overlayUrl: _poriOverlayUrl,
+  percentuale: _poriPercentuale,
+  analysisType: "pori",
+),
+
                 ],
               ),
             ),
