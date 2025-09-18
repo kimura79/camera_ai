@@ -304,7 +304,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  // === Blocchi UI ===
+ // === Blocchi UI ===
   Widget _buildAnalysisBlock({
     required String title,
     required String? overlayUrl,
@@ -346,6 +346,52 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             ),
           ),
         const SizedBox(height: 20),
+
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
+            return GestureDetector(
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: path.basename(widget.imagePath),
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
+                );
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 40),
       ],
     );
   }
