@@ -6,6 +6,19 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart'; // per compute JSON
 import 'package:custom_camera_component/services/api_service.dart';
+import 'package:path_provider/path_provider.dart';
+
+// 🔹 Copia la foto in un percorso sicuro che resta valido anche a schermo spento
+Future<String> copyToSafePath(String originalPath) async {
+  final dir = await getApplicationDocumentsDirectory();
+  final safePath = path.join(
+    dir.path,
+    "photo_${DateTime.now().millisecondsSinceEpoch}.jpg",
+  );
+  final originalFile = File(originalPath);
+  await originalFile.copy(safePath);
+  return safePath;
+}
 
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
@@ -92,13 +105,15 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   try {
     final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
     final req = http.MultipartRequest("POST", uri);
-    req.files.add(
+    final safePath = await copyToSafePath(widget.imagePath);
+req.files.add(
   await http.MultipartFile.fromPath(
     "file",
-    widget.imagePath,
-    filename: path.basename(widget.imagePath), // 👈 aggiunto
+    safePath,
+    filename: path.basename(safePath),
   ),
 );
+
     req.fields["mode"] = widget.mode;
 
     final resp = await req.send();
@@ -144,16 +159,20 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 Future<void> _callAnalysisAsync(String tipo) async {
   setState(() => _loading = true);
   try {
+    // 🔹 Copia il file in un percorso sicuro (valido anche se lo schermo si spegne)
+    final safePath = await copyToSafePath(widget.imagePath);
+
     // 1. Upload asincrono
     final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
     final req = http.MultipartRequest("POST", uri);
     req.files.add(
-  await http.MultipartFile.fromPath(
-    "file",
-    widget.imagePath,
-    filename: path.basename(widget.imagePath), // 👈 aggiungi questo
-  ),
-);
+      await http.MultipartFile.fromPath(
+        "file",
+        safePath,
+        filename: path.basename(safePath),
+      ),
+    );
+
     final resp = await req.send();
     final body = await resp.stream.bytesToString();
     final decoded = jsonDecode(body);
@@ -458,18 +477,14 @@ Row(
   children: [
     Expanded(
       child: ElevatedButton(
-        onPressed: _loading
-            ? null
-            : () => _callAnalysis("analyze_rughe", "rughe"),
+        onPressed: _loading ? null : () => _callAnalysisAsync("rughe"),
         child: const Text("Rughe"),
       ),
     ),
     const SizedBox(width: 8),
     Expanded(
       child: ElevatedButton(
-        onPressed: _loading
-            ? null
-            : () => _callAnalysis("analyze_macchie", "macchie"),
+        onPressed: _loading ? null : () => _callAnalysisAsync("macchie"),
         child: const Text("Macchie"),
       ),
     ),
@@ -480,18 +495,14 @@ Row(
   children: [
     Expanded(
       child: ElevatedButton(
-        onPressed: _loading
-            ? null
-            : () => _callAnalysis("analyze_melasma", "melasma"),
+        onPressed: _loading ? null : () => _callAnalysisAsync("melasma"),
         child: const Text("Melasma"),
       ),
     ),
     const SizedBox(width: 8),
     Expanded(
       child: ElevatedButton(
-        onPressed: _loading
-            ? null
-            : () => _callAnalysis("analyze_pori", "pori"),
+        onPressed: _loading ? null : () => _callAnalysisAsync("pori"),
         child: const Text("Pori"),
       ),
     ),
