@@ -93,8 +93,12 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     final uri = Uri.parse("http://46.101.223.88:5000/$endpoint");
     final req = http.MultipartRequest("POST", uri);
     req.files.add(
-      await http.MultipartFile.fromPath("file", widget.imagePath),
-    );
+  await http.MultipartFile.fromPath(
+    "file",
+    widget.imagePath,
+    filename: path.basename(widget.imagePath), // 👈 aggiunto
+  ),
+);
     req.fields["mode"] = widget.mode;
 
     final resp = await req.send();
@@ -143,7 +147,13 @@ Future<void> _callAnalysisAsync(String tipo) async {
     // 1. Upload asincrono
     final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
     final req = http.MultipartRequest("POST", uri);
-    req.files.add(await http.MultipartFile.fromPath("file", widget.imagePath));
+    req.files.add(
+  await http.MultipartFile.fromPath(
+    "file",
+    widget.imagePath,
+    filename: path.basename(widget.imagePath), // 👈 aggiungi questo
+  ),
+);
     final resp = await req.send();
     final body = await resp.stream.bytesToString();
     final decoded = jsonDecode(body);
