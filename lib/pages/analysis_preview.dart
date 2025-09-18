@@ -60,21 +60,22 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _poriFilename;
 
   @override
-  void initState() {
-    super.initState();
-    _checkPendingJobs();
-  }
+void initState() {
+  super.initState();
+  _checkPendingJobs();
+}
 
-  Future<void> _checkPendingJobs() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
-      final jobId = prefs.getString("last_job_id_$tipo");
-      if (jobId != null) {
-        _resumeJob(tipo, jobId);
-        break;
-      }
+Future<void> _checkPendingJobs() async {
+  final prefs = await SharedPreferences.getInstance();
+  for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+    final jobId = prefs.getString("last_job_id_$tipo");
+    if (jobId != null && jobId.isNotEmpty) {
+      debugPrint("ℹ️ Riprendo job in corso: $tipo ($jobId)");
+      await _resumeJob(tipo, jobId);
+      break; // riprendo solo il primo job trovato
     }
   }
+}
 
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
