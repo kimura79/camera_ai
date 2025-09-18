@@ -38,6 +38,9 @@ class AnalysisPreview extends StatefulWidget {
 class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
 
+  bool _serverReady = false;
+  bool _checkingServer = true;
+
   Map<String, dynamic>? _rugheResult;
   String? _rugheOverlayUrl;
   double? _rughePercentuale;
@@ -60,22 +63,51 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _poriFilename;
 
   @override
-void initState() {
-  super.initState();
-  _checkPendingJobs();
-}
+  void initState() {
+    super.initState();
+    _checkPendingJobs();
+    _checkServer();
+  }
 
-Future<void> _checkPendingJobs() async {
-  final prefs = await SharedPreferences.getInstance();
-  for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
-    final jobId = prefs.getString("last_job_id_$tipo");
-    if (jobId != null && jobId.isNotEmpty) {
-      debugPrint("ℹ️ Riprendo job in corso: $tipo ($jobId)");
-      await _resumeJob(tipo, jobId);
-      break; // riprendo solo il primo job trovato
+  Future<void> _checkServer() async {
+    setState(() {
+      _checkingServer = true;
+    });
+    try {
+      final resp = await http
+          .get(Uri.parse("http://46.101.223.88:5000/status"))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        setState(() {
+          _serverReady = true;
+        });
+      } else {
+        setState(() {
+          _serverReady = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _serverReady = false;
+      });
+    } finally {
+      setState(() {
+        _checkingServer = false;
+      });
     }
   }
-}
+
+  Future<void> _checkPendingJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      final jobId = prefs.getString("last_job_id_$tipo");
+      if (jobId != null && jobId.isNotEmpty) {
+        debugPrint("ℹ️ Riprendo job in corso: $tipo ($jobId)");
+        await _resumeJob(tipo, jobId);
+        break; // riprendo solo il primo job trovato
+      }
+    }
+  }
 
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
@@ -314,110 +346,110 @@ Future<void> _checkPendingJobs() async {
     }
   }
 
-// === Blocchi UI ===
-Widget _buildAnalysisBlock({
-  required String title,
-  required String? overlayUrl,
-  required double? percentuale,
-  required String analysisType,
-}) {
-  if (overlayUrl == null) return const SizedBox.shrink();
+  // === Blocchi UI ===
+  Widget _buildAnalysisBlock({
+    required String title,
+    required String? overlayUrl,
+    required double? percentuale,
+    required String analysisType,
+  }) {
+    if (overlayUrl == null) return const SizedBox.shrink();
 
-  final double side = MediaQuery.of(context).size.width * 0.9;
+    final double side = MediaQuery.of(context).size.width * 0.9;
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Text(
-        "🔬 Analisi: $title",
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 10),
-      Container(
-        width: side,
-        height: side,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.blue, width: 3),
-        ),
-        child: Image.network(
-          overlayUrl,
-          fit: BoxFit.contain,
-          errorBuilder: (ctx, err, stack) =>
-              const Center(child: Text("Errore caricamento overlay")),
-        ),
-      ),
-      const SizedBox(height: 10),
-      if (percentuale != null)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
         Text(
-          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+          "🔬 Analisi: $title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: side,
+          height: side,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.blue, width: 3),
+          ),
+          child: Image.network(
+            overlayUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, err, stack) =>
+                const Center(child: Text("Errore caricamento overlay")),
           ),
         ),
-      const SizedBox(height: 20),
+        const SizedBox(height: 10),
+        if (percentuale != null)
+          Text(
+            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        const SizedBox(height: 20),
 
-      const Text(
-        "Come giudichi questa analisi? Dai un voto da 1 a 10",
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
 
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(10, (index) {
-          int voto = index + 1;
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
 
-          // ✅ Usa filename reale se esiste, altrimenti fallback
-          String filename = analysisType == "rughe"
-              ? (_rugheFilename ?? path.basename(widget.imagePath))
-              : analysisType == "macchie"
-                  ? (_macchieFilename ?? path.basename(widget.imagePath))
-                  : analysisType == "melasma"
-                      ? (_melasmaFilename ?? path.basename(widget.imagePath))
-                      : (_poriFilename ?? path.basename(widget.imagePath));
+            // ✅ Usa filename reale se esiste, altrimenti fallback
+            String filename = analysisType == "rughe"
+                ? (_rugheFilename ?? path.basename(widget.imagePath))
+                : analysisType == "macchie"
+                    ? (_macchieFilename ?? path.basename(widget.imagePath))
+                    : analysisType == "melasma"
+                        ? (_melasmaFilename ?? path.basename(widget.imagePath))
+                        : (_poriFilename ?? path.basename(widget.imagePath));
 
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () async {
-              bool ok = await ApiService.sendJudgement(
-                filename: filename,
-                giudizio: voto,
-                analysisType: analysisType,
-                autore: "anonimo",
-              );
-              if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("✅ Giudizio $voto inviato per $analysisType"),
-                  ),
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: filename,
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
                 );
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                "$voto",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
                 ),
               ),
-            ),
-          );
-        }),
-      ),
+            );
+          }),
+        ),
 
-      const SizedBox(height: 40),
-    ],
-  );
-}
-
+        const SizedBox(height: 40),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -452,19 +484,35 @@ Widget _buildAnalysisBlock({
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                if (_checkingServer)
+                  const CircularProgressIndicator()
+                else if (!_serverReady)
+                  Column(
+                    children: [
+                      const Text("❌ Server non raggiungibile"),
+                      ElevatedButton(
+                        onPressed: _checkServer,
+                        child: const Text("Riprova"),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed:
-                            _loading ? null : () => _callAnalysisAsync("rughe"),
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("rughe"),
                         child: const Text("Rughe"),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: _loading
+                        onPressed: (_loading || !_serverReady)
                             ? null
                             : () => _callAnalysisAsync("macchie"),
                         child: const Text("Macchie"),
@@ -477,7 +525,7 @@ Widget _buildAnalysisBlock({
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: _loading
+                        onPressed: (_loading || !_serverReady)
                             ? null
                             : () => _callAnalysisAsync("melasma"),
                         child: const Text("Melasma"),
@@ -486,8 +534,9 @@ Widget _buildAnalysisBlock({
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed:
-                            _loading ? null : () => _callAnalysisAsync("pori"),
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("pori"),
                         child: const Text("Pori"),
                       ),
                     ),
@@ -506,7 +555,7 @@ Widget _buildAnalysisBlock({
                   percentuale: _macchiePercentuale,
                   analysisType: "macchie",
                 ),
-                _buildAnalysisBlock(
+                 _buildAnalysisBlock(
                   title: "Melasma",
                   overlayUrl: _melasmaOverlayUrl,
                   percentuale: _melasmaPercentuale,
