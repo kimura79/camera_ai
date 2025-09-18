@@ -367,16 +367,14 @@ Widget _buildAnalysisBlock({
         children: List.generate(10, (index) {
           int voto = index + 1;
 
-          // ✅ Usa filename dal parser, fallback al nome del file scattato
+          // ✅ Usa filename reale se esiste, altrimenti fallback
           String filename = analysisType == "rughe"
-              ? _rugheFilename
+              ? (_rugheFilename ?? path.basename(widget.imagePath))
               : analysisType == "macchie"
-                  ? _macchieFilename
+                  ? (_macchieFilename ?? path.basename(widget.imagePath))
                   : analysisType == "melasma"
-                      ? _melasmaFilename
-                      : _poriFilename;
-
-          filename ??= path.basename(widget.imagePath);
+                      ? (_melasmaFilename ?? path.basename(widget.imagePath))
+                      : (_poriFilename ?? path.basename(widget.imagePath));
 
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -390,8 +388,7 @@ Widget _buildAnalysisBlock({
               if (ok && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content:
-                        Text("✅ Giudizio $voto inviato per $analysisType"),
+                    content: Text("✅ Giudizio $voto inviato per $analysisType"),
                   ),
                 );
               }
@@ -419,6 +416,7 @@ Widget _buildAnalysisBlock({
     ],
   );
 }
+
 
   @override
   Widget build(BuildContext context) {
