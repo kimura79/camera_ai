@@ -54,6 +54,11 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _poriOverlayUrl;
   double? _poriPercentuale;
 
+  String? _rugheFilename;
+  String? _macchieFilename;
+  String? _melasmaFilename;
+  String? _poriFilename;
+
   @override
   void initState() {
     super.initState();
@@ -257,6 +262,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _rughePercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
+    _rugheFilename = data["filename"];
     if (_rugheOverlayUrl != null) {
       _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
     }
@@ -271,6 +277,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _macchiePercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
+    _macchieFilename = data["filename"];
     if (_macchieOverlayUrl != null) {
       _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
     }
@@ -285,6 +292,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _melasmaPercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
+    _melasmaFilename = data["filename"];
     if (_melasmaOverlayUrl != null) {
       _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
     }
@@ -299,6 +307,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _poriPercentuale = data["percentuale"] != null
         ? (data["percentuale"] as num).toDouble()
         : null;
+    _poriFilename = data["filename"];
     if (_poriOverlayUrl != null) {
       _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
     }
@@ -356,10 +365,20 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(10, (index) {
             int voto = index + 1;
+
+            // ✅ usa filename reale salvato dal parser
+            String filename = analysisType == "rughe"
+                ? _rugheFilename ?? ""
+                : analysisType == "macchie"
+                    ? _macchieFilename ?? ""
+                    : analysisType == "melasma"
+                        ? _melasmaFilename ?? ""
+                        : _poriFilename ?? "";
+
             return GestureDetector(
               onTap: () async {
                 bool ok = await ApiService.sendJudgement(
-                  filename: path.basename(widget.imagePath),
+                  filename: filename,
                   giudizio: voto,
                   analysisType: analysisType,
                   autore: "anonimo",
