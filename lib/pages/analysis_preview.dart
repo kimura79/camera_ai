@@ -159,7 +159,6 @@ req.files.add(
 Future<void> _callAnalysisAsync(String tipo) async {
   setState(() => _loading = true);
   try {
-    // 🔹 Copia il file in un percorso sicuro (valido anche se lo schermo si spegne)
     final safePath = await copyToSafePath(widget.imagePath);
 
     // 1. Upload asincrono
@@ -175,27 +174,34 @@ Future<void> _callAnalysisAsync(String tipo) async {
 
     final resp = await req.send();
     final body = await resp.stream.bytesToString();
-    final decoded = jsonDecode(body);
 
-    if (resp.statusCode != 200 || decoded["job_id"] == null) {
-      throw Exception("Errore avvio job");
+    // 🔹 se non è JSON valido, mostro errore e stoppo
+    if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
+      throw Exception("Risposta non valida dal server: $body");
+    }
+
+    final decoded = jsonDecode(body);
+    if (decoded["job_id"] == null) {
+      throw Exception("Job ID mancante nella risposta");
     }
     final String jobId = decoded["job_id"];
 
-    // 2. Polling ogni 2 secondi, max 60s
+    // 2. Polling
     bool done = false;
     Map<String, dynamic>? result;
     int attempts = 0;
-    while (!done && mounted && attempts < 30) {
+    while (!done && attempts < 30) {
       await Future.delayed(const Duration(seconds: 2));
       attempts++;
-      final statusResp = await http.get(
-        Uri.parse("http://46.101.223.88:5000/status/$jobId"),
-      );
-      if (statusResp.statusCode != 200) {
-        throw Exception("Errore status job");
+      final statusResp =
+          await http.get(Uri.parse("http://46.101.223.88:5000/status/$jobId"));
+      final statusBody = statusResp.body;
+
+      if (statusResp.statusCode != 200 || !statusBody.trim().startsWith("{")) {
+        throw Exception("Errore status job: $statusBody");
       }
-      final statusData = jsonDecode(statusResp.body);
+
+      final statusData = jsonDecode(statusBody);
       if (statusData["status"] == "done") {
         done = true;
         result = statusData["result"];
@@ -204,7 +210,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
       }
     }
 
-    // 3. Parse risultato (uguale a prima)
+    // 3. Parse risultato
     if (result != null) {
       if (tipo == "rughe") _parseRughe(result);
       if (tipo == "macchie") _parseMacchie(result);
