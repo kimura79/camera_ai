@@ -35,6 +35,7 @@ class AnalysisPreview extends StatefulWidget {
   State<AnalysisPreview> createState() => _AnalysisPreviewState();
 }
 
+// 🚨 Sposta qui la classe State, fuori dalla precedente
 class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
 
@@ -62,12 +63,18 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaFilename;
   String? _poriFilename;
 
-    @override 
+  @override
   void initState() {
     super.initState();
-    _clearPendingJobs();   // 🔹 resetta eventuali job sospesi
-    _checkPendingJobs();
-    _checkServer();
+    _clearPendingJobs();   // 🔹 resetta eventuali job sospesi all’avvio
+    _checkPendingJobs();   // 🔹 riprende solo se serve (dopo crash o standby)
+    _checkServer();        // 🔹 ping al server
+  }
+
+  @override
+  void dispose() {
+    _clearPendingJobs();   // 🔹 quando esci o chiudi app → cancella job
+    super.dispose();
   }
 
   Future<void> _clearPendingJobs() async {
@@ -75,6 +82,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
       await prefs.remove("last_job_id_$tipo");
     }
+    debugPrint("🧹 Pending jobs puliti");
   }
 
   Future<void> _checkServer() async {
@@ -117,7 +125,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       }
     }
   }
-
+}
 
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
