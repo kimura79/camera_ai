@@ -625,5 +625,5 @@ Widget build(BuildContext context) {
         ],
       ),
     ),
-  ); // 👈 questa chiude WillPopScope
+  );
 }
