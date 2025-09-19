@@ -324,66 +324,107 @@ void dispose() {
     if (mounted) setState(() => _loading = false);
   }
 
-  // === Parsers ===
-  void _parseRughe(dynamic data) {
-    if (data == null) return;
-    _rugheResult = data;
-    _rugheOverlayUrl = data["overlay_url"] != null
-        ? "http://46.101.223.88:5000${data["overlay_url"]}"
-        : null;
-    _rughePercentuale = data["percentuale"] != null
-        ? (data["percentuale"] as num).toDouble()
-        : null;
-    _rugheFilename = data["filename"];
-    if (_rugheOverlayUrl != null) {
-      _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
-    }
-  }
+// === Parsers ===
+void _parseRughe(dynamic data) async {
+  if (data == null) return;
+  _rugheResult = data;
+  _rugheOverlayUrl = data["overlay_url"] != null
+      ? "http://46.101.223.88:5000${data["overlay_url"]}"
+      : null;
+  _rughePercentuale = data["percentuale"] != null
+      ? (data["percentuale"] as num).toDouble()
+      : null;
+  _rugheFilename = data["filename"];
+  if (_rugheOverlayUrl != null) {
+    await _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
 
-  void _parseMacchie(dynamic data) {
-    if (data == null) return;
-    _macchieResult = data;
-    _macchieOverlayUrl = data["overlay_url"] != null
-        ? "http://46.101.223.88:5000${data["overlay_url"]}"
-        : null;
-    _macchiePercentuale = data["percentuale"] != null
-        ? (data["percentuale"] as num).toDouble()
-        : null;
-    _macchieFilename = data["filename"];
-    if (_macchieOverlayUrl != null) {
-      _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
+    // 🔹 Se AnalysisPreview è stato aperto da PrePost → ritorna overlay
+    if (mounted && ModalRoute.of(context)?.settings.arguments == "prepost") {
+      final resp = await http.get(Uri.parse(_rugheOverlayUrl!));
+      if (resp.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File("${dir.path}/overlay_rughe.png");
+        await file.writeAsBytes(resp.bodyBytes);
+        Navigator.pop(context, file);
+      }
     }
   }
+}
 
-  void _parseMelasma(dynamic data) {
-    if (data == null) return;
-    _melasmaResult = data;
-    _melasmaOverlayUrl = data["overlay_url"] != null
-        ? "http://46.101.223.88:5000${data["overlay_url"]}"
-        : null;
-    _melasmaPercentuale = data["percentuale"] != null
-        ? (data["percentuale"] as num).toDouble()
-        : null;
-    _melasmaFilename = data["filename"];
-    if (_melasmaOverlayUrl != null) {
-      _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
-    }
-  }
+void _parseMacchie(dynamic data) async {
+  if (data == null) return;
+  _macchieResult = data;
+  _macchieOverlayUrl = data["overlay_url"] != null
+      ? "http://46.101.223.88:5000${data["overlay_url"]}"
+      : null;
+  _macchiePercentuale = data["percentuale"] != null
+      ? (data["percentuale"] as num).toDouble()
+      : null;
+  _macchieFilename = data["filename"];
+  if (_macchieOverlayUrl != null) {
+    await _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
 
-  void _parsePori(dynamic data) {
-    if (data == null) return;
-    _poriResult = data;
-    _poriOverlayUrl = data["overlay_url"] != null
-        ? "http://46.101.223.88:5000${data["overlay_url"]}"
-        : null;
-    _poriPercentuale = data["percentuale"] != null
-        ? (data["percentuale"] as num).toDouble()
-        : null;
-    _poriFilename = data["filename"];
-    if (_poriOverlayUrl != null) {
-      _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
+    if (mounted && ModalRoute.of(context)?.settings.arguments == "prepost") {
+      final resp = await http.get(Uri.parse(_macchieOverlayUrl!));
+      if (resp.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File("${dir.path}/overlay_macchie.png");
+        await file.writeAsBytes(resp.bodyBytes);
+        Navigator.pop(context, file);
+      }
     }
   }
+}
+
+void _parseMelasma(dynamic data) async {
+  if (data == null) return;
+  _melasmaResult = data;
+  _melasmaOverlayUrl = data["overlay_url"] != null
+      ? "http://46.101.223.88:5000${data["overlay_url"]}"
+      : null;
+  _melasmaPercentuale = data["percentuale"] != null
+      ? (data["percentuale"] as num).toDouble()
+      : null;
+  _melasmaFilename = data["filename"];
+  if (_melasmaOverlayUrl != null) {
+    await _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
+
+    if (mounted && ModalRoute.of(context)?.settings.arguments == "prepost") {
+      final resp = await http.get(Uri.parse(_melasmaOverlayUrl!));
+      if (resp.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File("${dir.path}/overlay_melasma.png");
+        await file.writeAsBytes(resp.bodyBytes);
+        Navigator.pop(context, file);
+      }
+    }
+  }
+}
+
+void _parsePori(dynamic data) async {
+  if (data == null) return;
+  _poriResult = data;
+  _poriOverlayUrl = data["overlay_url"] != null
+      ? "http://46.101.223.88:5000${data["overlay_url"]}"
+      : null;
+  _poriPercentuale = data["percentuale"] != null
+      ? (data["percentuale"] as num).toDouble()
+      : null;
+  _poriFilename = data["filename"];
+  if (_poriOverlayUrl != null) {
+    await _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
+
+    if (mounted && ModalRoute.of(context)?.settings.arguments == "prepost") {
+      final resp = await http.get(Uri.parse(_poriOverlayUrl!));
+      if (resp.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File("${dir.path}/overlay_pori.png");
+        await file.writeAsBytes(resp.bodyBytes);
+        Navigator.pop(context, file);
+      }
+    }
+  }
+}
 
   // === Blocchi UI ===
   Widget _buildAnalysisBlock({
@@ -628,4 +669,3 @@ Widget build(BuildContext context) {
   );
 } // chiude build
 } // chiude la classe _AnalysisPreviewState
-
