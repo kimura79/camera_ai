@@ -6,7 +6,6 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
 import 'package:image/image.dart' as img;
-import 'package:http/http.dart' as http;
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -20,10 +19,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   File? postImage;
   double? prePercent;
   double? postPercent;
-  String? activeJobId; // job corrente
 
-  final String serverUrl = "http://46.101.223.88:5000";
-
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -33,9 +30,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
+    final List<AssetPathEntity> paths =
+        await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
-    final media = await paths.first.getAssetListPaged(page: 0, size: 100);
+
+    final List<AssetEntity> media =
+        await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final file = await showDialog<File?>(
@@ -61,7 +61,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       snapshot.data != null) {
                     return GestureDetector(
                       onTap: () async {
-                        final f = await media[index].file;
+                        final File? f = await media[index].file;
                         if (f != null && context.mounted) {
                           Navigator.pop(context, f);
                         }
@@ -87,10 +87,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  // === Scatta POST con camera ===
   Future<void> _capturePostImage() async {
     if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Carica prima la foto PRE")),
+        const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
       );
       return;
     }
@@ -110,6 +111,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
+      // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
       final analyzed = await Navigator.push<File?>(
         context,
         MaterialPageRoute(
@@ -121,15 +123,18 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         ),
       );
 
+      // 🔹 Se AnalysisPreview restituisce un file → aggiorna POST
       if (analyzed != null) {
         setState(() {
           postImage = analyzed;
           postPercent = _fakeAnalysis();
         });
-      } else {
+      }
+      // 🔹 Se premi back prima della fine → lascia POST vuoto
+      else {
         setState(() {
-          postImage = result;
-          postPercent = _fakeAnalysis();
+          postImage = null;
+          postPercent = null;
         });
       }
     }
@@ -139,32 +144,35 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     return 20 + Random().nextInt(50).toDouble();
   }
 
-  Future<void> _cancelJobIfActive() async {
-    if (activeJobId != null) {
-      try {
-        await http.post(Uri.parse("$serverUrl/cancel_job/$activeJobId"));
-      } catch (_) {}
-      setState(() => activeJobId = null);
-    }
-  }
-
+  // === Crea immagine affiancata e salva in galleria ===
   Future<void> _saveComparisonImage() async {
     if (preImage == null || postImage == null) return;
-    final pre = img.decodeImage(await preImage!.readAsBytes());
-    final post = img.decodeImage(await postImage!.readAsBytes());
+
+    final preBytes = await preImage!.readAsBytes();
+    final postBytes = await postImage!.readAsBytes();
+    final pre = img.decodeImage(preBytes);
+    final post = img.decodeImage(postBytes);
+
     if (pre == null || post == null) return;
 
     final resizedPre = img.copyResize(pre, width: 1024, height: 1024);
     final resizedPost = img.copyResize(post, width: 1024, height: 1024);
-    final combined = img.Image(resizedPre.width * 2, resizedPre.height);
+
+    final combined = img.Image(
+      width: resizedPre.width * 2,
+      height: resizedPre.height,
+    );
+
     img.compositeImage(combined, resizedPre, dstX: 0, dstY: 0);
     img.compositeImage(combined, resizedPost, dstX: resizedPre.width, dstY: 0);
+
     final jpg = img.encodeJpg(combined, quality: 90);
 
     await PhotoManager.editor.saveImage(
       jpg,
       filename: "pre_post_${DateTime.now().millisecondsSinceEpoch}.jpg",
     );
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Immagine salvata in galleria")),
@@ -174,106 +182,103 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   @override
   Widget build(BuildContext context) {
-    double? diff = (prePercent != null && postPercent != null)
-        ? postPercent! - prePercent!
-        : null;
-    final boxSize = MediaQuery.of(context).size.width;
+    double? diff;
+    if (prePercent != null && postPercent != null) {
+      diff = postPercent! - prePercent!;
+    }
 
-    return WillPopScope(
-      onWillPop: () async {
-        // se overlay non pronto → annulla job
-        if (postImage == null) {
-          await _cancelJobIfActive();
-        }
-        return true;
-      },
-      child: Scaffold(
-        appBar: AppBar(title: const Text("Pre/Post")),
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: _pickPreImage,
-                child: Container(
-                  width: boxSize,
-                  height: boxSize,
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blueAccent, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: preImage == null
-                      ? const Center(
-                          child: Icon(Icons.add,
-                              size: 80, color: Colors.blue),
-                        )
-                      : Image.file(preImage!, fit: BoxFit.cover),
+    final double boxSize = MediaQuery.of(context).size.width;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Pre/Post")),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: _pickPreImage,
+              child: Container(
+                width: boxSize,
+                height: boxSize,
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blueAccent, width: 2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: preImage == null
+                    ? const Center(
+                        child: Icon(Icons.add, size: 80, color: Colors.blue),
+                      )
+                    : Image.file(preImage!, fit: BoxFit.cover),
               ),
-              GestureDetector(
-                onTap: _capturePostImage,
-                child: Container(
-                  width: boxSize,
-                  height: boxSize,
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.green, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: postImage == null
-                      ? const Center(
-                          child: Icon(Icons.add,
-                              size: 80, color: Colors.green),
-                        )
-                      : Image.file(postImage!, fit: BoxFit.cover),
+            ),
+            GestureDetector(
+              onTap: _capturePostImage,
+              child: Container(
+                width: boxSize,
+                height: boxSize,
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.green, width: 2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: postImage == null
+                    ? const Center(
+                        child: Icon(Icons.add, size: 80, color: Colors.green),
+                      )
+                    : Image.file(postImage!, fit: BoxFit.cover),
               ),
-              const SizedBox(height: 16),
-              if (prePercent != null || postPercent != null)
-                Column(
-                  children: [
-                    if (prePercent != null)
-                      Column(
-                        children: [
-                          Text("Pre: ${prePercent!.toStringAsFixed(1)}%"),
-                          LinearProgressIndicator(
-                            value: prePercent! / 100,
-                            backgroundColor: Colors.grey[300],
-                            color: Colors.blueAccent,
-                            minHeight: 12,
-                          ),
-                        ],
-                      ),
-                    if (postPercent != null)
-                      Column(
-                        children: [
-                          Text("Post: ${postPercent!.toStringAsFixed(1)}%"),
-                          LinearProgressIndicator(
-                            value: postPercent! / 100,
-                            backgroundColor: Colors.grey[300],
-                            color: Colors.green,
-                            minHeight: 12,
-                          ),
-                        ],
-                      ),
-                    if (diff != null)
-                      Text(
-                        "Differenza: ${diff.toStringAsFixed(1)}%",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: diff > 0 ? Colors.red : Colors.green,
+            ),
+            const SizedBox(height: 16),
+            if (prePercent != null || postPercent != null)
+              Column(
+                children: [
+                  if (prePercent != null)
+                    Column(
+                      children: [
+                        Text("Pre: ${prePercent!.toStringAsFixed(1)}%",
+                            style: const TextStyle(fontSize: 16)),
+                        LinearProgressIndicator(
+                          value: prePercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.blueAccent,
+                          minHeight: 12,
                         ),
-                      ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _saveComparisonImage,
-                      icon: const Icon(Icons.download),
-                      label: const Text("Scarica confronto"),
+                        const SizedBox(height: 8),
+                      ],
                     ),
-                  ],
-                ),
-            ],
-          ),
+                  if (postPercent != null)
+                    Column(
+                      children: [
+                        Text("Post: ${postPercent!.toStringAsFixed(1)}%",
+                            style: const TextStyle(fontSize: 16)),
+                        LinearProgressIndicator(
+                          value: postPercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.green,
+                          minHeight: 12,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  if (diff != null)
+                    Text(
+                      "Differenza: ${diff.toStringAsFixed(1)}%",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: diff > 0 ? Colors.red : Colors.green,
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _saveComparisonImage,
+                    icon: const Icon(Icons.download),
+                    label: const Text("Scarica confronto"),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+          ],
         ),
       ),
     );
@@ -326,47 +331,21 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _switchCamera() async {
     if (widget.cameras.length < 2) return;
+
     if (currentCamera.lensDirection == CameraLensDirection.front) {
-      currentCamera = widget.cameras.firstWhere(
+      final back = widget.cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => widget.cameras.first,
       );
+      currentCamera = back;
     } else {
-      currentCamera = widget.cameras.firstWhere(
+      final front = widget.cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => widget.cameras.first,
       );
+      currentCamera = front;
     }
     await _initCamera();
-  }
-
-  Future<void> _takePicture() async {
-    try {
-      if (_shooting) return;
-      setState(() => _shooting = true);
-      await _initializeControllerFuture;
-      final image = await _controller!.takePicture();
-      File file = File(image.path);
-
-      final decoded = img.decodeImage(await file.readAsBytes());
-      if (decoded != null) {
-        final side = min(decoded.width, decoded.height);
-        final x = (decoded.width - side) ~/ 2;
-        final y = (decoded.height - side) ~/ 2;
-        var cropped = img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-        if (currentCamera.lensDirection == CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-        file = await File("${file.path}_square.jpg")
-            .writeAsBytes(img.encodeJpg(cropped));
-      }
-      if (mounted) Navigator.pop(context, file);
-    } catch (e) {
-      debugPrint("Errore scatto: $e");
-    } finally {
-      if (mounted) setState(() => _shooting = false);
-    }
   }
 
   @override
@@ -375,9 +354,50 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     super.dispose();
   }
 
+  Future<void> _takePicture() async {
+    try {
+      if (_shooting) return;
+      setState(() => _shooting = true);
+
+      await _initializeControllerFuture;
+      final image = await _controller!.takePicture();
+      if (!mounted) return;
+
+      File file = File(image.path);
+
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+
+      if (decoded != null) {
+        final side =
+            decoded.width < decoded.height ? decoded.width : decoded.height;
+        final x = (decoded.width - side) ~/ 2;
+        final y = (decoded.height - side) ~/ 2;
+        img.Image cropped =
+            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+
+        cropped = img.copyResize(cropped, width: 1024, height: 1024);
+
+        if (currentCamera.lensDirection == CameraLensDirection.front) {
+          cropped = img.flipHorizontal(cropped);
+        }
+
+        final outPath = "${file.path}_square.jpg";
+        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
+      }
+
+      Navigator.pop(context, file);
+    } catch (e) {
+      debugPrint("Errore scatto: $e");
+    } finally {
+      if (mounted) setState(() => _shooting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final double screenW = MediaQuery.of(context).size.width;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: FutureBuilder<void>(
@@ -406,26 +426,77 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: const Icon(Icons.close,
-                              size: 36, color: Colors.white),
-                        ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.image,
+                                  color: Colors.white, size: 26),
                             ),
                           ),
                         ),
                         GestureDetector(
-                          onTap: _switchCamera,
-                          child: const Icon(Icons.cameraswitch,
-                              size: 36, color: Colors.white),
+                          onTap: _takePicture,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
+                                ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border:
+                                        Border.all(color: Colors.white, width: 6),
+                                  ),
+                                ),
+                                AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 80),
+                                  width: _shooting ? 58 : 64,
+                                  height: _shooting ? 58 : 64,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
                         ),
                       ],
                     ),
