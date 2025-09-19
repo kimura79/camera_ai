@@ -108,7 +108,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final result = await Navigator.push<File?>(
   context,
   MaterialPageRoute(
-    builder: (context) => const HomePageWidget(), // 👈 usa la tua pagina camera già pronta
+    builder: (context) => HomePageWidget(), // 👈 togli const
   ),
 );
 
