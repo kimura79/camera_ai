@@ -117,37 +117,33 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
-      final analyzed = await Navigator.push<File?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: result.path,
-            mode: "prepost", // 🔹 segnala che siamo in PrePost
-            onJobStarted: (jobId) {
-              setState(() => activeJobId = jobId); // salva jobId
-            },
-          ),
-        ),
-      );
+  // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
+  final analyzed = await Navigator.push<File?>(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AnalysisPreview(
+        imagePath: result.path,
+        mode: "fullface", // o "particolare" a seconda del caso
+      ),
+      settings: const RouteSettings(arguments: "prepost"), // 🔹 segnala che siamo in PrePost
+    ),
+  );
 
-      // Se AnalysisPreview restituisce un file, aggiorniamo con quello
-      if (analyzed != null) {
-        setState(() {
-          postImage = analyzed;
-          postPercent = _fakeAnalysis();
-          activeJobId = null; // job completato
-        });
-      } else {
-        // fallback: mantieni la foto grezza
-        setState(() {
-          postImage = result;
-          postPercent = _fakeAnalysis();
-          activeJobId = null; // nessun job attivo
-        });
-      }
-    }
+  // Se AnalysisPreview restituisce un file overlay, lo usiamo come Post
+  if (analyzed != null) {
+    setState(() {
+      postImage = analyzed;
+      postPercent = _fakeAnalysis();
+    });
+  } else {
+    // fallback: se non arriva overlay, usiamo comunque la foto grezza
+    setState(() {
+      postImage = result;
+      postPercent = _fakeAnalysis();
+    });
   }
+ }
+}
 
   double _fakeAnalysis() {
     return 20 + Random().nextInt(50).toDouble();
