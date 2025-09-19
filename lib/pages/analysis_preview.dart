@@ -626,4 +626,6 @@ Widget build(BuildContext context) {
       ),
     ),
   );
-}
+} // chiude build
+} // chiude la classe _AnalysisPreviewState
+
