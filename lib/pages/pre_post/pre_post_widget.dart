@@ -10,6 +10,9 @@ import 'package:image/image.dart' as img;
 import 'package:http/http.dart' as http; // 🔹 per cancellare job lato server
 import 'dart:convert';
 
+// 🔹 importa la pagina camera con maschera guida
+import 'package:custom_camera_component/pages/camera_overlay_page.dart';
+
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
 
@@ -106,41 +109,46 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
+    // 🔹 Usa la pagina camera con overlay guida semitrasparente
     final result = await Navigator.push<File?>(
-  context,
-  MaterialPageRoute(
-    builder: (context) => HomePageWidget(), // 👈 togli const
-  ),
-);
+      context,
+      MaterialPageRoute(
+        builder: (context) => CameraOverlayPage(
+          cameras: cameras,
+          initialCamera: firstCamera,
+          guideImage: preImage!, // 👈 maschera guida semitrasparente
+        ),
+      ),
+    );
 
     if (result != null) {
-  // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
-  final analyzed = await Navigator.push<File?>(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AnalysisPreview(
-        imagePath: result.path,
-        mode: "fullface", // o "particolare" a seconda del caso
-      ),
-      settings: const RouteSettings(arguments: "prepost"), // 🔹 segnala che siamo in PrePost
-    ),
-  );
+      // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
+      final analyzed = await Navigator.push<File?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "fullface", // o "particolare" a seconda del caso
+          ),
+          settings: const RouteSettings(arguments: "prepost"), // segnala PrePost
+        ),
+      );
 
-  // Se AnalysisPreview restituisce un file overlay, lo usiamo come Post
-  if (analyzed != null) {
-    setState(() {
-      postImage = analyzed;
-      postPercent = _fakeAnalysis();
-    });
-  } else {
-    // fallback: se non arriva overlay, usiamo comunque la foto grezza
-    setState(() {
-      postImage = result;
-      postPercent = _fakeAnalysis();
-    });
+      // Se AnalysisPreview restituisce un file overlay, lo usiamo come Post
+      if (analyzed != null) {
+        setState(() {
+          postImage = analyzed;
+          postPercent = _fakeAnalysis();
+        });
+      } else {
+        // fallback: se non arriva overlay, usiamo comunque la foto grezza
+        setState(() {
+          postImage = result;
+          postPercent = _fakeAnalysis();
+        });
+      }
+    }
   }
- }
-}
 
   double _fakeAnalysis() {
     return 20 + Random().nextInt(50).toDouble();
