@@ -106,15 +106,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final firstCamera = cameras.first;
 
     final result = await Navigator.push<File?>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CameraOverlayPage(
-          cameras: cameras,
-          initialCamera: firstCamera,
-          guideImage: preImage!,
-        ),
-      ),
-    );
+  context,
+  MaterialPageRoute(
+    builder: (context) => const HomePageWidget(), // 👈 usa la tua pagina camera già pronta
+  ),
+);
 
     if (result != null) {
   // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
