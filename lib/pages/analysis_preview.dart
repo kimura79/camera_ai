@@ -63,7 +63,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   String? _melasmaFilename;
   String? _poriFilename;
 
-  @override
+    @override
   void initState() {
     super.initState();
     _clearPendingJobs();   // 🔹 resetta eventuali job sospesi all’avvio
@@ -73,8 +73,31 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   @override
   void dispose() {
-    _clearPendingJobs();   // 🔹 quando esci o chiudi app → cancella job
+    _cancelAllJobs();      // 🔹 cancella i job lato server se esci
+    _clearPendingJobs();   // 🔹 rimuove i job salvati in locale
     super.dispose();
+  }
+
+  // === 🔹 Cancella un singolo job lato server ===
+  Future<void> _cancelJob(String jobId) async {
+    try {
+      final url = Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId");
+      await http.post(url);
+      debugPrint("🛑 Job $jobId cancellato lato server");
+    } catch (e) {
+      debugPrint("⚠️ Errore cancellazione job $jobId: $e");
+    }
+  }
+
+  // === 🔹 Cancella TUTTI i job attivi (rughe, macchie, melasma, pori) ===
+  Future<void> _cancelAllJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      final jobId = prefs.getString("last_job_id_$tipo");
+      if (jobId != null && jobId.isNotEmpty) {
+        await _cancelJob(jobId);
+      }
+    }
   }
 
   Future<void> _clearPendingJobs() async {
