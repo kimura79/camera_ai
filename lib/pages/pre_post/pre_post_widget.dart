@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
+import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 import 'package:image/image.dart' as img;
 import 'package:http/http.dart' as http; // 🔹 per cancellare job lato server
 import 'dart:convert';
