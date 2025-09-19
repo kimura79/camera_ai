@@ -72,11 +72,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   @override
-  void dispose() {
-    _cancelAllJobs();      // 🔹 cancella i job lato server se esci
-    _clearPendingJobs();   // 🔹 rimuove i job salvati in locale
-    super.dispose();
-  }
+void dispose() {
+  // ❌ niente cancellazione qui, altrimenti i job muoiono anche in standby
+  super.dispose();
+}
 
   // === 🔹 Cancella un singolo job lato server ===
   Future<void> _cancelJob(String jobId) async {
@@ -495,7 +494,13 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   Widget build(BuildContext context) {
     final double side = MediaQuery.of(context).size.width * 0.9;
 
-    return Scaffold(
+    return WillPopScope(
+    onWillPop: () async {
+      await _cancelAllJobs();    // cancella lato server quando fai back
+      await _clearPendingJobs(); // pulisci locale
+      return true;               // consenti il back
+    },
+    child: Scaffold(
       appBar: AppBar(
         title: Text(
           widget.mode == "particolare"
