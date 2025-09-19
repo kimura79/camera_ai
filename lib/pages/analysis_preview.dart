@@ -284,16 +284,22 @@ void dispose() {
   }
 
   Future<void> _resumeJob(String tipo, String jobId) async {
-    setState(() => _loading = true);
+  setState(() => _loading = true);
 
-    bool done = false;
-    Map<String, dynamic>? result;
+  bool done = false;
+  Map<String, dynamic>? result;
 
-    while (!done && mounted) {
-      await Future.delayed(const Duration(seconds: 2));
-      final statusResp =
-          await http.get(Uri.parse("http://46.101.223.88:5000/status/$jobId"));
-      if (statusResp.statusCode != 200) continue;
+  while (!done && mounted) {
+    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final statusResp = await http
+          .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
+          .timeout(const Duration(seconds: 10));
+
+      if (statusResp.statusCode != 200) {
+        debugPrint("⚠️ Polling $tipo ($jobId) status=${statusResp.statusCode}");
+        continue;
+      }
 
       final statusData = jsonDecode(statusResp.body);
       if (statusData["status"] == "done") {
@@ -303,26 +309,31 @@ void dispose() {
         done = true;
         result = {"error": statusData["result"]};
       }
+    } catch (e) {
+      // 🔹 Qui intercetti errori di rete/socket (es. Bad file descriptor)
+      debugPrint("⚠️ Errore polling $tipo ($jobId): $e → ritento...");
+      continue; // non esco, al prossimo ciclo riprova
     }
-
-    if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
-
-      final prefs = await SharedPreferences.getInstance();
-      prefs.remove("last_job_id_$tipo");
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Analisi $tipo completata")),
-        );
-      }
-    }
-
-    if (mounted) setState(() => _loading = false);
   }
+
+  if (result != null) {
+    if (tipo == "rughe") _parseRughe(result);
+    if (tipo == "macchie") _parseMacchie(result);
+    if (tipo == "melasma") _parseMelasma(result);
+    if (tipo == "pori") _parsePori(result);
+
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove("last_job_id_$tipo");
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Analisi $tipo completata")),
+      );
+    }
+  }
+
+  if (mounted) setState(() => _loading = false);
+}
 
 // === Parsers ===
 void _parseRughe(dynamic data) async {
@@ -667,5 +678,5 @@ Widget build(BuildContext context) {
       ),
     ),
   );
-} // chiude build
-} // chiude la classe _AnalysisPreviewState
+}
+}
