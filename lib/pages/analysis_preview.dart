@@ -36,8 +36,7 @@ class AnalysisPreview extends StatefulWidget {
 }
 
 // 🚨 Sposta qui la classe State, fuori dalla precedente
-class _AnalysisPreviewState extends State<AnalysisPreview> with WidgetsBindingObserver {
-
+class _AnalysisPreviewState extends State<AnalysisPreview> {
   bool _loading = false;
 
   bool _serverReady = false;
@@ -67,7 +66,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> with WidgetsBindingOb
     @override
   void initState() {
     super.initState();
-WidgetsBinding.instance.addObserver(this);
     _clearPendingJobs();   // 🔹 resetta eventuali job sospesi all’avvio
     _checkPendingJobs();   // 🔹 riprende solo se serve (dopo crash o standby)
     _checkServer();        // 🔹 ping al server
@@ -75,19 +73,9 @@ WidgetsBinding.instance.addObserver(this);
 
   @override
 void dispose() {
-  WidgetsBinding.instance.removeObserver(this);
+  // ❌ niente cancellazione qui, altrimenti i job muoiono anche in standby
   super.dispose();
 }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.detached) {
-      // 🚨 App chiusa manualmente → uccidi tutti i job
-      await _cancelAllJobs();
-      await _clearPendingJobs();
-      debugPrint("💀 Tutti i job cancellati perché l’app è stata chiusa manualmente.");
-    }
-  }
 
   // === 🔹 Cancella un singolo job lato server ===
   Future<void> _cancelJob(String jobId) async {
@@ -679,5 +667,5 @@ Widget build(BuildContext context) {
       ),
     ),
   );
-}
-}
+} // chiude build
+} // chiude la classe _AnalysisPreviewState
