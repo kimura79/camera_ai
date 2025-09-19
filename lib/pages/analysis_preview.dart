@@ -125,7 +125,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       }
     }
   }
-}
 
   // === Salvataggio overlay in galleria (senza chiudere pagina) ===
   Future<void> _saveOverlayOnMain({
