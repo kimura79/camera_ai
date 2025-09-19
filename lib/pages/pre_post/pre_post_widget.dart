@@ -111,7 +111,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      // 🔹 Apri la pagina di analisi e attendi il file elaborato (overlay)
+      // 🔹 Apri la pagina di analisi
       final analyzed = await Navigator.push<File?>(
         context,
         MaterialPageRoute(
@@ -123,15 +123,14 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         ),
       );
 
-      // 🔹 Se AnalysisPreview restituisce un file → aggiorna POST
       if (analyzed != null) {
+        // ✅ overlay pronto
         setState(() {
           postImage = analyzed;
           postPercent = _fakeAnalysis();
         });
-      }
-      // 🔹 Se premi back prima della fine → lascia POST vuoto
-      else {
+      } else {
+        // ❌ overlay annullato
         setState(() {
           postImage = null;
           postPercent = null;
@@ -195,7 +194,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         child: Column(
           children: [
             GestureDetector(
-              onTap: _pickPreImage,
+              onTap: preImage == null ? _pickPreImage : null,
               child: Container(
                 width: boxSize,
                 height: boxSize,
@@ -212,7 +211,29 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: _capturePostImage,
+              onTap: postImage == null
+                  ? _capturePostImage
+                  : () async {
+                      final rifai = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text("Vuoi rifare la foto Post?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, false),
+                              child: const Text("No"),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, true),
+                              child: const Text("Sì"),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (rifai == true) _capturePostImage();
+                    },
               child: Container(
                 width: boxSize,
                 height: boxSize,
