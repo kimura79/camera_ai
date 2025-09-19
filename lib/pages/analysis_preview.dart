@@ -490,11 +490,11 @@ void dispose() {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final double side = MediaQuery.of(context).size.width * 0.9;
+@override
+Widget build(BuildContext context) {
+  final double side = MediaQuery.of(context).size.width * 0.9;
 
-    return WillPopScope(
+  return WillPopScope(
     onWillPop: () async {
       await _cancelAllJobs();    // cancella lato server quando fai back
       await _clearPendingJobs(); // pulisci locale
@@ -600,7 +600,7 @@ void dispose() {
                   percentuale: _macchiePercentuale,
                   analysisType: "macchie",
                 ),
-                 _buildAnalysisBlock(
+                _buildAnalysisBlock(
                   title: "Melasma",
                   overlayUrl: _melasmaOverlayUrl,
                   percentuale: _melasmaPercentuale,
@@ -624,6 +624,6 @@ void dispose() {
             ),
         ],
       ),
-    );
-  }
+    ),
+  ); // 👈 questa chiude WillPopScope
 }
