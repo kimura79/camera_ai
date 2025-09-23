@@ -64,39 +64,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _appStateNotifier = AppStateNotifier.instance;
     _router = createRouter(_appStateNotifier);
+
+    // 👇 reset jobs lato server allo startup
+    _resetJobsOnStartup();
+  }
+
+  Future<void> _resetJobsOnStartup() async {
+    try {
+      final url = Uri.parse("http://46.101.223.88:5000/cancel_all_jobs");
+      final resp = await http.post(url);
+      if (resp.statusCode == 200) {
+        debugPrint("🧹 Tutti i job cancellati allo startup");
+      } else {
+        debugPrint("⚠️ Errore reset job: ${resp.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("⚠️ Errore reset job allo startup: $e");
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  // 👇 Intercetta i cambi di stato dell’app
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
-      // 👉 Solo quando l’app viene chiusa manualmente (swipe up)
-      _cancelAllJobsOnExit();
-    }
-  }
-
-  Future<void> _cancelAllJobsOnExit() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
-      final jobId = prefs.getString("last_job_id_$tipo");
-      if (jobId != null && jobId.isNotEmpty) {
-        try {
-          final url =
-              Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId");
-          await http.post(url);
-          debugPrint("🛑 Job $tipo ($jobId) cancellato alla chiusura app");
-        } catch (e) {
-          debugPrint("⚠️ Errore cancellazione job $tipo: $e");
-        }
-      }
-    }
-    debugPrint("🛑 Tutti i job attivi cancellati (chiusura manuale app)");
   }
 
   void setThemeMode(ThemeMode mode) => safeSetState(() {
