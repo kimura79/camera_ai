@@ -1,5 +1,8 @@
-import 'package:provider/provider.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
@@ -45,7 +48,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = FlutterFlowTheme.themeMode;
 
   late AppStateNotifier _appStateNotifier;
@@ -54,6 +57,52 @@ class _MyAppState extends State<MyApp> {
   /// TRUE = avvia direttamente la splash (Epidermys)
   /// FALSE = usa il router FlutterFlow (produzione)
   static const bool kLaunchDirectHome = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _appStateNotifier = AppStateNotifier.instance;
+    _router = createRouter(_appStateNotifier);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // 👇 Intercetta i cambi di stato dell’app
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      // 👉 Solo quando l’app viene chiusa manualmente (swipe up)
+      _cancelAllJobsOnExit();
+    }
+  }
+
+  Future<void> _cancelAllJobsOnExit() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      final jobId = prefs.getString("last_job_id_$tipo");
+      if (jobId != null && jobId.isNotEmpty) {
+        try {
+          final url =
+              Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId");
+          await http.post(url);
+          debugPrint("🛑 Job $tipo ($jobId) cancellato alla chiusura app");
+        } catch (e) {
+          debugPrint("⚠️ Errore cancellazione job $tipo: $e");
+        }
+      }
+    }
+    debugPrint("🛑 Tutti i job attivi cancellati (chiusura manuale app)");
+  }
+
+  void setThemeMode(ThemeMode mode) => safeSetState(() {
+        _themeMode = mode;
+        FlutterFlowTheme.saveThemeMode(mode);
+      });
 
   // ==== Richiesti da flutter_flow_util.dart ====
   String getRoute([RouteMatch? routeMatch]) {
@@ -70,18 +119,6 @@ class _MyAppState extends State<MyApp> {
       .map((e) => getRoute(e))
       .toList();
   // =============================================
-
-  @override
-  void initState() {
-    super.initState();
-    _appStateNotifier = AppStateNotifier.instance;
-    _router = createRouter(_appStateNotifier);
-  }
-
-  void setThemeMode(ThemeMode mode) => safeSetState(() {
-        _themeMode = mode;
-        FlutterFlowTheme.saveThemeMode(mode);
-      });
 
   @override
   Widget build(BuildContext context) {
