@@ -74,9 +74,6 @@ dependencies:
   # 📱 Sensori (per livella)
   sensors_plus: ^5.0.1
 
-  # 🔹 Lettura EXIF compatibile iOS/Android
-flutter_exif_plugin: ^1.1.0
-
 dependency_overrides:
   http: 1.4.0
   uuid: ^4.0.0
