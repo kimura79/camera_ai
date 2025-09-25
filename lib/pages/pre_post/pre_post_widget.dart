@@ -21,32 +21,35 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   double? prePercent;
   double? postPercent;
 
-  // === Legge percentuale dai metadati PNG (UserComment in JSON) ===
+    // === Legge percentuale dai metadati EXIF ===
   Future<double?> _readPercentFromMetadata(File file) async {
     try {
-      final bytes = await file.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) return null;
+      final exif = FlutterExif.fromPath(file.path);
 
-      final metadata = decoded.textData; // contiene i chunk tEXt
-      if (metadata.containsKey("UserComment")) {
-        try {
+      // Recupera tutti gli attributi
+      final metadata = await exif.getAllAttributes();
+
+      if (metadata != null) {
+        // 🔹 UserComment (JSON)
+        if (metadata.containsKey("UserComment")) {
           final userComment = metadata["UserComment"]!;
-          final parsed = jsonDecode(userComment);
-          if (parsed is Map && parsed.containsKey("percentuale")) {
-            return (parsed["percentuale"] as num).toDouble();
-          }
-        } catch (_) {}
-      }
+          try {
+            final decoded = jsonDecode(userComment);
+            if (decoded is Map && decoded.containsKey("percentuale")) {
+              return (decoded["percentuale"] as num).toDouble();
+            }
+          } catch (_) {}
+        }
 
-      // fallback su ImageDescription se presente
-      if (metadata.containsKey("ImageDescription")) {
-        final desc = metadata["ImageDescription"]!;
-        if (desc.contains(":")) {
-          final parts = desc.split(":");
-          return double.tryParse(parts.last);
-        } else {
-          return double.tryParse(desc);
+        // 🔹 Fallback: ImageDescription
+        if (metadata.containsKey("ImageDescription")) {
+          final desc = metadata["ImageDescription"]!;
+          if (desc.contains(":")) {
+            final parts = desc.split(":");
+            return double.tryParse(parts.last);
+          } else {
+            return double.tryParse(desc);
+          }
         }
       }
     } catch (e) {
