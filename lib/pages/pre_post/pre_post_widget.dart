@@ -344,13 +344,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   // 👇 NUOVO BOTTONE PER PAGINA DI CONFRONTO MACCHIE
                   ElevatedButton.icon(
                     onPressed: () {
-                      if (preImage != null && postImage != null) {
+                      if (preImage != null && postImage != null && prePercent != null && postPercent != null) {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => PrePostComparePage(
                               preOverlay: preImage!,
                               postOverlay: postImage!,
+                              prePercent: prePercent!,
+                              postPercent: postPercent!,
                             ),
                           ),
                         );
