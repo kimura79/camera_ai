@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
+import 'package:custom_camera_component/pages/pre_post/pre_post_compare.dart'; // 👈 IMPORT
 import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
@@ -338,6 +339,29 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     onPressed: _saveComparisonImage,
                     icon: const Icon(Icons.download),
                     label: const Text("Scarica confronto"),
+                  ),
+                  const SizedBox(height: 16),
+                  // 👇 NUOVO BOTTONE PER PAGINA DI CONFRONTO MACCHIE
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      if (preImage != null && postImage != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PrePostComparePage(
+                              preOverlay: preImage!,
+                              postOverlay: postImage!,
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Carica sia Pre che Post prima di confrontare")),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.compare),
+                    label: const Text("Confronta macchie"),
                   ),
                   const SizedBox(height: 20),
                 ],
