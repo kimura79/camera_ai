@@ -21,41 +21,53 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   double? prePercent;
   double? postPercent;
 
-    // === Legge percentuale dai metadati EXIF ===
+  // === Lettura metadati PNG senza plugin EXIF ===
   Future<double?> _readPercentFromMetadata(File file) async {
     try {
-      final exif = FlutterExif.fromPath(file.path);
-
-      // Recupera tutti gli attributi
-      final metadata = await exif.getAllAttributes();
-
-      if (metadata != null) {
-        // 🔹 UserComment (JSON)
-        if (metadata.containsKey("UserComment")) {
-          final userComment = metadata["UserComment"]!;
-          try {
-            final decoded = jsonDecode(userComment);
-            if (decoded is Map && decoded.containsKey("percentuale")) {
-              return (decoded["percentuale"] as num).toDouble();
-            }
-          } catch (_) {}
-        }
-
-        // 🔹 Fallback: ImageDescription
-        if (metadata.containsKey("ImageDescription")) {
-          final desc = metadata["ImageDescription"]!;
-          if (desc.contains(":")) {
-            final parts = desc.split(":");
-            return double.tryParse(parts.last);
-          } else {
-            return double.tryParse(desc);
-          }
-        }
+      final meta = await _readUserCommentMetadata(file);
+      if (meta != null && meta.containsKey("percentuale")) {
+        return (meta["percentuale"] as num).toDouble();
       }
     } catch (e) {
       debugPrint("❌ Errore lettura metadati: $e");
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>?> _readUserCommentMetadata(File file) async {
+    final bytes = await file.readAsBytes();
+    final needle = utf8.encode("UserComment");
+    final idx = _indexOf(bytes, needle);
+    if (idx == -1) return null;
+
+    int start = idx + needle.length + 1;
+    if (start >= bytes.length) return null;
+
+    int end = start;
+    while (end < bytes.length && bytes[end] != 0) {
+      end++;
+    }
+
+    final content = utf8.decode(bytes.sublist(start, end));
+    try {
+      return jsonDecode(content);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int _indexOf(Uint8List data, List<int> pattern) {
+    for (int i = 0; i <= data.length - pattern.length; i++) {
+      bool found = true;
+      for (int j = 0; j < pattern.length; j++) {
+        if (data[i + j] != pattern[j]) {
+          found = false;
+          break;
+        }
+      }
+      if (found) return i;
+    }
+    return -1;
   }
 
   // === Seleziona PRE dalla galleria ===
@@ -150,7 +162,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      // 🔹 Apri la pagina di analisi
       final analyzed = await Navigator.push<File?>(
         context,
         MaterialPageRoute(
