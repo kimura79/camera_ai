@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
 import 'package:image/image.dart' as img;
+import 'package:exif/exif.dart'; // <-- AGGIUNTO per leggere metadati
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -19,6 +21,37 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   File? postImage;
   double? prePercent;
   double? postPercent;
+
+  // === Legge percentuale dai metadati EXIF ===
+  Future<double?> _readPercentFromMetadata(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final tags = await readExifFromBytes(bytes);
+
+      if (tags.containsKey('UserComment')) {
+        final comment = tags['UserComment']!.printable;
+        try {
+          final decoded = jsonDecode(comment);
+          if (decoded is Map && decoded.containsKey("percentuale")) {
+            return (decoded["percentuale"] as num).toDouble();
+          }
+        } catch (_) {}
+      }
+
+      if (tags.containsKey('Image Description')) {
+        final desc = tags['Image Description']!.printable;
+        if (desc.contains(":")) {
+          final parts = desc.split(":");
+          return double.tryParse(parts.last);
+        } else {
+          return double.tryParse(desc);
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ Errore lettura metadati: $e");
+    }
+    return null;
+  }
 
   // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
@@ -80,9 +113,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (file != null) {
+      final percent = await _readPercentFromMetadata(file);
       setState(() {
         preImage = file;
-        prePercent = _fakeAnalysis();
+        prePercent = percent;
       });
     }
   }
@@ -124,23 +158,18 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-        // ✅ overlay pronto
+        final percent = await _readPercentFromMetadata(analyzed);
         setState(() {
           postImage = analyzed;
-          postPercent = _fakeAnalysis();
+          postPercent = percent;
         });
       } else {
-        // ❌ overlay annullato
         setState(() {
           postImage = null;
           postPercent = null;
         });
       }
     }
-  }
-
-  double _fakeAnalysis() {
-    return 20 + Random().nextInt(50).toDouble();
   }
 
   // === Crea immagine affiancata e salva in galleria ===
@@ -220,13 +249,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                           title: const Text("Vuoi rifare la foto Post?"),
                           actions: [
                             TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(context, false),
+                              onPressed: () => Navigator.pop(context, false),
                               child: const Text("No"),
                             ),
                             TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(context, true),
+                              onPressed: () => Navigator.pop(context, true),
                               child: const Text("Sì"),
                             ),
                           ],
@@ -490,8 +517,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                                   ),
                                 ),
                                 AnimatedContainer(
-                                  duration:
-                                      const Duration(milliseconds: 80),
+                                  duration: const Duration(milliseconds: 80),
                                   width: _shooting ? 58 : 64,
                                   height: _shooting ? 58 : 64,
                                   decoration: const BoxDecoration(
