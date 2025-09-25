@@ -7,7 +7,6 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
 import 'package:image/image.dart' as img;
-import 'package:flutter_exif_plugin/flutter_exif_plugin.dart'; // ✅ compatibile iOS/Android
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -22,25 +21,27 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   double? prePercent;
   double? postPercent;
 
-  // === Legge percentuale dai metadati EXIF ===
+  // === Legge percentuale dai metadati PNG (UserComment in JSON) ===
   Future<double?> _readPercentFromMetadata(File file) async {
     try {
-      final exif = FlutterExif.fromPath(file.path);
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return null;
 
-      // In server salviamo percentuale in UserComment (JSON)
-      final userComment = await exif.getAttribute("UserComment");
-      if (userComment != null && userComment.isNotEmpty) {
+      final metadata = decoded.textData; // contiene i chunk tEXt
+      if (metadata.containsKey("UserComment")) {
         try {
-          final decoded = jsonDecode(userComment);
-          if (decoded is Map && decoded.containsKey("percentuale")) {
-            return (decoded["percentuale"] as num).toDouble();
+          final userComment = metadata["UserComment"]!;
+          final parsed = jsonDecode(userComment);
+          if (parsed is Map && parsed.containsKey("percentuale")) {
+            return (parsed["percentuale"] as num).toDouble();
           }
         } catch (_) {}
       }
 
       // fallback su ImageDescription se presente
-      final desc = await exif.getAttribute("ImageDescription");
-      if (desc != null && desc.isNotEmpty) {
+      if (metadata.containsKey("ImageDescription")) {
+        final desc = metadata["ImageDescription"]!;
         if (desc.contains(":")) {
           final parts = desc.split(":");
           return double.tryParse(parts.last);
