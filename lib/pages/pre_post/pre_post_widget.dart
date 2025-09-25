@@ -7,7 +7,7 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
 import 'package:image/image.dart' as img;
-import 'package:exif/exif.dart'; // <-- AGGIUNTO per leggere metadati
+import 'package:flutter_exif_plugin/flutter_exif_plugin.dart'; // ✅ compatibile iOS/Android
 
 class PrePostWidget extends StatefulWidget {
   const PrePostWidget({super.key});
@@ -25,21 +25,22 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   // === Legge percentuale dai metadati EXIF ===
   Future<double?> _readPercentFromMetadata(File file) async {
     try {
-      final bytes = await file.readAsBytes();
-      final tags = await readExifFromBytes(bytes);
+      final exif = FlutterExif.fromPath(file.path);
 
-      if (tags.containsKey('UserComment')) {
-        final comment = tags['UserComment']!.printable;
+      // In server salviamo percentuale in UserComment (JSON)
+      final userComment = await exif.getAttribute("UserComment");
+      if (userComment != null && userComment.isNotEmpty) {
         try {
-          final decoded = jsonDecode(comment);
+          final decoded = jsonDecode(userComment);
           if (decoded is Map && decoded.containsKey("percentuale")) {
             return (decoded["percentuale"] as num).toDouble();
           }
         } catch (_) {}
       }
 
-      if (tags.containsKey('Image Description')) {
-        final desc = tags['Image Description']!.printable;
+      // fallback su ImageDescription se presente
+      final desc = await exif.getAttribute("ImageDescription");
+      if (desc != null && desc.isNotEmpty) {
         if (desc.contains(":")) {
           final parts = desc.split(":");
           return double.tryParse(parts.last);
