@@ -12,8 +12,8 @@ import 'package:image/image.dart' as img;
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final int? preId;   // ID record analisi PRE nel DB
-  final int? postId;  // ID record analisi POST nel DB
+  final int? preId;   // ID record analisi PRE nel DB (passato da dashboard)
+  final int? postId;  // ID record analisi POST nel DB (passato da dashboard)
 
   const PrePostWidget({
     super.key,
@@ -55,6 +55,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         setState(() {
           compareData = jsonDecode(resp.body);
         });
+        debugPrint("✅ Dati comparazione ricevuti: $compareData");
       } else {
         debugPrint("❌ Errore server: ${resp.body}");
       }
@@ -63,7 +64,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona e ANALIZZA PRE dalla galleria ===
+  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -123,32 +124,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (file != null) {
-      // === Analisi PRE sul server ===
-      final analyzed = await Navigator.push<Map<String, dynamic>?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: file.path,
-            mode: "prepost",   // il server userà prefix PRE_
-          ),
-        ),
-      );
-
-      if (analyzed != null) {
-        final overlayPath = analyzed["overlay_path"] as String?;
-        final newPreId = analyzed["id"] as int?;
-
-        if (overlayPath != null) {
-          setState(() {
-            preImage = File(overlayPath);
-          });
-        }
-        if (newPreId != null) {
-          setState(() {
-            preId = newPreId;
-          });
-        }
-      }
+      setState(() {
+        preImage = file;
+      });
+      debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
   }
 
@@ -156,7 +135,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   Future<void> _capturePostImage() async {
     if (preId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Analizza prima la foto PRE")),
+        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
       return;
     }
@@ -194,6 +173,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           setState(() {
             postImage = File(overlayPath);
           });
+          debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostId != null) {
           setState(() {
