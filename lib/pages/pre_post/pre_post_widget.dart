@@ -30,15 +30,25 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   File? postImage;
   Map<String, dynamic>? compareData;
 
+  int? preId;
+  int? postId;
+
+  @override
+  void initState() {
+    super.initState();
+    preId = widget.preId;
+    postId = widget.postId;
+  }
+
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
-    if (widget.preId == null || widget.postId == null) {
+    if (preId == null || postId == null) {
       debugPrint("⚠️ preId o postId mancanti, skip comparazione");
       return;
     }
 
     final url = Uri.parse(
-        "http://46.101.223.88:5000/compare_from_db?pre_id=${widget.preId}&post_id=${widget.postId}");
+        "http://46.101.223.88:5000/compare_from_db?pre_id=$preId&post_id=$postId");
     try {
       final resp = await http.get(url);
       if (resp.statusCode == 200) {
@@ -156,14 +166,21 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-       final overlayPath = analyzed["overlay_path"] as String?;
-       if (overlayPath != null) {
-       setState(() {
-        postImage = File(overlayPath);   // ⬅️ adesso metti l’overlay, non l’originale
-      });
-    }
-  await _loadCompareResults();
-     }
+        final overlayPath = analyzed["overlay_path"] as String?;
+        final newPostId = analyzed["id"] as int?;   // ⬅️ prendi l’ID dal server
+
+        if (overlayPath != null) {
+          setState(() {
+            postImage = File(overlayPath);
+          });
+        }
+        if (newPostId != null) {
+          setState(() {
+            postId = newPostId;   // ⬅️ aggiorna la variabile di stato
+          });
+          await _loadCompareResults(); // ⬅️ ora la comparazione funziona
+        }
+      }
     }
   }
 
