@@ -9,8 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
-  final int? preId;   // ID record analisi PRE nel DB (può essere null)
-  final int? postId;  // ID record analisi POST nel DB (può essere null)
+  final int? preId;   // ID record analisi PRE nel DB (opzionale)
+  final int? postId;  // ID record analisi POST nel DB (opzionale)
 
   const PrePostWidget({
     super.key,
@@ -29,6 +29,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
+    if (widget.preId == null || widget.postId == null) {
+      debugPrint("⚠️ preId o postId mancanti, skip comparazione");
+      return;
+    }
+
     final url = Uri.parse(
         "http://TUO_SERVER:5000/compare_from_db?pre_id=${widget.preId}&post_id=${widget.postId}");
     try {
@@ -138,7 +143,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       setState(() {
         postImage = result;
       });
-      // Dopo aver caricato entrambe le immagini → leggi risultati comparazione
+      // Dopo aver caricato entrambe le immagini → prova a caricare risultati
       await _loadCompareResults();
     }
   }
