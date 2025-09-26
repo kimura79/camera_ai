@@ -255,29 +255,47 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
 
     if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
+  if (tipo == "rughe") await _parseRughe(result);
+  if (tipo == "macchie") await _parseMacchie(result);
+  if (tipo == "melasma") await _parseMelasma(result);
+  if (tipo == "pori") await _parsePori(result);
 
-      final prefs = await SharedPreferences.getInstance();
-      prefs.remove("last_job_id_$tipo");
+  final prefs = await SharedPreferences.getInstance();
+  prefs.remove("last_job_id_$tipo");
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Analisi $tipo completata")),
-        );
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ Analisi $tipo completata")),
+    );
 
-        // 🔹 Se siamo in modalità PRE/POST → torna indietro con il risultato
-        if (widget.mode == "prepost") {
-          Navigator.pop(context, result);
-          return;
+    // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
+    if (widget.mode == "prepost") {
+      final overlayUrl = result["overlay_url"] != null
+          ? "http://46.101.223.88:5000${result["overlay_url"]}"
+          : null;
+
+      String? overlayPath;
+      if (overlayUrl != null) {
+        final resp = await http.get(Uri.parse(overlayUrl));
+        if (resp.statusCode == 200) {
+          final dir = await getApplicationDocumentsDirectory();
+          overlayPath = path.join(
+            dir.path,
+            "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+          );
+          await File(overlayPath).writeAsBytes(resp.bodyBytes);
         }
       }
-    }
 
-    if (mounted) setState(() => _loading = false);
+      // Restituisci al PrePostWidget anche il path dell’overlay
+      Navigator.pop(context, {
+        "result": result,
+        "overlay_path": overlayPath,
+      });
+      return;
+    }
   }
+}
 
   // === Parsers ===
   void _parseRughe(dynamic data) async {
