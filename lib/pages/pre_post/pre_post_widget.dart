@@ -8,12 +8,12 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
-// importa AnalysisPreview (la tua pagina di analisi esistente)
+// importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final int? preId;   // ID record analisi PRE nel DB (opzionale)
-  final int? postId;  // ID record analisi POST nel DB (opzionale)
+  final int? preId;   // ID record analisi PRE nel DB
+  final int? postId;  // ID record analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -119,7 +119,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera e avvia analisi ===
+  // === Scatta POST con camera, genera overlay e torna indietro ===
   Future<void> _capturePostImage() async {
     if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +131,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
-    // Scatta foto POST con overlay guida
+    // Scatto camera
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
@@ -144,21 +144,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      // ✅ Dopo lo scatto POST apri subito AnalysisPreview
+      // === Invio a server per analisi POST (overlay generato) ===
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",   // 🔹 importante: dice al server di usare prefix POST_
+            mode: "prepost",   // il server userà prefix POST_
           ),
         ),
       );
 
       if (analyzed != null) {
+        // ✅ aggiorna box immagine con overlay Post
         setState(() {
           postImage = File(result.path);
         });
+        // ✅ carica comparazione
         await _loadCompareResults();
       }
     }
