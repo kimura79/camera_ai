@@ -156,13 +156,14 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-        // ✅ aggiorna box immagine con overlay Post
-        setState(() {
-          postImage = File(result.path);
-        });
-        // ✅ carica comparazione
-        await _loadCompareResults();
-      }
+       final overlayPath = analyzed["overlay_path"] as String?;
+       if (overlayPath != null) {
+       setState(() {
+        postImage = File(overlayPath);   // ⬅️ adesso metti l’overlay, non l’originale
+      });
+    }
+  await _loadCompareResults();
+     }
     }
   }
 
