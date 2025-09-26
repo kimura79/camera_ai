@@ -8,7 +8,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
-// importa AnalysisPreview per analisi sul server
+// importa AnalysisPreview per analisi sul server (se presente)
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
@@ -31,23 +31,17 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   final String serverUrl = "http://46.101.223.88:5000";
 
-  // === Recupera record dal server (DB) ===
-  Future<Map<String, dynamic>?> _getResultFromServer(String filename) async {
-    final url = Uri.parse("$serverUrl/get_result?filename=$filename");
-    try {
-      final resp = await http.get(url);
-      if (resp.statusCode == 200) {
-        return jsonDecode(resp.body);
-      } else {
-        debugPrint("❌ Errore get_result: ${resp.body}");
-      }
-    } catch (e) {
-      debugPrint("❌ Errore richiesta get_result: $e");
-    }
-    return null;
+  // -------------------------
+  // Utility: fake analysis
+  // -------------------------
+  double _fakeAnalysis() {
+    final rnd = Random();
+    return 20 + rnd.nextInt(51) + rnd.nextDouble();
   }
 
-  // === Seleziona PRE dalla galleria e carica dati DB ===
+  // -------------------------
+  // Seleziona PRE dalla galleria
+  // -------------------------
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -110,21 +104,19 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       setState(() {
         preImage = file;
         preFile = file.uri.pathSegments.last;
+        prePercent = _fakeAnalysis();
+        diffPercent = (postPercent != null && prePercent != null)
+            ? (postPercent! - prePercent!)
+            : null;
       });
-
-      // 🔹 recupera percentuale dal DB
-      final result = await _getResultFromServer(preFile!);
-      if (result != null && result.containsKey("percentuale")) {
-        setState(() {
-          prePercent = (result["percentuale"] as num).toDouble();
-        });
-      }
     }
   }
 
-  // === Scatta POST con camera, invia a AnalysisPreview, riceve JSON ===
+  // -------------------------
+  // Scatta POST con camera
+  // -------------------------
   Future<void> _capturePostImage() async {
-    if (preFile == null) {
+    if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
@@ -146,47 +138,46 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      final analyzed = await Navigator.push<Map<String, dynamic>?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: result.path,
-            mode: "prepost",
+      Map<String, dynamic>? analyzed;
+      try {
+        analyzed = await Navigator.push<Map<String, dynamic>?>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AnalysisPreview(
+              imagePath: result.path,
+              mode: "prepost",
+            ),
           ),
-        ),
-      );
-
-      if (analyzed != null) {
-        final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostFile = analyzed["filename"] as String?;
-        final percent = analyzed["percentuale"] as num?;
-
-        if (overlayPath != null) {
-          setState(() {
-            postImage = File(overlayPath);
-          });
-        }
-        if (newPostFile != null) {
-          setState(() {
-            postFile = newPostFile;
-          });
-        }
-        if (percent != null) {
-          setState(() {
-            postPercent = percent.toDouble();
-          });
-        }
-
-        if (prePercent != null && postPercent != null) {
-          setState(() {
-            diffPercent = postPercent! - prePercent!;
-          });
-        }
+        );
+      } catch (e) {
+        debugPrint("⚠️ AnalysisPreview non disponibile o errore: $e");
+        analyzed = null;
       }
+
+      double usedPercent;
+      String? overlayPath;
+
+      if (analyzed != null && analyzed.containsKey("percentuale")) {
+        usedPercent = (analyzed["percentuale"] as num).toDouble();
+        overlayPath = analyzed["overlay_path"] as String?;
+      } else {
+        usedPercent = _fakeAnalysis();
+        overlayPath = result.path;
+      }
+
+      setState(() {
+        postImage = File(overlayPath!);
+        postPercent = usedPercent;
+        diffPercent = (prePercent != null && postPercent != null)
+            ? (postPercent! - prePercent!)
+            : null;
+      });
     }
   }
 
-  // === Conferma per rifare POST ===
+  // -------------------------
+  // Conferma per rifare POST
+  // -------------------------
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -216,11 +207,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final double boxSize = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Pre/Post")),
+      appBar: AppBar(title: const Text("Pre/Post (fake perc)")),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // --- BOX PRE ---
+            // --- PRE box ---
             GestureDetector(
               onTap: preImage == null ? _pickPreImage : null,
               child: Container(
@@ -238,7 +229,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
-            // --- BOX POST ---
+
+            // --- POST box ---
             GestureDetector(
               onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
@@ -268,13 +260,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("📊 Percentuali",
+                      const Text("📊 Percentuali (fake per test)",
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
                       if (prePercent != null) ...[
                         Text("Pre: ${prePercent!.toStringAsFixed(2)}%"),
                         LinearProgressIndicator(
-                          value: prePercent! / 100,
+                          value: (prePercent!.clamp(0, 100)) / 100,
                           backgroundColor: Colors.grey[300],
                           color: Colors.blueAccent,
                           minHeight: 12,
@@ -284,7 +276,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       if (postPercent != null) ...[
                         Text("Post: ${postPercent!.toStringAsFixed(2)}%"),
                         LinearProgressIndicator(
-                          value: postPercent! / 100,
+                          value: (postPercent!.clamp(0, 100)) / 100,
                           backgroundColor: Colors.grey[300],
                           color: Colors.green,
                           minHeight: 12,
@@ -312,7 +304,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida ===
+// -------------------------
+// CameraOverlayPage (uguale a prima, maschera guida)
+// -------------------------
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
