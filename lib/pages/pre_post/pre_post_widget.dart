@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -203,8 +204,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       Text("Post: ${compareData!["macchie"]["post"]}"),
                       Text("Differenza: ${compareData!["macchie"]["diff"]}"),
                       LinearProgressIndicator(
-                        value: compareData!["macchie"]["post"] /
-                            max(1, compareData!["macchie"]["pre"]),
+                        value: (compareData!["macchie"]["post"] as num) /
+                            max(1, (compareData!["macchie"]["pre"] as num)),
                         backgroundColor: Colors.grey[300],
                         color: Colors.green,
                         minHeight: 10,
@@ -232,8 +233,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       Text(
                           "Differenza dilatati: ${compareData!["pori"]["diff_dilatati"]}"),
                       LinearProgressIndicator(
-                        value: compareData!["pori"]["post_dilatati"] /
-                            max(1, compareData!["pori"]["pre_dilatati"]),
+                        value: (compareData!["pori"]["post_dilatati"] as num) /
+                            max(1, (compareData!["pori"]["pre_dilatati"] as num)),
                         backgroundColor: Colors.grey[300],
                         color: Colors.red,
                         minHeight: 10,
