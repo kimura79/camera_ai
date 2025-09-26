@@ -1,15 +1,21 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:custom_camera_component/pages/analysis_preview.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
-  const PrePostWidget({super.key});
+  final int preId;   // ID record analisi PRE nel DB
+  final int postId;  // ID record analisi POST nel DB
+
+  const PrePostWidget({
+    super.key,
+    required this.preId,
+    required this.postId,
+  });
 
   @override
   State<PrePostWidget> createState() => _PrePostWidgetState();
@@ -18,56 +24,24 @@ class PrePostWidget extends StatefulWidget {
 class _PrePostWidgetState extends State<PrePostWidget> {
   File? preImage;
   File? postImage;
-  double? prePercent;
-  double? postPercent;
+  Map<String, dynamic>? compareData;
 
-  // === Lettura metadati PNG senza plugin EXIF ===
-  Future<double?> _readPercentFromMetadata(File file) async {
+  // === Carica risultati comparazione dal server ===
+  Future<void> _loadCompareResults() async {
+    final url = Uri.parse(
+        "http://TUO_SERVER:5000/compare_from_db?pre_id=${widget.preId}&post_id=${widget.postId}");
     try {
-      final meta = await _readUserCommentMetadata(file);
-      if (meta != null && meta.containsKey("percentuale")) {
-        return (meta["percentuale"] as num).toDouble();
+      final resp = await http.get(url);
+      if (resp.statusCode == 200) {
+        setState(() {
+          compareData = jsonDecode(resp.body);
+        });
+      } else {
+        debugPrint("❌ Errore server: ${resp.body}");
       }
     } catch (e) {
-      debugPrint("❌ Errore lettura metadati: $e");
+      debugPrint("❌ Errore richiesta: $e");
     }
-    return null;
-  }
-
-  Future<Map<String, dynamic>?> _readUserCommentMetadata(File file) async {
-    final bytes = await file.readAsBytes();
-    final needle = utf8.encode("UserComment");
-    final idx = _indexOf(bytes, needle);
-    if (idx == -1) return null;
-
-    int start = idx + needle.length + 1;
-    if (start >= bytes.length) return null;
-
-    int end = start;
-    while (end < bytes.length && bytes[end] != 0) {
-      end++;
-    }
-
-    final content = utf8.decode(bytes.sublist(start, end));
-    try {
-      return jsonDecode(content);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  int _indexOf(Uint8List data, List<int> pattern) {
-    for (int i = 0; i <= data.length - pattern.length; i++) {
-      bool found = true;
-      for (int j = 0; j < pattern.length; j++) {
-        if (data[i + j] != pattern[j]) {
-          found = false;
-          break;
-        }
-      }
-      if (found) return i;
-    }
-    return -1;
   }
 
   // === Seleziona PRE dalla galleria ===
@@ -130,10 +104,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (file != null) {
-      final percent = await _readPercentFromMetadata(file);
       setState(() {
         preImage = file;
-        prePercent = percent;
       });
     }
   }
@@ -162,75 +134,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      final analyzed = await Navigator.push<File?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: result.path,
-            mode: "fullface",
-          ),
-          settings: const RouteSettings(arguments: "prepost"),
-        ),
-      );
-
-      if (analyzed != null) {
-        final percent = await _readPercentFromMetadata(analyzed);
-        setState(() {
-          postImage = analyzed;
-          postPercent = percent;
-        });
-      } else {
-        setState(() {
-          postImage = null;
-          postPercent = null;
-        });
-      }
-    }
-  }
-
-  // === Crea immagine affiancata e salva in galleria ===
-  Future<void> _saveComparisonImage() async {
-    if (preImage == null || postImage == null) return;
-
-    final preBytes = await preImage!.readAsBytes();
-    final postBytes = await postImage!.readAsBytes();
-    final pre = img.decodeImage(preBytes);
-    final post = img.decodeImage(postBytes);
-
-    if (pre == null || post == null) return;
-
-    final resizedPre = img.copyResize(pre, width: 1024, height: 1024);
-    final resizedPost = img.copyResize(post, width: 1024, height: 1024);
-
-    final combined = img.Image(
-      width: resizedPre.width * 2,
-      height: resizedPre.height,
-    );
-
-    img.compositeImage(combined, resizedPre, dstX: 0, dstY: 0);
-    img.compositeImage(combined, resizedPost, dstX: resizedPre.width, dstY: 0);
-
-    final jpg = img.encodeJpg(combined, quality: 90);
-
-    await PhotoManager.editor.saveImage(
-      jpg,
-      filename: "pre_post_${DateTime.now().millisecondsSinceEpoch}.jpg",
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Immagine salvata in galleria")),
-      );
+      setState(() {
+        postImage = result;
+      });
+      // Dopo aver caricato entrambe le immagini → leggi risultati comparazione
+      await _loadCompareResults();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    double? diff;
-    if (prePercent != null && postPercent != null) {
-      diff = postPercent! - prePercent!;
-    }
-
     final double boxSize = MediaQuery.of(context).size.width;
 
     return Scaffold(
@@ -256,27 +169,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: postImage == null
-                  ? _capturePostImage
-                  : () async {
-                      final rifai = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text("Vuoi rifare la foto Post?"),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text("No"),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text("Sì"),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (rifai == true) _capturePostImage();
-                    },
+              onTap: postImage == null ? _capturePostImage : null,
               child: Container(
                 width: boxSize,
                 height: boxSize,
@@ -292,56 +185,64 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(postImage!, fit: BoxFit.cover),
               ),
             ),
-            const SizedBox(height: 16),
-            if (prePercent != null || postPercent != null)
-              Column(
-                children: [
-                  if (prePercent != null)
-                    Column(
-                      children: [
-                        Text("Pre: ${prePercent!.toStringAsFixed(1)}%",
-                            style: const TextStyle(fontSize: 16)),
-                        LinearProgressIndicator(
-                          value: prePercent! / 100,
-                          backgroundColor: Colors.grey[300],
-                          color: Colors.blueAccent,
-                          minHeight: 12,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  if (postPercent != null)
-                    Column(
-                      children: [
-                        Text("Post: ${postPercent!.toStringAsFixed(1)}%",
-                            style: const TextStyle(fontSize: 16)),
-                        LinearProgressIndicator(
-                          value: postPercent! / 100,
-                          backgroundColor: Colors.grey[300],
-                          color: Colors.green,
-                          minHeight: 12,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  if (diff != null)
-                    Text(
-                      "Differenza: ${diff.toStringAsFixed(1)}%",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: diff > 0 ? Colors.red : Colors.green,
+            const SizedBox(height: 20),
+
+            // === Risultati comparazione ===
+            if (compareData != null) ...[
+              Card(
+                margin: const EdgeInsets.all(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("📊 Macchie sopra soglia",
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Pre: ${compareData!["macchie"]["pre"]}"),
+                      Text("Post: ${compareData!["macchie"]["post"]}"),
+                      Text("Differenza: ${compareData!["macchie"]["diff"]}"),
+                      LinearProgressIndicator(
+                        value: compareData!["macchie"]["post"] /
+                            max(1, compareData!["macchie"]["pre"]),
+                        backgroundColor: Colors.grey[300],
+                        color: Colors.green,
+                        minHeight: 10,
                       ),
-                    ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _saveComparisonImage,
-                    icon: const Icon(Icons.download),
-                    label: const Text("Scarica confronto"),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
+              Card(
+                margin: const EdgeInsets.all(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("📊 Pori dilatati",
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Pre (totali): ${compareData!["pori"]["pre_tot"]}"),
+                      Text("Post (totali): ${compareData!["pori"]["post_tot"]}"),
+                      Text(
+                          "Pre dilatati: ${compareData!["pori"]["pre_dilatati"]}"),
+                      Text(
+                          "Post dilatati: ${compareData!["pori"]["post_dilatati"]}"),
+                      Text(
+                          "Differenza dilatati: ${compareData!["pori"]["diff_dilatati"]}"),
+                      LinearProgressIndicator(
+                        value: compareData!["pori"]["post_dilatati"] /
+                            max(1, compareData!["pori"]["pre_dilatati"]),
+                        backgroundColor: Colors.grey[300],
+                        color: Colors.red,
+                        minHeight: 10,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ]
           ],
         ),
       ),
@@ -528,8 +429,8 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                                   height: 78,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    border:
-                                        Border.all(color: Colors.white, width: 6),
+                                    border: Border.all(
+                                        color: Colors.white, width: 6),
                                   ),
                                 ),
                                 AnimatedContainer(
