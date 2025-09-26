@@ -1,18 +1,25 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:convert';
 import 'dart:math';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
-// importa AnalysisPreview per analisi sul server (se presente)
+// importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  const PrePostWidget({super.key});
+  final String? preFile;   // Filename analisi PRE nel DB
+  final String? postFile;  // Filename analisi POST nel DB
+
+  const PrePostWidget({
+    super.key,
+    this.preFile,
+    this.postFile,
+  });
 
   @override
   State<PrePostWidget> createState() => _PrePostWidgetState();
@@ -21,27 +28,46 @@ class PrePostWidget extends StatefulWidget {
 class _PrePostWidgetState extends State<PrePostWidget> {
   File? preImage;
   File? postImage;
-
-  double? prePercent;
-  double? postPercent;
-  double? diffPercent;
+  Map<String, dynamic>? compareData;
 
   String? preFile;
   String? postFile;
 
-  final String serverUrl = "http://46.101.223.88:5000";
-
-  // -------------------------
-  // Utility: fake analysis
-  // -------------------------
-  double _fakeAnalysis() {
-    final rnd = Random();
-    return 20 + rnd.nextInt(51) + rnd.nextDouble();
+  @override
+  void initState() {
+    super.initState();
+    preFile = widget.preFile;
+    postFile = widget.postFile;
+    if (preFile != null && postFile != null) {
+      _loadCompareResults();
+    }
   }
 
-  // -------------------------
-  // Seleziona PRE dalla galleria
-  // -------------------------
+  // === Carica risultati comparazione dal server ===
+  Future<void> _loadCompareResults() async {
+    if (preFile == null || postFile == null) {
+      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
+      return;
+    }
+
+    final url = Uri.parse(
+        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+    try {
+      final resp = await http.get(url);
+      if (resp.statusCode == 200) {
+        setState(() {
+          compareData = jsonDecode(resp.body);
+        });
+        debugPrint("✅ Dati comparazione ricevuti: $compareData");
+      } else {
+        debugPrint("❌ Errore server: ${resp.body}");
+      }
+    } catch (e) {
+      debugPrint("❌ Errore richiesta: $e");
+    }
+  }
+
+  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -103,20 +129,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last;
-        prePercent = _fakeAnalysis();
-        diffPercent = (postPercent != null && prePercent != null)
-            ? (postPercent! - prePercent!)
-            : null;
+        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
       });
+      debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
   }
 
-  // -------------------------
-  // Scatta POST con camera
-  // -------------------------
+  // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
-    if (preImage == null) {
+    if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
@@ -138,46 +159,37 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      Map<String, dynamic>? analyzed;
-      try {
-        analyzed = await Navigator.push<Map<String, dynamic>?>(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AnalysisPreview(
-              imagePath: result.path,
-              mode: "prepost",
-            ),
+      final analyzed = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "prepost",   // il server userà prefix POST_
           ),
-        );
-      } catch (e) {
-        debugPrint("⚠️ AnalysisPreview non disponibile o errore: $e");
-        analyzed = null;
+        ),
+      );
+
+      if (analyzed != null) {
+        final overlayPath = analyzed["overlay_path"] as String?;
+        final newPostFile = analyzed["filename"] as String?;
+
+        if (overlayPath != null) {
+          setState(() {
+            postImage = File(overlayPath);
+          });
+          debugPrint("✅ Overlay POST salvato: $overlayPath");
+        }
+        if (newPostFile != null) {
+          setState(() {
+            postFile = newPostFile;
+          });
+          await _loadCompareResults();
+        }
       }
-
-      double usedPercent;
-      String? overlayPath;
-
-      if (analyzed != null && analyzed.containsKey("percentuale")) {
-        usedPercent = (analyzed["percentuale"] as num).toDouble();
-        overlayPath = analyzed["overlay_path"] as String?;
-      } else {
-        usedPercent = _fakeAnalysis();
-        overlayPath = result.path;
-      }
-
-      setState(() {
-        postImage = File(overlayPath!);
-        postPercent = usedPercent;
-        diffPercent = (prePercent != null && postPercent != null)
-            ? (postPercent! - prePercent!)
-            : null;
-      });
     }
   }
 
-  // -------------------------
-  // Conferma per rifare POST
-  // -------------------------
+  // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -207,11 +219,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final double boxSize = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Pre/Post (fake perc)")),
+      appBar: AppBar(title: const Text("Pre/Post")),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // --- PRE box ---
             GestureDetector(
               onTap: preImage == null ? _pickPreImage : null,
               child: Container(
@@ -229,8 +240,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
-
-            // --- POST box ---
             GestureDetector(
               onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
@@ -248,55 +257,61 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(postImage!, fit: BoxFit.cover),
               ),
             ),
-
             const SizedBox(height: 20),
 
-            // --- Percentuali ---
-            if (prePercent != null || postPercent != null)
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Percentuali (fake per test)",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      if (prePercent != null) ...[
-                        Text("Pre: ${prePercent!.toStringAsFixed(2)}%"),
-                        LinearProgressIndicator(
-                          value: (prePercent!.clamp(0, 100)) / 100,
-                          backgroundColor: Colors.grey[300],
-                          color: Colors.blueAccent,
-                          minHeight: 12,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      if (postPercent != null) ...[
-                        Text("Post: ${postPercent!.toStringAsFixed(2)}%"),
-                        LinearProgressIndicator(
-                          value: (postPercent!.clamp(0, 100)) / 100,
-                          backgroundColor: Colors.grey[300],
-                          color: Colors.green,
-                          minHeight: 12,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      if (diffPercent != null)
+            // === Risultati comparazione ===
+            if (compareData != null) ...[
+              if (compareData!["macchie"] != null)
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                         Text(
-                          "Differenza: ${diffPercent!.toStringAsFixed(2)}%",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color:
-                                diffPercent! > 0 ? Colors.red : Colors.green,
-                          ),
-                        ),
-                    ],
+                            "Pre: ${compareData!["macchie"]["perc_pre"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["macchie"]["perc_post"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["macchie"]["perc_diff"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              if (compareData!["pori"] != null)
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Pori dilatati (rossi)",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                            "Pre: ${compareData!["pori"]["perc_pre_dilatati"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["pori"]["perc_post_dilatati"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["pori"]["perc_diff_dilatati"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
+                      ],
+                    ),
+                  ),
+                ),
+            ]
           ],
         ),
       ),
@@ -304,9 +319,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// -------------------------
-// CameraOverlayPage (uguale a prima, maschera guida)
-// -------------------------
+// === Camera con overlay guida ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -458,7 +471,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                                 borderRadius: BorderRadius.circular(8),
                                 color: Colors.black38,
                               ),
-                              child: const Icon(Icons.close,
+                              child: const Icon(Icons.image,
                                   color: Colors.white, size: 26),
                             ),
                           ),
