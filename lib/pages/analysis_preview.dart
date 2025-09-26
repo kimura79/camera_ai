@@ -255,10 +255,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
 
     if (result != null) {
-  if (tipo == "rughe") await _parseRughe(result);
-  if (tipo == "macchie") await _parseMacchie(result);
-  if (tipo == "melasma") await _parseMelasma(result);
-  if (tipo == "pori") await _parsePori(result);
+  if (tipo == "rughe") _parseRughe(result);
+  if (tipo == "macchie") _parseMacchie(result);
+  if (tipo == "melasma") _parseMelasma(result);
+  if (tipo == "pori") _parsePori(result);
 
   final prefs = await SharedPreferences.getInstance();
   prefs.remove("last_job_id_$tipo");
@@ -287,7 +287,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         }
       }
 
-      // Restituisci al PrePostWidget anche il path dell’overlay
       Navigator.pop(context, {
         "result": result,
         "overlay_path": overlayPath,
