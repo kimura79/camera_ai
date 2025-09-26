@@ -342,6 +342,15 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
     final double side = MediaQuery.of(context).size.width * 0.9;
 
+    // ✅ Ricava filename corretto in base all'analisi
+    String filename = analysisType == "rughe"
+        ? (_rugheFilename ?? path.basename(widget.imagePath))
+        : analysisType == "macchie"
+            ? (_macchieFilename ?? path.basename(widget.imagePath))
+            : analysisType == "melasma"
+                ? (_melasmaFilename ?? path.basename(widget.imagePath))
+                : (_poriFilename ?? path.basename(widget.imagePath));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -371,6 +380,54 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           Text("Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
               style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 20),
+
+        // 🔹 Sezione giudizi
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: filename,
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
+                );
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 40),
       ],
     );
   }
