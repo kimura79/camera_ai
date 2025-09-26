@@ -12,13 +12,13 @@ import 'package:image/image.dart' as img;
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final int? preId;   // ID record analisi PRE nel DB (passato da dashboard)
-  final int? postId;  // ID record analisi POST nel DB (passato da dashboard)
+  final String? preFile;   // Filename analisi PRE nel DB
+  final String? postFile;  // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
-    this.preId,
-    this.postId,
+    this.preFile,
+    this.postFile,
   });
 
   @override
@@ -30,25 +30,25 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   File? postImage;
   Map<String, dynamic>? compareData;
 
-  int? preId;
-  int? postId;
+  String? preFile;
+  String? postFile;
 
   @override
   void initState() {
     super.initState();
-    preId = widget.preId;
-    postId = widget.postId;
+    preFile = widget.preFile;
+    postFile = widget.postFile;
   }
 
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
-    if (preId == null || postId == null) {
-      debugPrint("⚠️ preId o postId mancanti, skip comparazione");
+    if (preFile == null || postFile == null) {
+      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
       return;
     }
 
     final url = Uri.parse(
-        "http://46.101.223.88:5000/compare_from_db?pre_id=$preId&post_id=$postId");
+        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
     try {
       final resp = await http.get(url);
       if (resp.statusCode == 200) {
@@ -126,6 +126,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
+        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -133,7 +134,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
-    if (preId == null) {
+    if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
@@ -167,7 +168,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostId = analyzed["id"] as int?;
+        final newPostFile = analyzed["filename"] as String?;
 
         if (overlayPath != null) {
           setState(() {
@@ -175,9 +176,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           });
           debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
-        if (newPostId != null) {
+        if (newPostFile != null) {
           setState(() {
-            postId = newPostId;
+            postFile = newPostFile;
           });
           await _loadCompareResults();
         }
