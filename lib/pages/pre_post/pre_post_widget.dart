@@ -63,7 +63,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria ===
+  // === Seleziona e ANALIZZA PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -123,17 +123,40 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (file != null) {
-      setState(() {
-        preImage = file;
-      });
+      // === Analisi PRE sul server ===
+      final analyzed = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: file.path,
+            mode: "prepost",   // il server userà prefix PRE_
+          ),
+        ),
+      );
+
+      if (analyzed != null) {
+        final overlayPath = analyzed["overlay_path"] as String?;
+        final newPreId = analyzed["id"] as int?;
+
+        if (overlayPath != null) {
+          setState(() {
+            preImage = File(overlayPath);
+          });
+        }
+        if (newPreId != null) {
+          setState(() {
+            preId = newPreId;
+          });
+        }
+      }
     }
   }
 
-  // === Scatta POST con camera, genera overlay e torna indietro ===
+  // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
-    if (preImage == null) {
+    if (preId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Carica prima la foto PRE dalla galleria")),
+        const SnackBar(content: Text("Analizza prima la foto PRE")),
       );
       return;
     }
@@ -141,7 +164,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
-    // Scatto camera
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
@@ -154,7 +176,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      // === Invio a server per analisi POST (overlay generato) ===
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
@@ -167,7 +188,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostId = analyzed["id"] as int?;   // ⬅️ prendi l’ID dal server
+        final newPostId = analyzed["id"] as int?;
 
         if (overlayPath != null) {
           setState(() {
@@ -176,9 +197,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         }
         if (newPostId != null) {
           setState(() {
-            postId = newPostId;   // ⬅️ aggiorna la variabile di stato
+            postId = newPostId;
           });
-          await _loadCompareResults(); // ⬅️ ora la comparazione funziona
+          await _loadCompareResults();
         }
       }
     }
