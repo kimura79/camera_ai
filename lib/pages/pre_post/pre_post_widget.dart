@@ -12,13 +12,15 @@ import 'package:image/image.dart' as img;
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
+  final String? preFile;
+  final String? postFile;
+  final String analysisType; // "macchie" oppure "pori"
 
   const PrePostWidget({
     super.key,
     this.preFile,
     this.postFile,
+    required this.analysisType,
   });
 
   @override
@@ -42,29 +44,34 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
-    if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
+    if (preImage == null || postImage == null) {
+      debugPrint("⚠️ preImage o postImage mancanti, skip comparazione");
       return;
     }
 
-    final url = Uri.parse(
-        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+    final url = Uri.parse("http://46.101.223.88:5000/compare_prepost");
+    final req = http.MultipartRequest("POST", url)
+      ..fields["analysis_type"] = widget.analysisType
+      ..files.add(await http.MultipartFile.fromPath("pre", preImage!.path))
+      ..files.add(await http.MultipartFile.fromPath("post", postImage!.path));
+
     try {
-      final resp = await http.get(url);
+      final resp = await req.send();
       if (resp.statusCode == 200) {
+        final body = await resp.stream.bytesToString();
         setState(() {
-          compareData = jsonDecode(resp.body);
+          compareData = jsonDecode(body);
         });
         debugPrint("✅ Dati comparazione ricevuti: $compareData");
       } else {
-        debugPrint("❌ Errore server: ${resp.body}");
+        debugPrint("❌ Errore server: ${resp.statusCode}");
       }
     } catch (e) {
       debugPrint("❌ Errore richiesta: $e");
     }
   }
 
-  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
+  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -126,7 +133,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
+        preFile = file.uri.pathSegments.last;
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -134,7 +141,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
-    if (preFile == null) {
+    if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
@@ -161,7 +168,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",   // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
@@ -258,59 +265,53 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
             // === Risultati comparazione ===
             if (compareData != null) ...[
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Macchie sopra soglia",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre: ${compareData!["macchie"]["pre"]}"),
-                      Text("Post: ${compareData!["macchie"]["post"]}"),
-                      Text("Differenza: ${compareData!["macchie"]["diff"]}"),
-                      LinearProgressIndicator(
-                        value: (compareData!["macchie"]["post"] as num) /
-                            max(1, (compareData!["macchie"]["pre"] as num)),
-                        backgroundColor: Colors.grey[300],
-                        color: Colors.green,
-                        minHeight: 10,
-                      ),
-                    ],
+              if (compareData!["analysis"] == "macchie")
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Macchie verdi",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text("Numero PRE: ${compareData!["tot_pre"]}"),
+                        Text(
+                            "Percentuale PRE: ${compareData!["perc_pre"].toStringAsFixed(2)}%"),
+                        Text(
+                            "Percentuale POST: ${compareData!["perc_post"].toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["perc_diff"].toStringAsFixed(2)}%"),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Pori dilatati",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre (totali): ${compareData!["pori"]["pre_tot"]}"),
-                      Text("Post (totali): ${compareData!["pori"]["post_tot"]}"),
-                      Text(
-                          "Pre dilatati: ${compareData!["pori"]["pre_dilatati"]}"),
-                      Text(
-                          "Post dilatati: ${compareData!["pori"]["post_dilatati"]}"),
-                      Text(
-                          "Differenza dilatati: ${compareData!["pori"]["diff_dilatati"]}"),
-                      LinearProgressIndicator(
-                        value: (compareData!["pori"]["post_dilatati"] as num) /
-                            max(1, (compareData!["pori"]["pre_dilatati"] as num)),
-                        backgroundColor: Colors.grey[300],
-                        color: Colors.red,
-                        minHeight: 10,
-                      ),
-                    ],
+              if (compareData!["analysis"] == "pori")
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Pori",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                            "Totali PRE: ${compareData!["conteggi_pre"].values.reduce((a, b) => a + b)}"),
+                        Text(
+                            "Totali POST: ${compareData!["conteggi_post"].values.reduce((a, b) => a + b)}"),
+                        Text(
+                            "Percentuale dilatati PRE: ${compareData!["dilatati"]["perc_pre"].toStringAsFixed(2)}%"),
+                        Text(
+                            "Percentuale dilatati POST: ${compareData!["dilatati"]["perc_post"].toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["dilatati"]["perc_diff"].toStringAsFixed(2)}%"),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ]
           ],
         ),
