@@ -129,7 +129,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // usa filename univoco
+        // ⚡ usa nome locale come fallback (per PRE non c'è analisi)
+        preFile = file.uri.pathSegments.last;
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -180,10 +181,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostFile != null) {
+          // ⚡ usa SEMPRE il filename restituito dal server
           setState(() {
             postFile = newPostFile;
           });
-          debugPrint("📂 Filename dal server: $newPostFile");
           await _loadCompareResults();
         }
       }
@@ -260,25 +261,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
             const SizedBox(height: 20),
 
-            // === Debug info a video ===
-            Card(
-              color: Colors.grey[100],
-              margin: const EdgeInsets.all(12),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("🔍 Debug info",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text("preFile: $preFile"),
-                    Text("postFile: $postFile"),
-                    Text("compareData: ${compareData.toString()}"),
-                  ],
-                ),
-              ),
-            ),
-
             // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
@@ -331,7 +313,26 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
-            ]
+            ],
+
+            // 🔎 Debug info
+            Card(
+              margin: const EdgeInsets.all(12),
+              color: Colors.grey[200],
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("🔎 Debug info",
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text("preFile: $preFile"),
+                    Text("postFile: $postFile"),
+                    Text("compareData: $compareData"),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
