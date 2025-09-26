@@ -211,6 +211,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  Widget _buildBar(String label, double value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("$label: ${value.toStringAsFixed(2)}%"),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: value / 100,
+          backgroundColor: Colors.grey[300],
+          color: color,
+          minHeight: 10,
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
@@ -258,40 +275,50 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
             // === Risultati comparazione ===
             if (compareData != null) ...[
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Percentuali Macchie",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre: ${compareData!["macchie"]["perc_pre"]?.toStringAsFixed(2)}%"),
-                      Text("Post: ${compareData!["macchie"]["perc_post"]?.toStringAsFixed(2)}%"),
-                      Text("Differenza: ${compareData!["macchie"]["perc_diff"]?.toStringAsFixed(2)}%"),
-                    ],
+              if (compareData!.containsKey("macchie")) ...[
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar("Pre", compareData!["macchie"]["perc_pre"], Colors.green),
+                        _buildBar("Post", compareData!["macchie"]["perc_post"], Colors.blue),
+                        Text(
+                          "Differenza: ${compareData!["macchie"]["perc_diff"].toStringAsFixed(2)}%",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Percentuali Pori dilatati (rossi)",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre: ${compareData!["pori"]["perc_pre_dilatati"]?.toStringAsFixed(2)}%"),
-                      Text("Post: ${compareData!["pori"]["perc_post_dilatati"]?.toStringAsFixed(2)}%"),
-                      Text("Differenza: ${compareData!["pori"]["perc_diff_dilatati"]?.toStringAsFixed(2)}%"),
-                    ],
+              ],
+              if (compareData!.containsKey("pori")) ...[
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Pori dilatati (rossi)",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar("Pre", compareData!["pori"]["perc_pre_dilatati"], Colors.orange),
+                        _buildBar("Post", compareData!["pori"]["perc_post_dilatati"], Colors.red),
+                        Text(
+                          "Differenza: ${compareData!["pori"]["perc_diff_dilatati"].toStringAsFixed(2)}%",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ]
           ],
         ),
