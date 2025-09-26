@@ -187,113 +187,116 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   // === Chiamata async con polling ===
-  Future<void> _callAnalysisAsync(String tipo) async {
-    setState(() => _loading = true);
-    try {
-      final safePath = await copyToSafePath(widget.imagePath);
+Future<void> _callAnalysisAsync(String tipo) async {
+  setState(() => _loading = true);
+  try {
+    final safePath = await copyToSafePath(widget.imagePath);
 
-      final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
-      final req = http.MultipartRequest("POST", uri);
-      req.files.add(
-        await http.MultipartFile.fromPath(
-          "file",
-          safePath,
-          filename: path.basename(safePath),
-        ),
-      );
-      req.fields["mode"] = widget.mode;
-
-      final resp = await req.send();
-      final body = await resp.stream.bytesToString();
-
-      if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
-        throw Exception("Risposta non valida dal server: $body");
-      }
-
-      final decoded = jsonDecode(body);
-      final String jobId = decoded["job_id"];
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("last_job_id_$tipo", jobId);
-
-      await _resumeJob(tipo, jobId);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore analisi: $e")),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _resumeJob(String tipo, String jobId) async {
-    setState(() => _loading = true);
-    bool done = false;
-    Map<String, dynamic>? result;
-
-    while (!done && mounted) {
-      await Future.delayed(const Duration(seconds: 2));
-      try {
-        final statusResp = await http
-            .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
-            .timeout(const Duration(seconds: 10));
-        if (statusResp.statusCode != 200) continue;
-
-        final statusData = jsonDecode(statusResp.body);
-        if (statusData["status"] == "done") {
-          done = true;
-          result = statusData["result"];
-        } else if (statusData["status"] == "error") {
-          done = true;
-          result = {"error": statusData["result"]};
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-
-    if (result != null) {
-  if (tipo == "rughe") _parseRughe(result);
-  if (tipo == "macchie") _parseMacchie(result);
-  if (tipo == "melasma") _parseMelasma(result);
-  if (tipo == "pori") _parsePori(result);
-
-  final prefs = await SharedPreferences.getInstance();
-  prefs.remove("last_job_id_$tipo");
-
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Analisi $tipo completata")),
+    final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+    final req = http.MultipartRequest("POST", uri);
+    req.files.add(
+      await http.MultipartFile.fromPath(
+        "file",
+        safePath,
+        filename: path.basename(safePath),
+      ),
     );
+    req.fields["mode"] = widget.mode;
 
-    // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
-    if (widget.mode == "prepost") {
-      final overlayUrl = result["overlay_url"] != null
-          ? "http://46.101.223.88:5000${result["overlay_url"]}"
-          : null;
+    final resp = await req.send();
+    final body = await resp.stream.bytesToString();
 
-      String? overlayPath;
-      if (overlayUrl != null) {
-        final resp = await http.get(Uri.parse(overlayUrl));
-        if (resp.statusCode == 200) {
-          final dir = await getApplicationDocumentsDirectory();
-          overlayPath = path.join(
-            dir.path,
-            "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-          );
-          await File(overlayPath).writeAsBytes(resp.bodyBytes);
-        }
+    if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
+      throw Exception("Risposta non valida dal server: $body");
+    }
+
+    final decoded = jsonDecode(body);
+    final String jobId = decoded["job_id"];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("last_job_id_$tipo", jobId);
+
+    await _resumeJob(tipo, jobId);
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi: $e")),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _loading = false);
+  }
+}
+
+Future<void> _resumeJob(String tipo, String jobId) async {
+  setState(() => _loading = true);
+  bool done = false;
+  Map<String, dynamic>? result;
+
+  while (!done && mounted) {
+    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final statusResp = await http
+          .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
+          .timeout(const Duration(seconds: 10));
+      if (statusResp.statusCode != 200) continue;
+
+      final statusData = jsonDecode(statusResp.body);
+      if (statusData["status"] == "done") {
+        done = true;
+        result = statusData["result"];
+      } else if (statusData["status"] == "error") {
+        done = true;
+        result = {"error": statusData["result"]};
       }
-
-      Navigator.pop(context, {
-        "result": result,
-        "overlay_path": overlayPath,
-      });
-      return;
+    } catch (_) {
+      continue;
     }
   }
+
+  if (result != null) {
+    if (tipo == "rughe") _parseRughe(result);
+    if (tipo == "macchie") _parseMacchie(result);
+    if (tipo == "melasma") _parseMelasma(result);
+    if (tipo == "pori") _parsePori(result);
+
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove("last_job_id_$tipo");
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Analisi $tipo completata")),
+      );
+
+      // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
+      if (widget.mode == "prepost") {
+        final overlayUrl = result["overlay_url"] != null
+            ? "http://46.101.223.88:5000${result["overlay_url"]}"
+            : null;
+
+        String? overlayPath;
+        if (overlayUrl != null) {
+          final resp = await http.get(Uri.parse(overlayUrl));
+          if (resp.statusCode == 200) {
+            final dir = await getApplicationDocumentsDirectory();
+            overlayPath = path.join(
+              dir.path,
+              "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+            );
+            await File(overlayPath).writeAsBytes(resp.bodyBytes);
+          }
+        }
+
+        Navigator.pop(context, {
+          "result": result,
+          "overlay_path": overlayPath,
+        });
+        return;
+      }
+    }
+  }
+
+  if (mounted) setState(() => _loading = false);
 }
 
   // === Parsers ===
