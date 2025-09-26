@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:math';
-import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -12,14 +12,7 @@ import 'package:image/image.dart' as img;
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
-
-  const PrePostWidget({
-    super.key,
-    this.preFile,
-    this.postFile,
-  });
+  const PrePostWidget({super.key});
 
   @override
   State<PrePostWidget> createState() => _PrePostWidgetState();
@@ -28,64 +21,33 @@ class PrePostWidget extends StatefulWidget {
 class _PrePostWidgetState extends State<PrePostWidget> {
   File? preImage;
   File? postImage;
-  Map<String, dynamic>? compareData;
+
+  double? prePercent;
+  double? postPercent;
+  double? diffPercent;
 
   String? preFile;
   String? postFile;
 
-  @override
-  void initState() {
-    super.initState();
-    preFile = widget.preFile;
-    postFile = widget.postFile;
-  }
+  final String serverUrl = "http://46.101.223.88:5000";
 
-  // === Estrai percentuale dai metadata EXIF ===
-  Future<double?> _extractPercent(String path) async {
+  // === Recupera record dal server (DB) ===
+  Future<Map<String, dynamic>?> _getResultFromServer(String filename) async {
+    final url = Uri.parse("$serverUrl/get_result?filename=$filename");
     try {
-      final bytes = await File(path).readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) return null;
-
-      final meta = decoded.textData; // Map<String, String>?
-      if (meta != null && meta.containsKey("UserComment")) {
-        final userComment = meta["UserComment"];
-        if (userComment != null) {
-          final parsed = jsonDecode(userComment);
-          return (parsed["percentuale"] as num).toDouble();
-        }
+      final resp = await http.get(url);
+      if (resp.statusCode == 200) {
+        return jsonDecode(resp.body);
+      } else {
+        debugPrint("❌ Errore get_result: ${resp.body}");
       }
     } catch (e) {
-      debugPrint("⚠️ Errore lettura metadata: $e");
+      debugPrint("❌ Errore richiesta get_result: $e");
     }
     return null;
   }
 
-  // === Carica risultati comparazione dal server ===
-  Future<void> _loadCompareResults() async {
-    if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
-      return;
-    }
-
-    final url = Uri.parse(
-        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
-    try {
-      final resp = await http.get(url);
-      if (resp.statusCode == 200) {
-        setState(() {
-          compareData = jsonDecode(resp.body);
-        });
-        debugPrint("✅ Dati comparazione ricevuti: $compareData");
-      } else {
-        debugPrint("❌ Errore server: ${resp.body}");
-      }
-    } catch (e) {
-      debugPrint("❌ Errore richiesta: $e");
-    }
-  }
-
-  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
+  // === Seleziona PRE dalla galleria e carica dati DB ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -147,13 +109,20 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
+        preFile = file.uri.pathSegments.last;
       });
-      debugPrint("✅ Foto PRE caricata: ${file.path}");
+
+      // 🔹 recupera percentuale dal DB
+      final result = await _getResultFromServer(preFile!);
+      if (result != null && result.containsKey("percentuale")) {
+        setState(() {
+          prePercent = (result["percentuale"] as num).toDouble();
+        });
+      }
     }
   }
 
-  // === Scatta POST con camera, analizza e torna indietro ===
+  // === Scatta POST con camera, invia a AnalysisPreview, riceve JSON ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,7 +151,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",   // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
@@ -190,24 +159,34 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
         final newPostFile = analyzed["filename"] as String?;
+        final percent = analyzed["percentuale"] as num?;
 
         if (overlayPath != null) {
           setState(() {
             postImage = File(overlayPath);
           });
-          debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostFile != null) {
           setState(() {
             postFile = newPostFile;
           });
-          await _loadCompareResults();
+        }
+        if (percent != null) {
+          setState(() {
+            postPercent = percent.toDouble();
+          });
+        }
+
+        if (prePercent != null && postPercent != null) {
+          setState(() {
+            diffPercent = postPercent! - prePercent!;
+          });
         }
       }
     }
   }
 
-  // === Conferma per rifare la foto POST ===
+  // === Conferma per rifare POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -241,6 +220,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // --- BOX PRE ---
             GestureDetector(
               onTap: preImage == null ? _pickPreImage : null,
               child: Container(
@@ -258,6 +238,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
+            // --- BOX POST ---
             GestureDetector(
               onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
@@ -275,10 +256,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(postImage!, fit: BoxFit.cover),
               ),
             ),
+
             const SizedBox(height: 20),
 
-            // === Risultati comparazione ===
-            if (compareData != null) ...[
+            // --- Percentuali ---
+            if (prePercent != null || postPercent != null)
               Card(
                 margin: const EdgeInsets.all(12),
                 child: Padding(
@@ -286,34 +268,43 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("📊 Percentuali Macchie",
+                      const Text("📊 Percentuali",
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre: ${compareData!["macchie"]["perc_pre"]?.toStringAsFixed(2)}%"),
-                      Text("Post: ${compareData!["macchie"]["perc_post"]?.toStringAsFixed(2)}%"),
-                      Text("Differenza: ${compareData!["macchie"]["perc_diff"]?.toStringAsFixed(2)}%"),
+                      if (prePercent != null) ...[
+                        Text("Pre: ${prePercent!.toStringAsFixed(2)}%"),
+                        LinearProgressIndicator(
+                          value: prePercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.blueAccent,
+                          minHeight: 12,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (postPercent != null) ...[
+                        Text("Post: ${postPercent!.toStringAsFixed(2)}%"),
+                        LinearProgressIndicator(
+                          value: postPercent! / 100,
+                          backgroundColor: Colors.grey[300],
+                          color: Colors.green,
+                          minHeight: 12,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (diffPercent != null)
+                        Text(
+                          "Differenza: ${diffPercent!.toStringAsFixed(2)}%",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color:
+                                diffPercent! > 0 ? Colors.red : Colors.green,
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("📊 Percentuali Pori dilatati (rossi)",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Pre: ${compareData!["pori"]["perc_pre_dilatati"]?.toStringAsFixed(2)}%"),
-                      Text("Post: ${compareData!["pori"]["perc_post_dilatati"]?.toStringAsFixed(2)}%"),
-                      Text("Differenza: ${compareData!["pori"]["perc_diff_dilatati"]?.toStringAsFixed(2)}%"),
-                    ],
-                  ),
-                ),
-              ),
-            ]
           ],
         ),
       ),
@@ -473,7 +464,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                                 borderRadius: BorderRadius.circular(8),
                                 color: Colors.black38,
                               ),
-                              child: const Icon(Icons.image,
+                              child: const Icon(Icons.close,
                                   color: Colors.white, size: 26),
                             ),
                           ),
