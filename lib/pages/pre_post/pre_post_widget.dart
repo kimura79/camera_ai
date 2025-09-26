@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 // importa AnalysisPreview (la tua pagina di analisi esistente)
-import 'analysis_preview.dart';
+import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
   final int? preId;   // ID record analisi PRE nel DB (opzionale)
