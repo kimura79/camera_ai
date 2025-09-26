@@ -291,6 +291,7 @@ Future<void> _resumeJob(String tipo, String jobId) async {
           "result": result,
           "overlay_path": overlayPath,
           "id": result["id"],   // ⬅️ restituisci anche l’ID DB
+          "filename": result["filename"], // ⬅️ aggiungi questo
         });
         return;
       }
