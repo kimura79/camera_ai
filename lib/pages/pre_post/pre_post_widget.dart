@@ -156,14 +156,36 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-        // ✅ Salva immagine post analizzata in stato
         setState(() {
           postImage = File(result.path);
         });
-
-        // ✅ Ora puoi ricaricare comparazione (usa id del DB restituito da server)
         await _loadCompareResults();
       }
+    }
+  }
+
+  // === Conferma per rifare la foto POST ===
+  Future<void> _confirmRetakePost() async {
+    final bool? retake = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Rifare la foto POST?"),
+        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annulla"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Rifai foto"),
+          ),
+        ],
+      ),
+    );
+
+    if (retake == true) {
+      await _capturePostImage();
     }
   }
 
@@ -194,7 +216,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: postImage == null ? _capturePostImage : null,
+              onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
                 width: boxSize,
                 height: boxSize,
