@@ -50,8 +50,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
+    // 🔹 ATTENZIONE: usiamo i filename originali salvati in DB,
+    // non overlay_path
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+
     try {
       final resp = await http.get(url);
       if (resp.statusCode == 200) {
@@ -129,7 +132,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
+        preFile = file.uri.pathSegments.last; // 🔹 salva filename
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -181,7 +184,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         }
         if (newPostFile != null) {
           setState(() {
-            postFile = newPostFile;
+            postFile = newPostFile; // 🔹 salva filename originale POST
           });
           await _loadCompareResults();
         }
