@@ -8,6 +8,9 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+// importa AnalysisPreview (la tua pagina di analisi esistente)
+import 'analysis_preview.dart';
+
 class PrePostWidget extends StatefulWidget {
   final int? preId;   // ID record analisi PRE nel DB (opzionale)
   final int? postId;  // ID record analisi POST nel DB (opzionale)
@@ -35,7 +38,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
 
     final url = Uri.parse(
-        "http://TUO_SERVER:5000/compare_from_db?pre_id=${widget.preId}&post_id=${widget.postId}");
+        "http://46.101.223.88:5000/compare_from_db?pre_id=${widget.preId}&post_id=${widget.postId}");
     try {
       final resp = await http.get(url);
       if (resp.statusCode == 200) {
@@ -116,7 +119,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera ===
+  // === Scatta POST con camera e avvia analisi ===
   Future<void> _capturePostImage() async {
     if (preImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,6 +131,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
+    // Scatta foto POST con overlay guida
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
@@ -140,11 +144,26 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      setState(() {
-        postImage = result;
-      });
-      // Dopo aver caricato entrambe le immagini → prova a caricare risultati
-      await _loadCompareResults();
+      // ✅ Dopo lo scatto POST apri subito AnalysisPreview
+      final analyzed = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "prepost",   // 🔹 importante: dice al server di usare prefix POST_
+          ),
+        ),
+      );
+
+      if (analyzed != null) {
+        // ✅ Salva immagine post analizzata in stato
+        setState(() {
+          postImage = File(result.path);
+        });
+
+        // ✅ Ora puoi ricaricare comparazione (usa id del DB restituito da server)
+        await _loadCompareResults();
+      }
     }
   }
 
