@@ -9,13 +9,13 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 class PrePostWidget extends StatefulWidget {
-  final int preId;   // ID record analisi PRE nel DB
-  final int postId;  // ID record analisi POST nel DB
+  final int? preId;   // ID record analisi PRE nel DB (può essere null)
+  final int? postId;  // ID record analisi POST nel DB (può essere null)
 
   const PrePostWidget({
     super.key,
-    required this.preId,
-    required this.postId,
+    this.preId,
+    this.postId,
   });
 
   @override
