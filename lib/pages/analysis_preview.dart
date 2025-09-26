@@ -267,6 +267,12 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("✅ Analisi $tipo completata")),
         );
+
+        // 🔹 Se siamo in modalità PRE/POST → torna indietro con il risultato
+        if (widget.mode == "prepost") {
+          Navigator.pop(context, result);
+          return;
+        }
       }
     }
 
