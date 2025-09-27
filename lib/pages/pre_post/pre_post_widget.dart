@@ -7,7 +7,6 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
-import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
@@ -68,7 +67,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
+  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -130,7 +129,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // usa filename univoco
+        preFile = file.uri.pathSegments.last;
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -277,9 +276,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
             const SizedBox(height: 20),
 
-            // === Debug sempre visibile ===
-            Text("DEBUG compareData: ${compareData.toString()}"),
-
             // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
@@ -294,18 +290,14 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar("Pre",
-                            (compareData!["macchie"]["perc_pre"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
                         _buildBar("Post",
-                            (compareData!["macchie"]["perc_post"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
                             "Differenza",
-                            (compareData!["macchie"]["perc_diff"] ?? 0.0)
-                                .abs()
-                                .toDouble(),
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
                             (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
                                 ? Colors.green
                                 : Colors.red),
@@ -329,18 +321,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar("Pre",
-                            (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
                         _buildBar("Post",
-                            (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
                             "Differenza",
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs()
-                                .toDouble(),
+                                .abs(),
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
                                     0
                                 ? Colors.green
