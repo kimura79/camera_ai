@@ -7,6 +7,7 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
@@ -67,7 +68,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
+  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -129,10 +130,39 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        // ⚡ usa nome locale come fallback (per PRE non c'è analisi)
-        preFile = file.uri.pathSegments.last;
       });
-      debugPrint("✅ Foto PRE caricata: ${file.path}");
+
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+
+      try {
+        final url = Uri.parse(
+            "http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
+
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
+
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            // fallback se non trovato
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
+          }
+        }
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
+        setState(() {
+          preFile = path.basename(file.path);
+        });
+      }
     }
   }
 
@@ -181,7 +211,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostFile != null) {
-          // ⚡ usa SEMPRE il filename restituito dal server
           setState(() {
             postFile = newPostFile;
           });
@@ -313,26 +342,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
-            ],
-
-            // 🔎 Debug info
-            Card(
-              margin: const EdgeInsets.all(12),
-              color: Colors.grey[200],
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("🔎 Debug info",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text("preFile: $preFile"),
-                    Text("postFile: $postFile"),
-                    Text("compareData: $compareData"),
-                  ],
-                ),
-              ),
-            ),
+            ]
           ],
         ),
       ),
