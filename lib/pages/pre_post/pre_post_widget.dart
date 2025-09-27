@@ -43,6 +43,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  // === Utility: conversione sicura a double ===
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return v.toDouble();
+    if (v is double) return v;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
@@ -129,7 +138,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
+        preFile = file.uri.pathSegments.last; // usa filename univoco
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -164,7 +173,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",   // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
@@ -289,25 +298,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar("Pre",
+                            _toDouble(compareData!["macchie"]["perc_pre"]),
+                            Colors.green),
+                        _buildBar("Post",
+                            _toDouble(compareData!["macchie"]["perc_post"]),
+                            Colors.blue),
                         _buildBar(
-                          "Pre",
-                          (compareData!["macchie"]["perc_pre"] as num?)?.toDouble() ?? 0.0,
-                          Colors.green,
-                        ),
-                        _buildBar(
-                          "Post",
-                          (compareData!["macchie"]["perc_post"] as num?)?.toDouble() ?? 0.0,
-                          Colors.blue,
-                        ),
-                        _buildBar(
-                          "Differenza",
-                          ((compareData!["macchie"]["perc_diff"] as num?)?.toDouble() ?? 0.0).abs(),
-                          ((compareData!["macchie"]["perc_diff"] as num?)?.toDouble() ?? 0.0) <= 0
-                              ? Colors.green
-                              : Colors.red,
-                        ),
-                        Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-                        Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                            "Differenza",
+                            _toDouble(compareData!["macchie"]["perc_diff"])
+                                .abs(),
+                            _toDouble(compareData!["macchie"]["perc_diff"]) <= 0
+                                ? Colors.green
+                                : Colors.red),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
                       ],
                     ),
                   ),
@@ -323,29 +330,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar("Pre",
+                            _toDouble(compareData!["pori"]["perc_pre_dilatati"]),
+                            Colors.green),
+                        _buildBar("Post",
+                            _toDouble(compareData!["pori"]["perc_post_dilatati"]),
+                            Colors.blue),
                         _buildBar(
-                          "Pre",
-                          (compareData!["pori"]["perc_pre_dilatati"] as num?)?.toDouble() ?? 0.0,
-                          Colors.green,
-                        ),
-                        _buildBar(
-                          "Post",
-                          (compareData!["pori"]["perc_post_dilatati"] as num?)?.toDouble() ?? 0.0,
-                          Colors.blue,
-                        ),
-                        _buildBar(
-                          "Differenza",
-                          ((compareData!["pori"]["perc_diff_dilatati"] as num?)?.toDouble() ?? 0.0).abs(),
-                          ((compareData!["pori"]["perc_diff_dilatati"] as num?)?.toDouble() ?? 0.0) <= 0
-                              ? Colors.green
-                              : Colors.red,
-                        ),
-                        Text("PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, "
-                            "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, "
-                            "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
-                        Text("POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, "
-                            "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, "
-                            "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
+                            "Differenza",
+                            _toDouble(compareData!["pori"]["perc_diff_dilatati"])
+                                .abs(),
+                            _toDouble(compareData!["pori"]["perc_diff_dilatati"]) <= 0
+                                ? Colors.green
+                                : Colors.red),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
                       ],
                     ),
                   ),
