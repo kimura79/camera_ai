@@ -136,8 +136,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
       try {
-        final url = Uri.parse(
-            "http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final url =
+            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
         final resp = await http.get(url);
 
         if (resp.statusCode == 200) {
@@ -150,6 +150,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
+            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -194,7 +195,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",
+            mode: "prepost", // il server userà prefix POST_
           ),
         ),
       );
@@ -216,6 +217,31 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           await _loadCompareResults();
         }
       }
+    }
+  }
+
+  // === Conferma per rifare la foto POST ===
+  Future<void> _confirmRetakePost() async {
+    final bool? retake = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Rifare la foto POST?"),
+        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annulla"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Rifai foto"),
+          ),
+        ],
+      ),
+    );
+
+    if (retake == true) {
+      await _capturePostImage();
     }
   }
 
@@ -263,7 +289,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: postImage == null ? _capturePostImage : null,
+              onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
                 width: boxSize,
                 height: boxSize,
@@ -301,12 +327,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
-                          "Differenza",
-                          (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
-                          (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
-                              ? Colors.green
-                              : Colors.red,
-                        ),
+                            "Differenza",
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
+                                ? Colors.green
+                                : Colors.red),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
                       ],
                     ),
                   ),
@@ -329,14 +358,17 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
-                          "Differenza",
-                          (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                              .abs(),
-                          (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                  0
-                              ? Colors.green
-                              : Colors.red,
-                        ),
+                            "Differenza",
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
+                                .abs(),
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
+                                    0
+                                ? Colors.green
+                                : Colors.red),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
                       ],
                     ),
                   ),
@@ -391,6 +423,25 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       await _controller!.setFlashMode(FlashMode.off);
     });
     if (mounted) setState(() {});
+  }
+
+  Future<void> _switchCamera() async {
+    if (widget.cameras.length < 2) return;
+
+    if (currentCamera.lensDirection == CameraLensDirection.front) {
+      final back = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = back;
+    } else {
+      final front = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = front;
+    }
+    await _initCamera();
   }
 
   @override
@@ -461,6 +512,88 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     child: Opacity(
                       opacity: 0.4,
                       child: Image.file(widget.guideImage, fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 25),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.image,
+                                  color: Colors.white, size: 26),
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _takePicture,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
+                                ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 6),
+                                  ),
+                                ),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 80),
+                                  width: _shooting ? 58 : 64,
+                                  height: _shooting ? 58 : 64,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
