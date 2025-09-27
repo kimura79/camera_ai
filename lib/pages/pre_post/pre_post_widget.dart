@@ -132,42 +132,35 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
       });
 
-      // 🔹 Estrai timestamp dal nome file
-      final base = path.basename(file.path);
-      final match = RegExp(r'(\d{10,})').firstMatch(base);
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
-      if (match != null) {
-        final ts = match.group(1);
-        try {
-          final url = Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
-          final resp = await http.get(url);
+      try {
+        final url = Uri.parse(
+            "http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
 
-          if (resp.statusCode == 200) {
-            final data = jsonDecode(resp.body);
-            final serverFilename = data["filename"];
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
 
-            if (serverFilename != null) {
-              setState(() {
-                preFile = serverFilename;
-              });
-              debugPrint("✅ PRE associato a record DB: $serverFilename");
-            } else {
-              setState(() {
-                preFile = base;
-              });
-              debugPrint("⚠️ PRE senza match DB, uso filename locale: $base");
-            }
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            // fallback se non trovato
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
           }
-        } catch (e) {
-          debugPrint("❌ Errore lookup PRE: $e");
-          setState(() {
-            preFile = base;
-          });
         }
-      } else {
-        debugPrint("⚠️ Nessun timestamp trovato in $base");
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
         setState(() {
-          preFile = base;
+          preFile = path.basename(file.path);
         });
       }
     }
