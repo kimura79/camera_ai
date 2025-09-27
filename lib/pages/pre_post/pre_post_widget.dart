@@ -43,15 +43,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Utility: conversione sicura a double ===
-  double _toDouble(dynamic v) {
-    if (v == null) return 0.0;
-    if (v is int) return v.toDouble();
-    if (v is double) return v;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0.0;
-  }
-
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
@@ -138,7 +129,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // usa filename univoco
+        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
       });
       debugPrint("✅ Foto PRE caricata: ${file.path}");
     }
@@ -173,7 +164,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",
+            mode: "prepost",   // il server userà prefix POST_
           ),
         ),
       );
@@ -299,16 +290,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar("Pre",
-                            _toDouble(compareData!["macchie"]["perc_pre"]),
+                            compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
                         _buildBar("Post",
-                            _toDouble(compareData!["macchie"]["perc_post"]),
+                            compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
                             "Differenza",
-                            _toDouble(compareData!["macchie"]["perc_diff"])
-                                .abs(),
-                            _toDouble(compareData!["macchie"]["perc_diff"]) <= 0
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
                                 ? Colors.green
                                 : Colors.red),
                         Text(
@@ -331,16 +321,17 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar("Pre",
-                            _toDouble(compareData!["pori"]["perc_pre_dilatati"]),
+                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
                         _buildBar("Post",
-                            _toDouble(compareData!["pori"]["perc_post_dilatati"]),
+                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
                             "Differenza",
-                            _toDouble(compareData!["pori"]["perc_diff_dilatati"])
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
                                 .abs(),
-                            _toDouble(compareData!["pori"]["perc_diff_dilatati"]) <= 0
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
+                                    0
                                 ? Colors.green
                                 : Colors.red),
                         Text(
@@ -351,6 +342,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
+
+              // === 🔍 DEBUG JSON COMPLETO ===
+              Card(
+                margin: const EdgeInsets.all(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("🔍 JSON ricevuto",
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(compareData.toString()),
+                    ],
+                  ),
+                ),
+              ),
             ]
           ],
         ),
