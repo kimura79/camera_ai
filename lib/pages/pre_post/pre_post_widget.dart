@@ -7,6 +7,7 @@ import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
@@ -67,7 +68,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria (SOLO CARICAMENTO, NO ANALISI) ===
+  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -129,9 +130,39 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preFile = file.uri.pathSegments.last; // ⬅️ usa filename univoco
       });
-      debugPrint("✅ Foto PRE caricata: ${file.path}");
+
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+
+      try {
+        final url = Uri.parse(
+            "http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
+
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
+
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            // fallback se non trovato
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
+          }
+        }
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
+        setState(() {
+          preFile = path.basename(file.path);
+        });
+      }
     }
   }
 
@@ -214,23 +245,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Widget barra percentuale ===
-  Widget _buildBar(String label, double value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("$label: ${value.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: value / 100,
-          backgroundColor: Colors.grey[300],
-          color: color,
-          minHeight: 12,
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
@@ -289,19 +303,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
-                            compareData!["macchie"]["perc_pre"] ?? 0.0,
-                            Colors.green),
-                        _buildBar("Post",
-                            compareData!["macchie"]["perc_post"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["macchie"]["perc_diff"] ?? 0.0)
-                                .abs(),
-                            (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
-                                ? Colors.green
-                                : Colors.red),
+                        Text(
+                            "Pre: ${compareData!["macchie"]["perc_pre"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["macchie"]["perc_post"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["macchie"]["perc_diff"]?.toStringAsFixed(2)}%"),
                         Text(
                             "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
                         Text(
@@ -321,20 +328,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
-                            Colors.green),
-                        _buildBar("Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                    0
-                                ? Colors.green
-                                : Colors.red),
+                        Text(
+                            "Pre: ${compareData!["pori"]["perc_pre_dilatati"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["pori"]["perc_post_dilatati"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["pori"]["perc_diff_dilatati"]?.toStringAsFixed(2)}%"),
                         Text(
                             "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
                         Text(
