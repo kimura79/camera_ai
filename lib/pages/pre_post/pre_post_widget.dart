@@ -68,7 +68,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria ===
+  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -132,11 +132,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
       });
 
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
       try {
-        final url =
-            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final url = Uri.parse(
+            "http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
         final resp = await http.get(url);
 
         if (resp.statusCode == 200) {
@@ -149,6 +150,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
+            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -164,7 +166,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera ===
+  // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +195,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
+            mode: "prepost",   // il server userà prefix POST_
           ),
         ),
       );
@@ -218,7 +220,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Conferma rifare POST ===
+  // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -241,94 +243,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (retake == true) {
       await _capturePostImage();
     }
-  }
-
-  // === Widget barre per macchie ===
-  Widget buildMacchieSection(Map<String, dynamic> data) {
-    final double pre = (data["perc_pre"] ?? 0).toDouble();
-    final double post = (data["perc_post"] ?? 0).toDouble();
-    final double diff = (data["perc_diff"] ?? 0).toDouble();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "📍 Macchie",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Text("Pre: ${pre.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: pre / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: Colors.blue,
-        ),
-        const SizedBox(height: 8),
-        Text("Post: ${post.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: post / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: Colors.orange,
-        ),
-        const SizedBox(height: 8),
-        Text("Differenza: ${diff.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: diff.abs() / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: diff < 0 ? Colors.green : Colors.red,
-        ),
-        const SizedBox(height: 8),
-        if (data["numero_macchie_pre"] != null &&
-            data["numero_macchie_post"] != null) ...[
-          Text("Numero PRE: ${data["numero_macchie_pre"]}"),
-          Text("Numero POST: ${data["numero_macchie_post"]}"),
-        ]
-      ],
-    );
-  }
-
-  // === Widget barre per pori dilatati ===
-  Widget buildPoriSection(Map<String, dynamic> data) {
-    final double pre = (data["perc_pre"] ?? 0).toDouble();
-    final double post = (data["perc_post"] ?? 0).toDouble();
-    final double diff = (data["perc_diff"] ?? 0).toDouble();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "📍 Pori dilatati",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Text("Pre: ${pre.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: pre / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: Colors.blue,
-        ),
-        const SizedBox(height: 8),
-        Text("Post: ${post.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: post / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: Colors.orange,
-        ),
-        const SizedBox(height: 8),
-        Text("Differenza: ${diff.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: diff.abs() / 100,
-          minHeight: 12,
-          backgroundColor: Colors.grey[300],
-          color: diff < 0 ? Colors.green : Colors.red,
-        ),
-      ],
-    );
   }
 
   @override
@@ -376,13 +290,31 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
             const SizedBox(height: 20),
 
+            // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: buildMacchieSection(compareData!["macchie"]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                            "Pre: ${compareData!["macchie"]["perc_pre"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["macchie"]["perc_post"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["macchie"]["perc_diff"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                      ],
+                    ),
                   ),
                 ),
               if (compareData!["pori"] != null)
@@ -390,7 +322,20 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   margin: const EdgeInsets.all(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: buildPoriSection(compareData!["pori"]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Pori dilatati",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                            "Pre: ${compareData!["pori"]["perc_pre"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Post: ${compareData!["pori"]["perc_post"]?.toStringAsFixed(2)}%"),
+                        Text(
+                            "Differenza: ${compareData!["pori"]["perc_diff"]?.toStringAsFixed(2)}%"),
+                      ],
+                    ),
                   ),
                 ),
             ]
