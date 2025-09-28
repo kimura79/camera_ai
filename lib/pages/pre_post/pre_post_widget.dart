@@ -133,8 +133,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       });
 
       // 🔹 Usa timestamp per cercare nel DB il filename corretto
-      final tsMs = file.lastModifiedSync().millisecondsSinceEpoch;
-      final ts = (tsMs / 1000).round(); // ✅ secondi come sul server
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
       try {
         final url =
@@ -151,6 +150,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
+            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -195,7 +195,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",
+            mode: "prepost", // il server userà prefix POST_
           ),
         ),
       );
@@ -345,7 +345,36 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   margin: const EdgeInsets.all(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: buildPoriSection(compareData!["pori"]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Pori dilatati (rossi)",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar("Pre",
+                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
+                            Colors.green),
+                        _buildBar("Post",
+                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
+                            Colors.blue),
+                        _buildBar(
+                            "Differenza",
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
+                                .abs(),
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
+                                    0
+                                ? Colors.green
+                                : Colors.red),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
+                      ],
+                    ),
                   ),
                 ),
             ]
@@ -582,26 +611,3 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     );
   }
 }
-
-// === Widget barre per pori dilatati ===
-Widget buildPoriSection(Map<String, dynamic> data) {
-  final double pre = (data["perc_pre_dilatati"] ?? 0).toDouble();
-  final double post = (data["perc_post_dilatati"] ?? 0).toDouble();
-  final double diff = (data["perc_diff_dilatati"] ?? 0).toDouble();
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        "📍 Pori dilatati",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
-      Text("Pre: ${pre.toStringAsFixed(2)}%"),
-      LinearProgressIndicator(
-        value: pre / 100,
-        minHeight: 12,
-        backgroundColor: Colors.grey[300],
-        color: Colors.blue,
-      ),
-      const Sized
