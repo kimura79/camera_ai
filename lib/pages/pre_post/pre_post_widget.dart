@@ -1,5 +1,3 @@
-Prepost
-
 import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
@@ -264,6 +262,53 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
   }
 
+  // === Widget barre per macchie ===
+  Widget buildMacchieSection(Map<String, dynamic> data) {
+    final double pre = (data["perc_pre"] ?? 0).toDouble();
+    final double post = (data["perc_post"] ?? 0).toDouble();
+    final double diff = (data["perc_diff"] ?? 0).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "📍 Macchie",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _buildBar("Pre", pre, Colors.green),
+        _buildBar("Post", post, Colors.blue),
+        _buildBar("Differenza", diff.abs(), diff <= 0 ? Colors.green : Colors.red),
+        if (data["numero_macchie_pre"] != null &&
+            data["numero_macchie_post"] != null) ...[
+          Text("Numero PRE: ${data["numero_macchie_pre"]}"),
+          Text("Numero POST: ${data["numero_macchie_post"]}"),
+        ]
+      ],
+    );
+  }
+
+  // === Widget barre per pori dilatati ===
+  Widget buildPoriSection(Map<String, dynamic> data) {
+    final double pre = (data["perc_pre"] ?? 0).toDouble();
+    final double post = (data["perc_post"] ?? 0).toDouble();
+    final double diff = (data["perc_diff"] ?? 0).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "📍 Pori dilatati",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _buildBar("Pre", pre, Colors.green),
+        _buildBar("Post", post, Colors.blue),
+        _buildBar("Differenza", diff.abs(), diff <= 0 ? Colors.green : Colors.red),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
@@ -316,30 +361,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   margin: const EdgeInsets.all(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("📊 Percentuali Macchie",
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
-                            compareData!["macchie"]["perc_pre"] ?? 0.0,
-                            Colors.green),
-                        _buildBar("Post",
-                            compareData!["macchie"]["perc_post"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
-                            (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
-                                ? Colors.green
-                                : Colors.red),
-                        Text(
-                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-                        Text(
-                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-                      ],
-                    ),
+                    child: buildMacchieSection(compareData!["macchie"]),
                   ),
                 ),
               if (compareData!["pori"] != null)
@@ -347,32 +369,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   margin: const EdgeInsets.all(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("📊 Percentuali Pori dilatati (rossi)",
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
-                            Colors.green),
-                        _buildBar("Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                    0
-                                ? Colors.green
-                                : Colors.red),
-                        Text(
-                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
-                        Text(
-                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
-                      ],
-                    ),
+                    child: buildPoriSection(compareData!["pori"]),
                   ),
                 ),
             ]
