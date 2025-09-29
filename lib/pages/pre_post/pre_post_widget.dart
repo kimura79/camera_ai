@@ -8,6 +8,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
+import 'package:custom_camera_component/pages/pre_post/hud_prepost.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
@@ -179,12 +180,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final firstCamera = cameras.first;
 
     final result = await Navigator.push<File?>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CameraOverlayPage(
-          cameras: cameras,
-          initialCamera: firstCamera,
-          guideImage: preImage!,
+    context,
+    MaterialPageRoute(
+    builder: (context) => HudPrePostPage(
+      preImage: preImage!, // 👈 passiamo immagine PRE come guida
         ),
       ),
     );
