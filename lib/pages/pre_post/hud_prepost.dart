@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
-import 'package:flutter/foundation.dart'; // ✅ Fix per WriteBuffer
+import 'package:mediapipe_face_mesh/mediapipe_face_mesh.dart'; // ✅ Mediapipe plugin
 
 class HudPrePostPage extends StatefulWidget {
   final CameraDescription camera;
@@ -23,25 +23,23 @@ class HudPrePostPage extends StatefulWidget {
 class _HudPrePostPageState extends State<HudPrePostPage> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
-  late FaceDetector _faceDetector;
 
-  bool _isDetecting = false;
+  List<Offset> _guidePoints = [];
+  List<Offset> _livePoints = [];
+
+  final FaceMeshDetector _faceMesh = FaceMeshDetector(
+    maxFaces: 1,
+    refineLandmarks: true,
+  );
+
   bool _shooting = false;
   double _alignmentScore = 0.0;
-
-  List<Offset> _livePoints = [];
-  List<Offset> _guidePoints = [];
-
-  List<CameraDescription> _cameras = [];
-  late CameraDescription _currentCamera;
 
   @override
   void initState() {
     super.initState();
-    _currentCamera = widget.camera;
-
     _controller = CameraController(
-      _currentCamera,
+      widget.camera,
       ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
@@ -52,17 +50,7 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       _controller.startImageStream(_processCameraImage);
     });
 
-    final options = FaceDetectorOptions(
-      enableLandmarks: true,
-    );
-    _faceDetector = FaceDetector(options: options);
-
     _loadGuideLandmarks();
-    _loadCameras();
-  }
-
-  Future<void> _loadCameras() async {
-    _cameras = await availableCameras();
   }
 
   Future<void> _loadGuideLandmarks() async {
@@ -70,95 +58,57 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final bytes = await widget.preImage.readAsBytes();
       final decoded = img.decodeImage(bytes);
       if (decoded != null) {
-        final w = decoded.width.toDouble();
-        final h = decoded.height.toDouble();
-        setState(() {
-          // Landmark guida simulati (occhi + naso) sulla foto PRE
-          _guidePoints = [
-            Offset(w * 0.35, h * 0.4), // occhio sx approx
-            Offset(w * 0.65, h * 0.4), // occhio dx approx
-            Offset(w * 0.5, h * 0.55), // naso approx
-          ];
-        });
+        final results = await _faceMesh.processImage(decoded);
+        if (results.isNotEmpty) {
+          setState(() {
+            _guidePoints =
+                _extractLandmarks(results.first, decoded.width, decoded.height);
+          });
+        }
       }
     } catch (e) {
-      debugPrint("Errore caricamento guida: $e");
+      debugPrint("Errore landmark PRE: $e");
     }
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    _faceDetector.close();
-    super.dispose();
+  List<Offset> _extractLandmarks(FaceMeshFace face, int w, int h) {
+    // stessi indici usati lato server
+    final ids = [33, 263, 1, 13, 14]; // sx occhio, dx occhio, naso, bocca sup, bocca inf
+    return ids.map((i) {
+      final lm = face.landmarks[i];
+      return Offset(lm.x * w, lm.y * h);
+    }).toList();
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
-    if (_isDetecting) return;
-    _isDetecting = true;
-
     try {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      final Size imageSize =
-          Size(image.width.toDouble(), image.height.toDouble());
-
-      final inputImage = InputImage.fromBytes(
-        bytes: bytes,
-        metadata: InputImageMetadata(
-          size: imageSize,
-          rotation: InputImageRotation.rotation0deg,
-          format: InputImageFormat.yuv420,
-          bytesPerRow: image.planes.first.bytesPerRow,
-        ),
-      );
-
-      final faces = await _faceDetector.processImage(inputImage);
-
-      if (faces.isNotEmpty) {
-        final face = faces.first;
-        final landmarks = face.landmarks;
-
-        final points = <Offset>[];
-        if (landmarks[FaceLandmarkType.leftEye] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.leftEye]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.leftEye]!.position.y.toDouble(),
-          ));
-        }
-        if (landmarks[FaceLandmarkType.rightEye] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.rightEye]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.rightEye]!.position.y.toDouble(),
-          ));
-        }
-        if (landmarks[FaceLandmarkType.noseBase] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.noseBase]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
-          ));
-        }
-
+      final results = await _faceMesh.processCameraImage(image);
+      if (results.isNotEmpty) {
+        final points =
+            _extractLandmarks(results.first, image.width, image.height);
         setState(() {
           _livePoints = points;
+          _alignmentScore = _computeAlignment(_guidePoints, _livePoints,
+              image.width.toDouble(), image.height.toDouble());
         });
-
-        // Calcolo punteggio semplice (centro bounding box)
-        final cx = face.boundingBox.center.dx / image.width;
-        final cy = face.boundingBox.center.dy / image.height;
-        final double distX = (cx - 0.5).abs();
-        final double distY = (cy - 0.5).abs();
-        _alignmentScore = (1.0 - (distX + distY)).clamp(0.0, 1.0);
       }
     } catch (e) {
-      debugPrint("Errore face detection: $e");
-    } finally {
-      _isDetecting = false;
+      debugPrint("Errore landmark live: $e");
     }
+  }
+
+  double _computeAlignment(
+      List<Offset> guide, List<Offset> live, double w, double h) {
+    if (guide.isEmpty || live.isEmpty || guide.length != live.length) return 0;
+
+    double distSum = 0;
+    for (int i = 0; i < guide.length; i++) {
+      final dx = (guide[i].dx / w) - (live[i].dx / w);
+      final dy = (guide[i].dy / h) - (live[i].dy / h);
+      distSum += math.sqrt(dx * dx + dy * dy);
+    }
+    final avgDist = distSum / guide.length;
+    return (1.0 - avgDist * 2).clamp(0.0, 1.0);
   }
 
   Future<void> _takePicture() async {
@@ -171,7 +121,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       if (!mounted) return;
 
       File file = File(image.path);
-
       final bytes = await file.readAsBytes();
       final decoded = img.decodeImage(bytes);
 
@@ -182,13 +131,10 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
         final y = (decoded.height - side) ~/ 2;
         img.Image cropped =
             img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-
         cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (_currentCamera.lensDirection == CameraLensDirection.front) {
+        if (widget.camera.lensDirection == CameraLensDirection.front) {
           cropped = img.flipHorizontal(cropped);
         }
-
         final outPath = "${file.path}_square.jpg";
         file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
       }
@@ -201,34 +147,11 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     }
   }
 
-  Future<void> _switchCamera() async {
-    if (_cameras.isEmpty) {
-      _cameras = await availableCameras();
-    }
-    if (_cameras.length < 2) return;
-
-    final newCamera = _currentCamera.lensDirection == CameraLensDirection.front
-        ? _cameras.firstWhere(
-            (c) => c.lensDirection == CameraLensDirection.back,
-            orElse: () => _cameras.first,
-          )
-        : _cameras.firstWhere(
-            (c) => c.lensDirection == CameraLensDirection.front,
-            orElse: () => _cameras.first,
-          );
-
-    _currentCamera = newCamera;
-
-    await _controller.dispose();
-    _controller = CameraController(
-      _currentCamera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
-    await _controller.initialize();
-    _controller.startImageStream(_processCameraImage);
-    setState(() {});
+  @override
+  void dispose() {
+    _controller.dispose();
+    _faceMesh.close();
+    super.dispose();
   }
 
   @override
@@ -281,72 +204,16 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.close,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
+                    child: GestureDetector(
+                      onTap: _takePicture,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
                         ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 86,
-                                  height: 86,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.10),
-                                  ),
-                                ),
-                                Container(
-                                  width: 78,
-                                  height: 78,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 32),
-                          child: GestureDetector(
-                            onTap: _switchCamera,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.cameraswitch,
-                                  color: Colors.white, size: 28),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -369,28 +236,14 @@ class LandmarkPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final redPaint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
+    final redPaint = Paint()..color = Colors.red;
+    final bluePaint = Paint()..color = Colors.blue;
 
-    final bluePaint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    // Punti guida (rossi)
     for (final p in guidePoints) {
       canvas.drawCircle(p, 6, redPaint);
     }
-
-    // Punti live (blu) + linee
     for (final p in livePoints) {
       canvas.drawCircle(p, 6, bluePaint);
-    }
-    if (livePoints.length >= 2) {
-      for (int i = 0; i < livePoints.length - 1; i++) {
-        canvas.drawLine(livePoints[i], livePoints[i + 1], bluePaint);
-      }
     }
   }
 
