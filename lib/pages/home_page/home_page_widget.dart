@@ -626,16 +626,20 @@ class _HomePageWidgetState extends State<HomePageWidget>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 👇 Immagine PRE in trasparenza (mostrata in volto + particolare)
-                if (widget.guideImage != null)
-                  Opacity(
-                    opacity: 0.4,
-                    child: Image.file(
-                      widget.guideImage!,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                    ),
-                  ),
+                // 👇 Immagine PRE in trasparenza (scalata come il riquadro)
+if (widget.guideImage != null)
+  SizedBox(
+    width: squareSize,
+    height: squareSize,
+    child: Opacity(
+      opacity: 0.4,
+      child: Image.file(
+        widget.guideImage!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
+    ),
+  ),
 
                 // 👇 Cornice verde/gialla
                 Container(
