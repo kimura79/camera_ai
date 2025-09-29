@@ -614,17 +614,35 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
         return Stack(
           children: [
-            Align(
-              alignment: const Alignment(0, -0.3),
-              child: Container(
-                width: squareSize,
-                height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: 4),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-            ),
+           Align(
+  alignment: const Alignment(0, -0.3),
+  child: Stack(
+    children: [
+      // 👇 Overlay PRE dentro il riquadro, solo se passi guideImage
+      if (widget.guideImage != null)
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(
+            widget.guideImage!,
+            width: squareSize,
+            height: squareSize,
+            fit: BoxFit.cover,
+          ),
+        ),
+
+      // 👇 Riquadro verde sopra
+      Container(
+        width: squareSize,
+        height: squareSize,
+        decoration: BoxDecoration(
+          border: Border.all(color: frameColor, width: 4),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    ],
+  ),
+),
+
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
