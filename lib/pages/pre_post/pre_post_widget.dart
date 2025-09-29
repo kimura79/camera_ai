@@ -164,23 +164,32 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-        final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostFile = analyzed["filename"] as String?;
+  final overlayPath = analyzed["overlay_path"] as String?;
+  final newPostFile = analyzed["filename"] as String?;
 
-        if (overlayPath != null) {
-          setState(() {
-            postImage = File(overlayPath);
-          });
-        }
-        if (newPostFile != null) {
-          setState(() {
-            postFile = newPostFile;
-          });
-          await _loadCompareResults();
-        }
-      }
+  if (overlayPath != null) {
+    setState(() {
+      postImage = File(overlayPath);
+    });
+    debugPrint("✅ Overlay POST salvato: $overlayPath");
+  }
+  if (newPostFile != null) {
+    setState(() {
+      postFile = newPostFile;
+    });
+    await _loadCompareResults();
+
+    // 👇 dopo analisi POST torna subito a pagina Pre/Post
+    if (mounted) {
+      Navigator.pop(context, {
+        "preFile": preFile,
+        "postFile": postFile,
+        "compareData": compareData,
+      });
     }
   }
+ } 
+}
 
   // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
