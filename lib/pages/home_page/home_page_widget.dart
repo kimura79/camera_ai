@@ -156,13 +156,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   bool get _scaleOkPart {
     if (_lastIpdPx <= 0) return false;
-
-    // Calcolo distanza stimata in cm per PARTICOLARE
     final mmPerPxAttuale = _ipdMm / _lastIpdPx;
     final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0; // stesso calcolo badge
-
-    // Verde solo se 11–13 cm
+    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
     return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
   }
 
@@ -204,7 +200,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.medium,
+      ResolutionPreset.max,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -244,7 +240,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 800) return; // meno fps → meno lag
+    if (now.difference(_lastProc).inMilliseconds < 300) return;
     _lastProc = now;
 
     final ctrl = _controller;
@@ -451,13 +447,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
         setState(() {});
 
         Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (_) => AnalysisPreview(
-      imagePath: newPath,
-      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-    ),
-  ),
-);
+          MaterialPageRoute(
+            builder: (_) => AnalysisPreview(
+              imagePath: newPath,
+              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+            ),
+          ),
+        );
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -554,7 +550,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
-   Widget _buildCameraPreview() {
+  Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
       return const Center(child: CircularProgressIndicator());
@@ -589,111 +585,97 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-      return LayoutBuilder(
-  builder: (context, constraints) {
-    final double screenW = constraints.maxWidth;
-    final double screenH = constraints.maxHeight;
-    final double shortSide = math.min(screenW, screenH);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double screenW = constraints.maxWidth;
+        final double screenH = constraints.maxHeight;
+        final double shortSide = math.min(screenW, screenH);
 
-    double squareSize;
-    if (_lastIpdPx > 0) {
-      final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-      final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-      squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
-    } else {
-      squareSize = shortSide * 0.70;
-    }
+        double squareSize;
+        if (_lastIpdPx > 0) {
+          final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+          final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
+        } else {
+          squareSize = shortSide * 0.70;
+        }
 
-    final Color frameColor = (_mode == CaptureMode.volto
-            ? _scaleOkVolto
-            : _scaleOkPart)
-        ? Colors.green
-        : Colors.yellow.withOpacity(0.95);
+        final Color frameColor = (_mode == CaptureMode.volto
+                ? _scaleOkVolto
+                : _scaleOkPart)
+            ? Colors.green
+            : Colors.yellow.withOpacity(0.95);
 
-    final double safeTop = MediaQuery.of(context).padding.top;
+        final double safeTop = MediaQuery.of(context).padding.top;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: preview),
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: preview),
 
-        // 👇 Riquadro + overlay guida PRE nello stesso Stack
-        Align(
-          alignment: const Alignment(0, -0.3),
-          child: SizedBox(
-            width: squareSize,
-            height: squareSize,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // 👇 Immagine PRE in trasparenza (scalata come il riquadro)
-if (widget.guideImage != null)
-  SizedBox(
-    width: squareSize,
-    height: squareSize,
-    child: Opacity(
-      opacity: 0.4,
-      child: Image.file(
-        widget.guideImage!,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-      ),
-    ),
-  ),
-
-                // 👇 Cornice verde/gialla
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: frameColor, width: 4),
-                    borderRadius: BorderRadius.circular(6),
+            // 👇 Overlay PRE dentro il riquadro (trasparente)
+            if (widget.guideImage != null)
+              Align(
+                alignment: const Alignment(0, -0.3),
+                child: SizedBox(
+                  width: squareSize,
+                  height: squareSize,
+                  child: Opacity(
+                    opacity: 0.4,
+                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
                   ),
                 ),
-              ],
+              ),
+
+            Align(
+              alignment: const Alignment(0, -0.3),
+              child: Container(
+                width: squareSize,
+                height: squareSize,
+                decoration: BoxDecoration(
+                  border: Border.all(color: frameColor, width: 4),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
             ),
-          ),
-        ),
 
-        // 👇 Overlay distanza cm
-        buildDistanzaCmOverlay(
-          ipdPx: _lastIpdPx,
-          ipdMm: _ipdMm,
-          targetMmPerPx: _targetMmPerPx,
-          alignY: -0.05,
-          mode: _mode,
-          isFrontCamera: isFront,
-        ),
-
-        // 👇 Livella orizzontale solo in volto
-        if (_mode == CaptureMode.volto)
-          Align(
-            alignment: const Alignment(0, -0.3),
-            child: _buildLivellaOrizzontale3Linee(
-              width: math.max(squareSize * 0.82, 300.0),
-              height: 62,
-              okThresholdDeg: 1.0,
+            buildDistanzaCmOverlay(
+              ipdPx: _lastIpdPx,
+              ipdMm: _ipdMm,
+              targetMmPerPx: _targetMmPerPx,
+              alignY: -0.05,
+              mode: _mode,
+              isFrontCamera: isFront,
             ),
-          ),
 
-        // 👇 Chip scala
-        Positioned(
-          top: safeTop + 8,
-          left: 0,
-          right: 0,
-          child: Center(child: _buildScaleChip()),
-        ),
+            if (_mode == CaptureMode.volto)
+              Align(
+                alignment: const Alignment(0, -0.3),
+                child: _buildLivellaOrizzontale3Linee(
+                  width: math.max(squareSize * 0.82, 300.0),
+                  height: 62,
+                  okThresholdDeg: 1.0,
+                ),
+              ),
 
-        // 👇 Selettore modalità
-        Positioned(
-          bottom: 180,
-          left: 0,
-          right: 0,
-          child: Center(child: _buildModeSelector()),
-        ),
-      ],
+            Positioned(
+              top: safeTop + 8,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildScaleChip()),
+            ),
+
+            Positioned(
+              bottom: 180,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildModeSelector()),
+            ),
+          ],
+        );
+      },
     );
-  },
-);
-}
+  }
 
   Widget _buildBottomBar() {
     final canShoot = _controller != null &&
