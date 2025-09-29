@@ -689,7 +689,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   },
 );
-
+}
 
   Widget _buildBottomBar() {
     final canShoot = _controller != null &&
