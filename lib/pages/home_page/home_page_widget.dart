@@ -589,7 +589,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-   return LayoutBuilder(
+      return LayoutBuilder(
   builder: (context, constraints) {
     final double screenW = constraints.maxWidth;
     final double screenH = constraints.maxHeight;
@@ -626,7 +626,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 👇 Immagine PRE in trasparenza
+                // 👇 Immagine PRE in trasparenza (mostrata in volto + particolare)
                 if (widget.guideImage != null)
                   Opacity(
                     opacity: 0.4,
@@ -689,6 +689,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   },
 );
+
 
   Widget _buildBottomBar() {
     final canShoot = _controller != null &&
