@@ -1,14 +1,22 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:image/image.dart' as img;
+import 'package:flutter/foundation.dart';
 
 class HudPrePostPage extends StatefulWidget {
-  final File preImage;
+  final List<CameraDescription> cameras;
+  final CameraDescription initialCamera;
+  final File guideImage;
 
-  const HudPrePostPage({super.key, required this.preImage});
+  const HudPrePostPage({
+    super.key,
+    required this.cameras,
+    required this.initialCamera,
+    required this.guideImage,
+  });
 
   @override
   State<HudPrePostPage> createState() => _HudPrePostPageState();
@@ -17,25 +25,146 @@ class HudPrePostPage extends StatefulWidget {
 class _HudPrePostPageState extends State<HudPrePostPage> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
+  late CameraDescription currentCamera;
   bool _shooting = false;
+  bool _autoShotDone = false;
 
-  List<Offset> _landmarksGuida = [];
-  List<Offset> _landmarksLive = [];
-  double _similarity = 0.0;
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableLandmarks: true,
+      enableClassification: false,
+    ),
+  );
 
-  late FaceDetector _faceDetector;
+  List<Offset> _landmarks = [];
 
   @override
   void initState() {
     super.initState();
-    _faceDetector = FaceDetector(
-      options: FaceDetectorOptions(
-        enableContours: true,
-        enableLandmarks: true,
-      ),
-    );
+    currentCamera = widget.initialCamera;
     _initCamera();
-    _estraiLandmarksGuida();
+  }
+
+  Future<void> _initCamera() async {
+    await _controller?.dispose();
+    _controller = CameraController(
+      currentCamera,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
+    _initializeControllerFuture = _controller!.initialize().then((_) async {
+      await _controller!.setFlashMode(FlashMode.off);
+      _controller!.startImageStream(_processCameraImage);
+    });
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _processCameraImage(CameraImage image) async {
+    if (_shooting || _autoShotDone) return;
+
+    try {
+      final WriteBuffer allBytes = WriteBuffer();
+      for (final Plane plane in image.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+      final bytes = allBytes.done().buffer.asUint8List();
+
+      final Size imageSize =
+          Size(image.width.toDouble(), image.height.toDouble());
+
+      final InputImageRotation rotation =
+          InputImageRotation.rotation0deg; // correzione manuale se serve
+      final InputImageFormat format =
+          InputImageFormatMethods.fromRawValue(image.format.raw) ??
+              InputImageFormat.nv21;
+
+      final inputImage = InputImage.fromBytes(
+        bytes: bytes,
+        metadata: InputImageMetadata(
+          size: imageSize,
+          rotation: rotation,
+          format: format,
+        ),
+      );
+
+      final List<Face> faces = await _faceDetector.processImage(inputImage);
+
+      if (faces.isNotEmpty) {
+        final face = faces.first;
+        final pts = <Offset>[];
+
+        if (face.landmarks.containsKey(FaceLandmarkType.leftEye)) {
+          pts.add(Offset(
+            face.landmarks[FaceLandmarkType.leftEye]!.position.x.toDouble(),
+            face.landmarks[FaceLandmarkType.leftEye]!.position.y.toDouble(),
+          ));
+        }
+        if (face.landmarks.containsKey(FaceLandmarkType.rightEye)) {
+          pts.add(Offset(
+            face.landmarks[FaceLandmarkType.rightEye]!.position.x.toDouble(),
+            face.landmarks[FaceLandmarkType.rightEye]!.position.y.toDouble(),
+          ));
+        }
+        if (face.landmarks.containsKey(FaceLandmarkType.noseBase)) {
+          pts.add(Offset(
+            face.landmarks[FaceLandmarkType.noseBase]!.position.x.toDouble(),
+            face.landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
+          ));
+        }
+        if (face.landmarks.containsKey(FaceLandmarkType.mouthBottom)) {
+          pts.add(Offset(
+            face.landmarks[FaceLandmarkType.mouthBottom]!.position.x.toDouble(),
+            face.landmarks[FaceLandmarkType.mouthBottom]!.position.y.toDouble(),
+          ));
+        }
+
+        setState(() {
+          _landmarks = pts;
+        });
+
+        // === SCATTO AUTOMATICO SE ALLINEAMENTO AL 98% ===
+        if (_calculateAlignmentScore(pts) >= 0.98) {
+          _autoShotDone = true;
+          await _takePicture();
+        }
+      } else {
+        setState(() {
+          _landmarks = [];
+        });
+      }
+    } catch (e) {
+      debugPrint("Errore processCameraImage: $e");
+    }
+  }
+
+  double _calculateAlignmentScore(List<Offset> pts) {
+    if (pts.length < 4) return 0.0;
+
+    // Calcola distanza media tra punti reali e "ideali"
+    // (per ora usiamo un placeholder molto semplice)
+    double idealDistance = 100.0;
+    double diff = pts.map((p) => p.distance).reduce((a, b) => a + b) /
+        pts.length; // fittizio
+
+    double score = max(0, 1 - (diff - idealDistance).abs() / idealDistance);
+    return score.clamp(0.0, 1.0);
+  }
+
+  Future<void> _takePicture() async {
+    try {
+      if (_shooting) return;
+      setState(() => _shooting = true);
+
+      await _initializeControllerFuture;
+      final image = await _controller!.takePicture();
+      if (!mounted) return;
+
+      Navigator.pop(context, File(image.path));
+    } catch (e) {
+      debugPrint("Errore scatto: $e");
+    } finally {
+      if (mounted) setState(() => _shooting = false);
+    }
   }
 
   @override
@@ -43,173 +172,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     _controller?.dispose();
     _faceDetector.close();
     super.dispose();
-  }
-
-  Future<void> _initCamera() async {
-    final cameras = await availableCameras();
-    final front = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.front,
-      orElse: () => cameras.first,
-    );
-    _controller = CameraController(
-      front,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
-    _initializeControllerFuture = _controller!.initialize().then((_) async {
-      await _controller!.setFlashMode(FlashMode.off);
-      _startStream();
-    });
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _estraiLandmarksGuida() async {
-    final image = InputImage.fromFile(widget.preImage);
-    final faces = await _faceDetector.processImage(image);
-    if (faces.isNotEmpty) {
-      final face = faces.first;
-      setState(() {
-        _landmarksGuida = _convertLandmarks(face, MediaQuery.of(context).size);
-      });
-    }
-  }
-
-  void _startStream() {
-    _controller!.startImageStream((image) async {
-      if (!mounted) return;
-      final inputImage = _toInputImage(image);
-      final faces = await _faceDetector.processImage(inputImage);
-      if (faces.isNotEmpty) {
-        final face = faces.first;
-        final live = _convertLandmarks(face, MediaQuery.of(context).size);
-
-        if (live.isNotEmpty && _landmarksGuida.isNotEmpty) {
-          final sim = _calcolaSimilarita(_landmarksGuida, live);
-          setState(() {
-            _landmarksLive = live;
-            _similarity = sim;
-          });
-
-          if (!_shooting && sim >= 0.98) {
-            _shooting = true;
-            _takePicture();
-          }
-        }
-      }
-    });
-  }
-
-  List<Offset> _convertLandmarks(Face face, Size screen) {
-    final List<Offset> pts = [];
-    if (face.landmarks.containsKey(FaceLandmarkType.leftEye)) {
-      pts.add(Offset(face.landmarks[FaceLandmarkType.leftEye]!.position.x,
-          face.landmarks[FaceLandmarkType.leftEye]!.position.y));
-    }
-    if (face.landmarks.containsKey(FaceLandmarkType.rightEye)) {
-      pts.add(Offset(face.landmarks[FaceLandmarkType.rightEye]!.position.x,
-          face.landmarks[FaceLandmarkType.rightEye]!.position.y));
-    }
-    if (face.landmarks.containsKey(FaceLandmarkType.noseBase)) {
-      pts.add(Offset(face.landmarks[FaceLandmarkType.noseBase]!.position.x,
-          face.landmarks[FaceLandmarkType.noseBase]!.position.y));
-    }
-    if (face.landmarks.containsKey(FaceLandmarkType.mouthLeft)) {
-      pts.add(Offset(face.landmarks[FaceLandmarkType.mouthLeft]!.position.x,
-          face.landmarks[FaceLandmarkType.mouthLeft]!.position.y));
-    }
-    if (face.landmarks.containsKey(FaceLandmarkType.mouthRight)) {
-      pts.add(Offset(face.landmarks[FaceLandmarkType.mouthRight]!.position.x,
-          face.landmarks[FaceLandmarkType.mouthRight]!.position.y));
-    }
-    return pts;
-  }
-
-  double _calcolaSimilarita(List<Offset> guida, List<Offset> live) {
-    if (guida.isEmpty || live.isEmpty || guida.length != live.length) return 0;
-    double sum = 0;
-    for (int i = 0; i < guida.length; i++) {
-      sum += (1 /
-          (1 + (guida[i] - live[i]).distance)); // distanza -> score inverso
-    }
-    return sum / guida.length; // normalizza
-  }
-
-  InputImage _toInputImage(CameraImage image) {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    final bytes = allBytes.done().buffer.asUint8List();
-
-    final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-
-    final camera = _controller!.description;
-    final imageRotation =
-        InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
-            InputImageRotation.rotation0deg;
-
-    final inputImageFormat =
-        InputImageFormatValue.fromRawValue(image.format.raw) ??
-            InputImageFormat.nv21;
-
-    final planeData = image.planes.map(
-      (Plane plane) {
-        return InputImagePlaneMetadata(
-          bytesPerRow: plane.bytesPerRow,
-          height: plane.height,
-          width: plane.width,
-        );
-      },
-    ).toList();
-
-    return InputImage.fromBytes(
-      bytes: bytes,
-      metadata: InputImageMetadata(
-        size: imageSize,
-        rotation: imageRotation,
-        format: inputImageFormat,
-        bytesPerRow: image.planes[0].bytesPerRow,
-        planeData: planeData,
-      ),
-    );
-  }
-
-  Future<void> _takePicture() async {
-    try {
-      await _initializeControllerFuture;
-      final image = await _controller!.takePicture();
-      if (!mounted) return;
-
-      File file = File(image.path);
-      final bytes = await file.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-
-      if (decoded != null) {
-        final side =
-            decoded.width < decoded.height ? decoded.width : decoded.height;
-        final x = (decoded.width - side) ~/ 2;
-        final y = (decoded.height - side) ~/ 2;
-        img.Image cropped =
-            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (_controller!.description.lensDirection ==
-            CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-
-        final outPath = "${file.path}_square.jpg";
-        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
-
-        Navigator.pop(context, file);
-      }
-    } catch (e) {
-      debugPrint("❌ Errore scatto automatico: $e");
-    } finally {
-      _shooting = false;
-    }
   }
 
   @override
@@ -225,21 +187,24 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
               children: [
                 CameraPreview(_controller!),
                 CustomPaint(
-                  painter: _HudPainter(
-                    guida: _landmarksGuida,
-                    live: _landmarksLive,
-                  ),
+                  painter: _HudPainter(_landmarks),
                   child: Container(),
                 ),
-                Positioned(
-                  top: 40,
-                  left: 20,
-                  child: Text(
-                    "Allineamento: ${(_similarity * 100).toStringAsFixed(1)}%",
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 25),
+                    child: GestureDetector(
+                      onTap: _takePicture,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -254,26 +219,26 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
 }
 
 class _HudPainter extends CustomPainter {
-  final List<Offset> guida;
-  final List<Offset> live;
+  final List<Offset> landmarks;
 
-  _HudPainter({required this.guida, required this.live});
+  _HudPainter(this.landmarks);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paintGuida = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
-
-    final paintLive = Paint()
+    final paint = Paint()
       ..color = Colors.green
-      ..style = PaintingStyle.fill;
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
 
-    for (final p in guida) {
-      canvas.drawCircle(p, 5, paintGuida);
+    for (final p in landmarks) {
+      canvas.drawCircle(p, 6, paint);
     }
-    for (final p in live) {
-      canvas.drawCircle(p, 5, paintLive);
+
+    if (landmarks.length >= 2) {
+      canvas.drawLine(landmarks[0], landmarks[1], paint); // occhi
+    }
+    if (landmarks.length >= 4) {
+      canvas.drawLine(landmarks[2], landmarks[3], paint); // naso-bocca
     }
   }
 
