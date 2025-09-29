@@ -293,7 +293,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             "id": result["id"],
             "filename": result["filename"],
           });
-          return; // 👈 fermiamo subito qui
+          return; // 👈 qui forziamo la chiusura della pagina
         }
       }
     }
