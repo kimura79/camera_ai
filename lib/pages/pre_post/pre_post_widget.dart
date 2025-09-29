@@ -184,7 +184,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       MaterialPageRoute(
         builder: (context) => HudPrePostPage(
           camera: firstCamera,
-          preImage: preImage!.path, // 👈 fix: passo path stringa
+          preImage: preImage!,
         ),
       ),
     );
