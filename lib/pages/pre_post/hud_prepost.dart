@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:flutter/foundation.dart'; // 🔹 Serve per WriteBuffer
+import 'package:image/image.dart' as img;
 
 class HudPrePostPage extends StatefulWidget {
   final CameraDescription camera;
@@ -29,12 +29,19 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
   bool _shooting = false;
   double _alignmentScore = 0.0;
 
+  List<Offset> _livePoints = [];
+  List<Offset> _guidePoints = [];
+
+  List<CameraDescription> _cameras = [];
+  late CameraDescription _currentCamera;
+
   @override
   void initState() {
     super.initState();
+    _currentCamera = widget.camera;
 
     _controller = CameraController(
-      widget.camera,
+      _currentCamera,
       ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
@@ -45,12 +52,43 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       _controller.startImageStream(_processCameraImage);
     });
 
-    // 🔹 Configura FaceDetector
+    // Configura FaceDetector
     final options = FaceDetectorOptions(
       enableContours: true,
       enableLandmarks: true,
     );
     _faceDetector = FaceDetector(options: options);
+
+    _loadGuideLandmarks();
+    _loadCameras();
+  }
+
+  Future<void> _loadCameras() async {
+    _cameras = await availableCameras();
+  }
+
+  Future<void> _loadGuideLandmarks() async {
+    // carichiamo l’immagine guida PRE per estrarre landmark (simulati)
+    try {
+      final bytes = await widget.preImage.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        // prendiamo landmark fittizi al centro (puoi sostituire con vera estrazione MLKit se vuoi)
+        final w = decoded.width.toDouble();
+        final h = decoded.height.toDouble();
+        setState(() {
+          _guidePoints = [
+            Offset(w * 0.3, h * 0.4), // occhio sx
+            Offset(w * 0.7, h * 0.4), // occhio dx
+            Offset(w * 0.5, h * 0.55), // naso
+            Offset(w * 0.4, h * 0.7), // bocca sx
+            Offset(w * 0.6, h * 0.7), // bocca dx
+          ];
+        });
+      }
+    } catch (e) {
+      debugPrint("Errore caricamento guida: $e");
+    }
   }
 
   @override
@@ -65,7 +103,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     _isDetecting = true;
 
     try {
-      // 🔹 Converte CameraImage → InputImage
       final WriteBuffer allBytes = WriteBuffer();
       for (final Plane plane in image.planes) {
         allBytes.putUint8List(plane.bytes);
@@ -75,11 +112,9 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final Size imageSize =
           Size(image.width.toDouble(), image.height.toDouble());
 
-      final InputImageRotation rotation =
-          InputImageRotation.rotation0deg; // TODO: calcolare da sensorOrientation se serve
-
+      final InputImageRotation rotation = InputImageRotation.rotation0deg;
       final InputImageFormat format =
-          InputImageFormatValue.fromRawValue(image.format.raw) ??
+          InputImageFormatMethods.fromRawValue(image.format.raw) ??
               InputImageFormat.nv21;
 
       final inputImage = InputImage.fromBytes(
@@ -95,25 +130,56 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final faces = await _faceDetector.processImage(inputImage);
 
       if (faces.isNotEmpty) {
-        // 🔹 Calcolo punteggio di allineamento (es. occhi/naso in posizione centrale)
         final face = faces.first;
-        final boundingBox = face.boundingBox;
+        final landmarks = face.landmarks;
 
-        final cx = boundingBox.center.dx / image.width;
-        final cy = boundingBox.center.dy / image.height;
+        final points = <Offset>[];
+        if (landmarks[FaceLandmarkType.leftEye] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.leftEye]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.leftEye]!.position.y.toDouble(),
+          ));
+        }
+        if (landmarks[FaceLandmarkType.rightEye] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.rightEye]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.rightEye]!.position.y.toDouble(),
+          ));
+        }
+        if (landmarks[FaceLandmarkType.noseBase] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.noseBase]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
+          ));
+        }
+        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
+          ));
+        }
+        if (landmarks[FaceLandmarkType.mouthRight] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
+          ));
+        }
 
+        setState(() {
+          _livePoints = points;
+        });
+
+        // calcolo semplice allineamento: confronto con centro
+        final cx = face.boundingBox.center.dx / image.width;
+        final cy = face.boundingBox.center.dy / image.height;
         final double distX = (cx - 0.5).abs();
         final double distY = (cy - 0.5).abs();
-
-        // punteggio semplice: più vicino al centro → più alto
         _alignmentScore = (1.0 - (distX + distY)).clamp(0.0, 1.0);
 
         if (_alignmentScore > 0.98 && !_shooting) {
           _shooting = true;
           await _takePicture();
         }
-
-        setState(() {});
       }
     } catch (e) {
       debugPrint("Errore face detection: $e");
@@ -133,6 +199,37 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     }
   }
 
+  Future<void> _switchCamera() async {
+    if (_cameras.isEmpty) {
+      _cameras = await availableCameras();
+    }
+
+    if (_cameras.length < 2) return;
+
+    final newCamera = _currentCamera.lensDirection == CameraLensDirection.front
+        ? _cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.back,
+            orElse: () => _cameras.first,
+          )
+        : _cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.front,
+            orElse: () => _cameras.first,
+          );
+
+    _currentCamera = newCamera;
+
+    await _controller.dispose();
+    _controller = CameraController(
+      _currentCamera,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420,
+    );
+    await _controller.initialize();
+    _controller.startImageStream(_processCameraImage);
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final double screenW = MediaQuery.of(context).size.width;
@@ -144,9 +241,10 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
             return Stack(
+              alignment: Alignment.center,
               children: [
                 CameraPreview(_controller),
-                // 🔹 Overlay con immagine guida (semi-trasparente)
+                // Overlay guida trasparente
                 Center(
                   child: SizedBox(
                     width: screenW,
@@ -157,7 +255,15 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                     ),
                   ),
                 ),
-                // 🔹 HUD con punteggio
+                // Cerchietti rossi su guida
+                CustomPaint(
+                  painter: LandmarkPainter(
+                    guidePoints: _guidePoints,
+                    livePoints: _livePoints,
+                  ),
+                  size: Size.infinite,
+                ),
+                // Punteggio
                 Positioned(
                   top: 50,
                   left: 0,
@@ -173,6 +279,80 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                     ),
                   ),
                 ),
+                // Pulsanti in basso
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 25),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 26),
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _takePicture,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
+                                ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             );
           } else {
@@ -182,4 +362,38 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       ),
     );
   }
+}
+
+class LandmarkPainter extends CustomPainter {
+  final List<Offset> guidePoints;
+  final List<Offset> livePoints;
+
+  LandmarkPainter({required this.guidePoints, required this.livePoints});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final redPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill;
+
+    final greenPaint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    // cerchi rossi su guida
+    for (final p in guidePoints) {
+      canvas.drawCircle(p, 6, redPaint);
+    }
+
+    // linee verdi tra punti live
+    if (livePoints.length >= 5) {
+      for (int i = 0; i < livePoints.length - 1; i++) {
+        canvas.drawLine(livePoints[i], livePoints[i + 1], greenPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
