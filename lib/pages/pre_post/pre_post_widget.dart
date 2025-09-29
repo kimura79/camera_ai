@@ -12,54 +12,10 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
+import 'level.dart';        // livella orizzontale stile iOS
+import 'distanza.dart';    // overlay distanza cm
 
 enum CaptureMode { volto, particolare }
-
-// === Overlay distanza cm (uguale alla fotocamera PRE) ===
-Widget buildDistanzaCmOverlay({
-  required double ipdPx,
-  required bool isFrontCamera,
-  double ipdMm = 63.0,
-  double targetMmPerPx = 0.117,
-  double alignY = 0.0,
-  CaptureMode mode = CaptureMode.volto,
-}) {
-  String testo;
-  Color borderColor = Colors.yellow;
-
-  if (ipdPx <= 0 || !ipdPx.isFinite) {
-    testo = '— cm';
-  } else {
-    final mmPerPxAttuale = ipdMm / ipdPx;
-    final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
-    if (distCm > 5 && distCm < 100) {
-      testo = '${distCm.toStringAsFixed(1)} cm';
-    } else {
-      testo = '— cm';
-    }
-    borderColor = ((distCm - 30).abs() < 2) ? Colors.green : Colors.yellow;
-  }
-
-  return Align(
-    alignment: Alignment.center,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: 2.0),
-      ),
-      child: Text(
-        testo,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
-  );
-}
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;
@@ -110,13 +66,22 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE ===
+  // === Seleziona PRE dalla galleria (identico al file allegato) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
-    if (!ps.isAuth) return;
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
+    if (!ps.isAuth) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Permesso galleria negato")),
+      );
+      return;
+    }
+
+    final List<AssetPathEntity> paths =
+        await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
-    final media = await paths.first.getAssetListPaged(page: 0, size: 100);
+
+    final List<AssetEntity> media =
+        await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final file = await showDialog<File?>(
@@ -163,13 +128,37 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preAngle = 0.0;
-        preDistance = 30.0;
       });
+
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+      try {
+        final url =
+            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
+
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+          }
+        }
+      } catch (e) {
+        setState(() {
+          preFile = path.basename(file.path);
+        });
+      }
     }
   }
 
-  // === Scatta POST ===
+  // === Scatta POST (identico al file allegato) ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -290,7 +279,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === CameraOverlayPage (stile identico alla fotocamera PRE) ===
+// === CameraOverlayPage (stile identico a PRE + valori PRE) ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -316,10 +305,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   Future<void>? _initializeControllerFuture;
   late CameraDescription currentCamera;
   bool _shooting = false;
-
-  double _lastIpdPx = 0.0;
-  double _ipdMm = 63.0;
-  final double _targetMmPerPx = 0.117;
 
   @override
   void initState() {
@@ -398,33 +383,23 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // Quadrato giallo 1:1
-                Align(
-                  alignment: const Alignment(0, -0.3),
-                  child: Container(
-                    width: min(300, screenW * 0.8),
-                    height: min(300, screenW * 0.8),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.yellow, width: 4),
-                    ),
-                  ),
-                ),
-
-                // Livella verticale
-                buildLivellaVerticaleOverlay(),
-
-                // Distanza cm attuale
+                // Quadrato giallo con distanza cm dentro
                 buildDistanzaCmOverlay(
-                  ipdPx: _lastIpdPx,
-                  ipdMm: _ipdMm,
-                  targetMmPerPx: _targetMmPerPx,
-                  alignY: 0.0,
+                  ipdPx: 100.0, // placeholder: qui devi passare ipd reale
+                  ipdMm: 63.0,
+                  targetMmPerPx: 0.117,
                   isFrontCamera:
                       currentCamera.lensDirection == CameraLensDirection.front,
                   mode: CaptureMode.volto,
                 ),
 
-                // Valori PRE
+                // Livella verticale
+                buildLivellaVerticaleOverlay(),
+
+                // Livella orizzontale
+                const LevelGuide(),
+
+                // Valori PRE in alto a sinistra
                 if (widget.preAngle != null && widget.preDistance != null)
                   Positioned(
                     top: 40,
@@ -446,7 +421,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     ),
                   ),
 
-                // Pulsanti in basso
+                // Pulsanti
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
