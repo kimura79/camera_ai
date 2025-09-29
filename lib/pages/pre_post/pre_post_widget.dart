@@ -178,15 +178,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             postFile = newPostFile;
           });
           await _loadCompareResults();
-
-          // 👇 dopo analisi POST torna subito a pagina Pre/Post
-          if (mounted) {
-            Navigator.pop(context, {
-              "preFile": preFile,
-              "postFile": postFile,
-              "compareData": compareData,
-            });
-          }
         }
       }
     }
@@ -292,10 +283,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                       ],
@@ -313,10 +306,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                       ],
