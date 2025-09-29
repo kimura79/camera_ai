@@ -112,7 +112,12 @@ class AnalysisResultsPage extends StatelessWidget {
 }
 
 class HomePageWidget extends StatefulWidget {
-  const HomePageWidget({super.key});
+  final File? guideImage; // 👈 aggiunto
+
+  const HomePageWidget({
+    super.key,
+    this.guideImage, // 👈 aggiunto
+  });
 
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
@@ -150,16 +155,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
   double get _targetPxPart => _targetMmPart / _targetMmPerPx;
 
   bool get _scaleOkPart {
-  if (_lastIpdPx <= 0) return false;
-
-  // Calcolo distanza stimata in cm per PARTICOLARE
-  final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0; // stesso calcolo badge
-
-  // Verde solo se 11–13 cm
-  return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
- }
+    if (_lastIpdPx <= 0) return false;
+    final mmPerPxAttuale = _ipdMm / _lastIpdPx;
+    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+    return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
+  }
 
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
@@ -446,13 +447,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
         setState(() {});
 
         Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (_) => AnalysisPreview(
-      imagePath: newPath,
-      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-    ),
-  ),
-);
+          MaterialPageRoute(
+            builder: (_) => AnalysisPreview(
+              imagePath: newPath,
+              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+            ),
+          ),
+        );
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -584,7 +585,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-    Widget overlay = LayoutBuilder(
+    return LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
@@ -596,7 +597,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70; // dimensione stabile se non trova pupille
+          squareSize = shortSide * 0.70;
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -608,7 +609,24 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double safeTop = MediaQuery.of(context).padding.top;
 
         return Stack(
+          fit: StackFit.expand,
           children: [
+            Positioned.fill(child: preview),
+
+            // 👇 Overlay PRE dentro il riquadro (trasparente)
+            if (widget.guideImage != null)
+              Align(
+                alignment: const Alignment(0, -0.3),
+                child: SizedBox(
+                  width: squareSize,
+                  height: squareSize,
+                  child: Opacity(
+                    opacity: 0.4,
+                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -620,14 +638,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
+
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
               mode: _mode,
-              isFrontCamera: isFront, // 👈 aggiunto qui
+              isFrontCamera: isFront,
             ),
+
             if (_mode == CaptureMode.volto)
               Align(
                 alignment: const Alignment(0, -0.3),
@@ -637,12 +657,14 @@ class _HomePageWidgetState extends State<HomePageWidget>
                   okThresholdDeg: 1.0,
                 ),
               ),
+
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
+
             Positioned(
               bottom: 180,
               left: 0,
@@ -652,14 +674,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
           ],
         );
       },
-    );
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: preview),
-        Positioned.fill(child: overlay),
-      ],
     );
   }
 
