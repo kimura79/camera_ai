@@ -204,7 +204,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.max,
+      ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -244,7 +244,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
+    if (now.difference(_lastProc).inMilliseconds < 800) return; // meno fps → meno lag
     _lastProc = now;
 
     final ctrl = _controller;
@@ -618,18 +618,23 @@ class _HomePageWidgetState extends State<HomePageWidget>
             Positioned.fill(child: preview),
 
             // 👇 Overlay PRE dentro il riquadro (trasparente)
-            if (widget.guideImage != null)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: SizedBox(
-                  width: squareSize,
-                  height: squareSize,
-                  child: Opacity(
-                    opacity: 0.4,
-                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
-                  ),
-                ),
-              ),
+if (widget.guideImage != null)
+  Align(
+    alignment: const Alignment(0, -0.3), // stessa posizione del riquadro
+    child: IgnorePointer( // 👉 così non blocca il tap sullo scatto
+      child: SizedBox(
+        width: squareSize,
+        height: squareSize,
+        child: Opacity(
+          opacity: 0.4,
+          child: Image.file(
+            widget.guideImage!,
+            fit: BoxFit.cover, // 👈 mantiene proporzioni corrette
+          ),
+        ),
+      ),
+    ),
+  ),
 
             // 👇 Riquadro verde/giallo
             Align(
