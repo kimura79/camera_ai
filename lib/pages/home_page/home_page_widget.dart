@@ -447,13 +447,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
         setState(() {});
 
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AnalysisPreview(
-              imagePath: newPath,
-              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-            ),
-          ),
-        );
+  MaterialPageRoute(
+    builder: (_) => AnalysisPreview(
+      imagePath: newPath,
+      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+    ),
+  ),
+).then((analyzed) {
+  if (analyzed != null) {
+    // 🔴 IMPORTANTE: torna indietro a PrePostWidget con i dati dell’analisi
+    Navigator.pop(context, analyzed);
+  }
+});
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
