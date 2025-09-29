@@ -57,10 +57,10 @@ class CameraSplashPage extends StatelessWidget {
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(220, 55),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero, // 🔹 angoli squadrati
                     ),
-                    elevation: 4,
+                    elevation: 0, // 🔹 nessuna ombra
                   ),
                   child: const Text(
                     "Fotocamera",
@@ -87,10 +87,10 @@ class CameraSplashPage extends StatelessWidget {
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(220, 55),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero, // 🔹 angoli squadrati
                     ),
-                    elevation: 4,
+                    elevation: 0, // 🔹 nessuna ombra
                   ),
                   child: const Text(
                     "Pre/Post",
