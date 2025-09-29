@@ -14,8 +14,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../analysis_preview.dart';
 import '../level_guide.dart';           // livella orizzontale stile iOS
 import '../distanza_cm_overlay.dart';  // overlay distanza cm
-
-enum CaptureMode { volto, particolare }
+import '../home_page/home_page_widget.dart' show CaptureMode; // enum originale
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;
@@ -66,7 +65,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE (identico al file allegato) ===
+  // === Seleziona PRE ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -157,7 +156,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST (identico al file allegato) ===
+  // === Scatta POST ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -382,9 +381,9 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // Quadrato giallo con distanza cm dentro (usa la stessa funzione della PRE)
+                // Quadrato giallo con distanza cm dentro
                 buildDistanzaCmOverlay(
-                  ipdPx: 0, // ⚠️ qui la funzione interna calcola già il valore reale
+                  ipdPx: 0,
                   ipdMm: 63.0,
                   targetMmPerPx: 0.117,
                   isFrontCamera:
@@ -398,7 +397,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                 // Livella orizzontale
                 const LevelGuide(),
 
-                // Valori PRE in alto a sinistra
+                // Valori PRE
                 if (widget.preAngle != null && widget.preDistance != null)
                   Positioned(
                     top: 40,
