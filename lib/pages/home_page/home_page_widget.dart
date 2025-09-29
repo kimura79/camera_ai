@@ -589,106 +589,106 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
-        final double screenH = constraints.maxHeight;
-        final double shortSide = math.min(screenW, screenH);
+   return LayoutBuilder(
+  builder: (context, constraints) {
+    final double screenW = constraints.maxWidth;
+    final double screenH = constraints.maxHeight;
+    final double shortSide = math.min(screenW, screenH);
 
-        double squareSize;
-        if (_lastIpdPx > 0) {
-          final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-          final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
-        } else {
-          squareSize = shortSide * 0.70; // dimensione stabile se non trova pupille
-        }
+    double squareSize;
+    if (_lastIpdPx > 0) {
+      final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+      final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+      squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
+    } else {
+      squareSize = shortSide * 0.70;
+    }
 
-        final Color frameColor = (_mode == CaptureMode.volto
-                ? _scaleOkVolto
-                : _scaleOkPart)
-            ? Colors.green
-            : Colors.yellow.withOpacity(0.95);
+    final Color frameColor = (_mode == CaptureMode.volto
+            ? _scaleOkVolto
+            : _scaleOkPart)
+        ? Colors.green
+        : Colors.yellow.withOpacity(0.95);
 
-        final double safeTop = MediaQuery.of(context).padding.top;
+    final double safeTop = MediaQuery.of(context).padding.top;
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: preview),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(child: preview),
 
-            // 👇 Overlay PRE dentro il riquadro (segue squareSize)
-if (widget.guideImage != null)
-  Align(
-    alignment: const Alignment(0, -0.3), // stessa posizione del riquadro
-    child: SizedBox(
-      width: squareSize, // 👈 ricalcolato ogni frame
-      height: squareSize,
-      child: Opacity(
-        opacity: 0.4,
-        child: Image.file(
-          widget.guideImage!,
-          fit: BoxFit.cover,
-          gaplessPlayback: true, // 👈 evita flicker nei rebuild
+        // 👇 Riquadro + overlay guida PRE nello stesso Stack
+        Align(
+          alignment: const Alignment(0, -0.3),
+          child: SizedBox(
+            width: squareSize,
+            height: squareSize,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 👇 Immagine PRE in trasparenza
+                if (widget.guideImage != null)
+                  Opacity(
+                    opacity: 0.4,
+                    child: Image.file(
+                      widget.guideImage!,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+
+                // 👇 Cornice verde/gialla
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: frameColor, width: 4),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-    ),
-  ),
 
-            // 👇 Riquadro verde/giallo
-            Align(
-              alignment: const Alignment(0, -0.3),
-              child: Container(
-                width: squareSize,
-                height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: 4),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+        // 👇 Overlay distanza cm
+        buildDistanzaCmOverlay(
+          ipdPx: _lastIpdPx,
+          ipdMm: _ipdMm,
+          targetMmPerPx: _targetMmPerPx,
+          alignY: -0.05,
+          mode: _mode,
+          isFrontCamera: isFront,
+        ),
+
+        // 👇 Livella orizzontale solo in volto
+        if (_mode == CaptureMode.volto)
+          Align(
+            alignment: const Alignment(0, -0.3),
+            child: _buildLivellaOrizzontale3Linee(
+              width: math.max(squareSize * 0.82, 300.0),
+              height: 62,
+              okThresholdDeg: 1.0,
             ),
+          ),
 
-            // 👇 Overlay distanza cm
-            buildDistanzaCmOverlay(
-              ipdPx: _lastIpdPx,
-              ipdMm: _ipdMm,
-              targetMmPerPx: _targetMmPerPx,
-              alignY: -0.05,
-              mode: _mode,
-              isFrontCamera: isFront,
-            ),
+        // 👇 Chip scala
+        Positioned(
+          top: safeTop + 8,
+          left: 0,
+          right: 0,
+          child: Center(child: _buildScaleChip()),
+        ),
 
-            // 👇 Livella orizzontale solo in volto
-            if (_mode == CaptureMode.volto)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: _buildLivellaOrizzontale3Linee(
-                  width: math.max(squareSize * 0.82, 300.0),
-                  height: 62,
-                  okThresholdDeg: 1.0,
-                ),
-              ),
-
-            // 👇 Chip scala
-            Positioned(
-              top: safeTop + 8,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildScaleChip()),
-            ),
-
-            // 👇 Selettore modalità
-            Positioned(
-              bottom: 180,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildModeSelector()),
-            ),
-          ],
-        );
-      },
+        // 👇 Selettore modalità
+        Positioned(
+          bottom: 180,
+          left: 0,
+          right: 0,
+          child: Center(child: _buildModeSelector()),
+        ),
+      ],
     );
-  }
+  },
+);
 
   Widget _buildBottomBar() {
     final canShoot = _controller != null &&
