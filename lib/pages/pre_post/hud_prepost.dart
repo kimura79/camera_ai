@@ -53,7 +53,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       _controller.startImageStream(_processCameraImage);
     });
 
-    // Configura FaceDetector
     final options = FaceDetectorOptions(
       enableContours: true,
       enableLandmarks: true,
@@ -77,10 +76,11 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
         final h = decoded.height.toDouble();
         setState(() {
           _guidePoints = [
-            Offset(w * 0.3, h * 0.4), // occhio sx
-            Offset(w * 0.7, h * 0.4), // occhio dx
-            Offset(w * 0.5, h * 0.55), // naso
-            Offset(w * 0.5, h * 0.7), // bocca (centro)
+            Offset(w * 0.3, h * 0.4),
+            Offset(w * 0.7, h * 0.4),
+            Offset(w * 0.5, h * 0.55),
+            Offset(w * 0.4, h * 0.7),
+            Offset(w * 0.6, h * 0.7),
           ];
         });
       }
@@ -110,15 +110,12 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final Size imageSize =
           Size(image.width.toDouble(), image.height.toDouble());
 
-      final InputImageRotation rotation = InputImageRotation.rotation0deg;
-      final InputImageFormat format = InputImageFormat.yuv420;
-
       final inputImage = InputImage.fromBytes(
         bytes: bytes,
         metadata: InputImageMetadata(
           size: imageSize,
-          rotation: rotation,
-          format: format,
+          rotation: InputImageRotation.rotation0deg,
+          format: InputImageFormat.yuv420,
           bytesPerRow: image.planes.first.bytesPerRow,
         ),
       );
@@ -148,10 +145,16 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.mouthBottom] != null) {
+        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.mouthBottom]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthBottom]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
+          ));
+        }
+        if (landmarks[FaceLandmarkType.mouthRight] != null) {
+          points.add(Offset(
+            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
           ));
         }
 
@@ -365,12 +368,10 @@ class LandmarkPainter extends CustomPainter {
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
-    // cerchi rossi guida
     for (final p in guidePoints) {
       canvas.drawCircle(p, 6, redPaint);
     }
 
-    // linee verdi live
     if (livePoints.length >= 2) {
       for (int i = 0; i < livePoints.length - 1; i++) {
         canvas.drawLine(livePoints[i], livePoints[i + 1], greenPaint);
