@@ -13,7 +13,6 @@ import 'package:sensors_plus/sensors_plus.dart';
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
 
-// === ENUM per modalità ===
 enum CaptureMode { volto, particolare }
 
 // === Overlay distanza cm (da distanza.txt) ===
@@ -98,7 +97,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   String? preFile;
   String? postFile;
 
-  // 🔹 Variabili PRE
   double? preAngle;
   double? preDistance;
 
@@ -112,7 +110,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Carica comparazione ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) return;
     final url = Uri.parse(
@@ -127,11 +124,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE ===
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) return;
-
     final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
     final media = await paths.first.getAssetListPaged(page: 0, size: 100);
@@ -181,8 +177,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preAngle = 0.0; // placeholder, in reale da sensore
-        preDistance = 30.0; // placeholder, in reale da distanza overlay
+        preAngle = 0.0;     // in reale da sensore
+        preDistance = 30.0; // in reale da overlay distanza
       });
     }
   }
@@ -229,6 +225,30 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  // === Conferma rifare POST ===
+  Future<void> _confirmRetakePost() async {
+    final bool? retake = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Rifare la foto POST?"),
+        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annulla"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Rifai foto"),
+          ),
+        ],
+      ),
+    );
+    if (retake == true) {
+      await _capturePostImage();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
@@ -252,7 +272,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: postImage == null ? _capturePostImage : null,
+              onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
                 width: boxSize,
                 height: boxSize,
@@ -272,7 +292,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === CameraOverlayPage ===
+// === CameraOverlayPage con overlay ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -299,7 +319,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   late CameraDescription currentCamera;
   bool _shooting = false;
 
-  // === variabili distanza ===
   double _lastIpdPx = 0.0;
   double _ipdMm = 63.0;
   final double _targetMmPerPx = 0.117;
@@ -353,9 +372,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
             ),
           ),
         ),
-        // Livella verticale attuale
         buildLivellaVerticaleOverlay(),
-        // Distanza cm attuale
         buildDistanzaCmOverlay(
           ipdPx: _lastIpdPx,
           ipdMm: _ipdMm,
@@ -364,7 +381,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
           isFrontCamera: isFront,
           mode: CaptureMode.volto,
         ),
-        // Valori PRE
         if (widget.preAngle != null && widget.preDistance != null)
           Positioned(
             top: 40,
