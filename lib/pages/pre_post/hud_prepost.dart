@@ -1,15 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:flutter/foundation.dart' show WriteBuffer;
 
-/// Pagina HUD Pre/Post con guida landmark
 class HudPrePostPage extends StatefulWidget {
   final CameraDescription camera;
-  final String preImage; // immagine guida PRE
+  final File preImage;
 
   const HudPrePostPage({
     super.key,
@@ -24,27 +22,34 @@ class HudPrePostPage extends StatefulWidget {
 class _HudPrePostPageState extends State<HudPrePostPage> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
+  late FaceDetector _faceDetector;
+
   bool _isDetecting = false;
-  final FaceDetector _faceDetector = FaceDetector(
-    options: FaceDetectorOptions(
-      enableLandmarks: true,
-      enableContours: true,
-      performanceMode: FaceDetectorMode.accurate,
-    ),
-  );
-  List<Face> _faces = [];
+  bool _shooting = false;
+  double _alignmentScore = 0.0;
 
   @override
   void initState() {
     super.initState();
+
     _controller = CameraController(
       widget.camera,
       ResolutionPreset.high,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
+
     _initializeControllerFuture = _controller.initialize().then((_) {
+      if (!mounted) return;
       _controller.startImageStream(_processCameraImage);
     });
+
+    // 🔹 Configura FaceDetector
+    final options = FaceDetectorOptions(
+      enableContours: true,
+      enableLandmarks: true,
+    );
+    _faceDetector = FaceDetector(options: options);
   }
 
   @override
@@ -59,8 +64,9 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     _isDetecting = true;
 
     try {
+      // 🔹 Converte CameraImage → InputImage
       final WriteBuffer allBytes = WriteBuffer();
-      for (var plane in image.planes) {
+      for (final Plane plane in image.planes) {
         allBytes.putUint8List(plane.bytes);
       }
       final bytes = allBytes.done().buffer.asUint8List();
@@ -68,74 +74,103 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final Size imageSize =
           Size(image.width.toDouble(), image.height.toDouble());
 
-      final camera = widget.camera;
-      final imageRotation =
-          InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
-              InputImageRotation.rotation0deg;
+      final InputImageRotation rotation =
+          InputImageRotation.rotation0deg; // puoi calcolare da sensorOrientation
 
-      final inputImageFormat =
-          InputImageFormatValue.fromRawValue(image.format.raw) ??
+      final InputImageFormat format =
+          InputImageFormatMethods.fromRawValue(image.format.raw) ??
               InputImageFormat.nv21;
 
-      final planeData = image.planes.map(
-        (plane) {
-          return InputImagePlaneMetadata(
-            bytesPerRow: plane.bytesPerRow,
-            height: plane.height,
-            width: plane.width,
-          );
-        },
-      ).toList();
-
-      final inputImageData = InputImageData(
-        size: imageSize,
-        imageRotation: imageRotation,
-        inputImageFormat: inputImageFormat,
-        planeData: planeData,
+      final inputImage = InputImage.fromBytes(
+        bytes: bytes,
+        metadata: InputImageMetadata(
+          size: imageSize,
+          rotation: rotation,
+          format: format,
+          bytesPerRow: image.planes.first.bytesPerRow,
+        ),
       );
-
-      final inputImage =
-          InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
 
       final faces = await _faceDetector.processImage(inputImage);
 
-      if (mounted) {
-        setState(() {
-          _faces = faces;
-        });
+      if (faces.isNotEmpty) {
+        // 🔹 Calcolo punteggio di allineamento (es. occhi/naso in posizione centrale)
+        final face = faces.first;
+        final boundingBox = face.boundingBox;
+
+        final cx = boundingBox.center.dx / image.width;
+        final cy = boundingBox.center.dy / image.height;
+
+        final double distX = (cx - 0.5).abs();
+        final double distY = (cy - 0.5).abs();
+
+        // punteggio semplice: più vicino al centro → più alto
+        _alignmentScore = (1.0 - (distX + distY)).clamp(0.0, 1.0);
+
+        if (_alignmentScore > 0.98 && !_shooting) {
+          _shooting = true;
+          await _takePicture();
+        }
+
+        setState(() {});
       }
     } catch (e) {
-      debugPrint("❌ Errore FaceDetector: $e");
+      debugPrint("Errore face detection: $e");
     } finally {
       _isDetecting = false;
     }
   }
 
+  Future<void> _takePicture() async {
+    try {
+      await _controller.stopImageStream();
+      final file = await _controller.takePicture();
+      if (!mounted) return;
+      Navigator.pop(context, File(file.path));
+    } catch (e) {
+      debugPrint("Errore scatto: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final double screenW = MediaQuery.of(context).size.width;
+
     return Scaffold(
+      backgroundColor: Colors.black,
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
             return Stack(
-              fit: StackFit.expand,
               children: [
                 CameraPreview(_controller),
-                // Immagine guida PRE semi-trasparente
-                Opacity(
-                  opacity: 0.3,
-                  child: Image.file(
-                    File(widget.preImage),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
+                // 🔹 Overlay con immagine guida (semi-trasparente)
+                Center(
+                  child: SizedBox(
+                    width: screenW,
+                    height: screenW,
+                    child: Opacity(
+                      opacity: 0.3,
+                      child: Image.file(widget.preImage, fit: BoxFit.cover),
+                    ),
                   ),
                 ),
-                // HUD con landmarks verdi
-                CustomPaint(
-                  painter: FacePainter(_faces),
-                  child: Container(),
+                // 🔹 HUD con punteggio
+                Positioned(
+                  top: 50,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Text(
+                      "Allineamento: ${(_alignmentScore * 100).toStringAsFixed(1)}%",
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             );
@@ -146,70 +181,4 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       ),
     );
   }
-}
-
-class FacePainter extends CustomPainter {
-  final List<Face> faces;
-
-  FacePainter(this.faces);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = Colors.green;
-
-    for (final face in faces) {
-      // rettangolo viso
-      canvas.drawRect(face.boundingBox, paint);
-
-      // landmark occhi
-      if (face.landmarks.containsKey(FaceLandmarkType.leftEye)) {
-        final leftEye = face.landmarks[FaceLandmarkType.leftEye]!;
-        canvas.drawCircle(Offset(leftEye.position.x.toDouble(),
-            leftEye.position.y.toDouble()), 4, paint);
-      }
-      if (face.landmarks.containsKey(FaceLandmarkType.rightEye)) {
-        final rightEye = face.landmarks[FaceLandmarkType.rightEye]!;
-        canvas.drawCircle(Offset(rightEye.position.x.toDouble(),
-            rightEye.position.y.toDouble()), 4, paint);
-      }
-
-      // landmark naso
-      if (face.landmarks.containsKey(FaceLandmarkType.noseBase)) {
-        final nose = face.landmarks[FaceLandmarkType.noseBase]!;
-        canvas.drawCircle(
-            Offset(nose.position.x.toDouble(), nose.position.y.toDouble()),
-            4,
-            paint);
-      }
-
-      // landmark bocca aggiornati
-      if (face.landmarks.containsKey(FaceLandmarkType.leftMouth)) {
-        final lm = face.landmarks[FaceLandmarkType.leftMouth]!;
-        canvas.drawCircle(
-            Offset(lm.position.x.toDouble(), lm.position.y.toDouble()),
-            4,
-            paint);
-      }
-      if (face.landmarks.containsKey(FaceLandmarkType.rightMouth)) {
-        final rm = face.landmarks[FaceLandmarkType.rightMouth]!;
-        canvas.drawCircle(
-            Offset(rm.position.x.toDouble(), rm.position.y.toDouble()),
-            4,
-            paint);
-      }
-      if (face.landmarks.containsKey(FaceLandmarkType.bottomMouth)) {
-        final bm = face.landmarks[FaceLandmarkType.bottomMouth]!;
-        canvas.drawCircle(
-            Offset(bm.position.x.toDouble(), bm.position.y.toDouble()),
-            4,
-            paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
