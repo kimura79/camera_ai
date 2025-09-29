@@ -8,9 +8,73 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
+import 'package:sensors_plus/sensors_plus.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
+
+// === ENUM per modalità ===
+enum CaptureMode { volto, particolare }
+
+// === Overlay distanza cm (da distanza.txt) ===
+Widget buildDistanzaCmOverlay({
+  required double ipdPx,
+  required bool isFrontCamera,
+  double ipdMm = 63.0,
+  double targetMmPerPx = 0.117,
+  double alignY = 0.4,
+  CaptureMode mode = CaptureMode.volto,
+}) {
+  String testo;
+  Color borderColor = Colors.yellow;
+
+  if (ipdPx <= 0 || !ipdPx.isFinite) {
+    testo = '— cm';
+  } else {
+    if (mode == CaptureMode.volto) {
+      final mmPerPxAttuale = ipdMm / ipdPx;
+      final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
+      if (distCm > 5 && distCm < 100) {
+        testo = '${distCm.toStringAsFixed(1)} cm';
+      } else {
+        testo = '— cm';
+      }
+      borderColor = Colors.green;
+    } else {
+      final mmPerPxAttuale = ipdMm / ipdPx;
+      final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+      final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+      if (distanzaCm > 5 && distanzaCm < 50) {
+        testo = '${distanzaCm.toStringAsFixed(1)} cm';
+      } else {
+        testo = '— cm';
+      }
+      if ((distanzaCm - 12.0).abs() <= 1.0) {
+        borderColor = Colors.green;
+      }
+    }
+  }
+
+  return Align(
+    alignment: Alignment(0, alignY),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 2.0),
+      ),
+      child: Text(
+        testo,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
@@ -34,6 +98,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   String? preFile;
   String? postFile;
 
+  // 🔹 Variabili PRE
+  double? preAngle;
+  double? preDistance;
+
   @override
   void initState() {
     super.initState();
@@ -44,13 +112,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Carica risultati comparazione dal server ===
+  // === Carica comparazione ===
   Future<void> _loadCompareResults() async {
-    if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
-      return;
-    }
-
+    if (preFile == null || postFile == null) return;
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
     try {
@@ -59,31 +123,18 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         setState(() {
           compareData = jsonDecode(resp.body);
         });
-        debugPrint("✅ Dati comparazione ricevuti: $compareData");
-      } else {
-        debugPrint("❌ Errore server: ${resp.body}");
       }
-    } catch (e) {
-      debugPrint("❌ Errore richiesta: $e");
-    }
+    } catch (_) {}
   }
 
-  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
+  // === Seleziona PRE ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
-    if (!ps.isAuth) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Permesso galleria negato")),
-      );
-      return;
-    }
+    if (!ps.isAuth) return;
 
-    final List<AssetPathEntity> paths =
-        await PhotoManager.getAssetPathList(type: RequestType.image);
+    final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
-
-    final List<AssetEntity> media =
-        await paths.first.getAssetListPaged(page: 0, size: 100);
+    final media = await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final file = await showDialog<File?>(
@@ -130,51 +181,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
+        preAngle = 0.0; // placeholder, in reale da sensore
+        preDistance = 30.0; // placeholder, in reale da distanza overlay
       });
-
-      // 🔹 Usa timestamp per cercare nel DB il filename corretto
-      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
-
-      try {
-        final url =
-            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
-        final resp = await http.get(url);
-
-        if (resp.statusCode == 200) {
-          final data = jsonDecode(resp.body);
-          final serverFilename = data["filename"];
-
-          if (serverFilename != null) {
-            setState(() {
-              preFile = serverFilename;
-            });
-            debugPrint("✅ PRE associato a record DB: $serverFilename");
-          } else {
-            // fallback se non trovato
-            setState(() {
-              preFile = path.basename(file.path);
-            });
-            debugPrint("⚠️ PRE senza match DB, uso filename locale");
-          }
-        }
-      } catch (e) {
-        debugPrint("❌ Errore lookup PRE: $e");
-        setState(() {
-          preFile = path.basename(file.path);
-        });
-      }
     }
   }
 
-  // === Scatta POST con camera, analizza e torna indietro ===
+  // === Scatta POST ===
   Future<void> _capturePostImage() async {
-    if (preFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
-      );
-      return;
-    }
-
+    if (preFile == null) return;
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
@@ -185,87 +200,38 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           cameras: cameras,
           initialCamera: firstCamera,
           guideImage: preImage!,
+          preAngle: preAngle,
+          preDistance: preDistance,
         ),
       ),
     );
-
     if (result != null) {
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
-
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
         final newPostFile = analyzed["filename"] as String?;
-
         if (overlayPath != null) {
-          setState(() {
-            postImage = File(overlayPath);
-          });
-          debugPrint("✅ Overlay POST salvato: $overlayPath");
+          setState(() => postImage = File(overlayPath));
         }
         if (newPostFile != null) {
-          setState(() {
-            postFile = newPostFile;
-          });
+          setState(() => postFile = newPostFile);
           await _loadCompareResults();
         }
       }
     }
   }
 
-  // === Conferma per rifare la foto POST ===
-  Future<void> _confirmRetakePost() async {
-    final bool? retake = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Rifare la foto POST?"),
-        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Annulla"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Rifai foto"),
-          ),
-        ],
-      ),
-    );
-
-    if (retake == true) {
-      await _capturePostImage();
-    }
-  }
-
-  // === Widget barra percentuale ===
-  Widget _buildBar(String label, double value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("$label: ${value.toStringAsFixed(2)}%"),
-        LinearProgressIndicator(
-          value: value / 100,
-          backgroundColor: Colors.grey[300],
-          color: color,
-          minHeight: 12,
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
-
     return Scaffold(
       appBar: AppBar(title: const Text("Pre/Post")),
       body: SingleChildScrollView(
@@ -279,117 +245,26 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.blueAccent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: preImage == null
-                    ? const Center(
-                        child: Icon(Icons.add, size: 80, color: Colors.blue),
-                      )
+                    ? const Center(child: Icon(Icons.add, size: 80, color: Colors.blue))
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
             GestureDetector(
-              onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
+              onTap: postImage == null ? _capturePostImage : null,
               child: Container(
                 width: boxSize,
                 height: boxSize,
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.green, width: 2),
-                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: postImage == null
-                    ? const Center(
-                        child: Icon(Icons.add, size: 80, color: Colors.green),
-                      )
+                    ? const Center(child: Icon(Icons.add, size: 80, color: Colors.green))
                     : Image.file(postImage!, fit: BoxFit.cover),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // === Risultati comparazione ===
-            if (compareData != null) ...[
-              if (compareData!["macchie"] != null)
-  Card(
-    margin: const EdgeInsets.all(12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("📊 Percentuali Macchie",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          _buildBar("Pre",
-              compareData!["macchie"]["perc_pre"] ?? 0.0,
-              Colors.green),
-          _buildBar("Post",
-              compareData!["macchie"]["perc_post"] ?? 0.0,
-              Colors.blue),
-
-          // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
-          Builder(
-            builder: (_) {
-              final double pre =
-                  (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-              final double post =
-                  (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
-
-              double diffPerc = 0.0;
-              if (pre > 0) {
-                diffPerc = ((post - pre) / pre) * 100;
-              }
-
-              return _buildBar(
-                "Differenza",
-                diffPerc.abs(),
-                diffPerc <= 0 ? Colors.green : Colors.red,
-              );
-            },
-          ),
-
-          Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-          Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-        ],
-      ),
-    ),
-  ),
-
-              if (compareData!["pori"] != null)
-                Card(
-                  margin: const EdgeInsets.all(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("📊 Pori dilatati (rossi)",
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
-                            Colors.green),
-                        _buildBar(
-                            "Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                    0
-                                ? Colors.green
-                                : Colors.red),
-                        Text(
-                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
-                        Text(
-                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
-                      ],
-                    ),
-                  ),
-                ),
-            ]
           ],
         ),
       ),
@@ -397,17 +272,21 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida ===
+// === CameraOverlayPage ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
   final File guideImage;
+  final double? preAngle;
+  final double? preDistance;
 
   const CameraOverlayPage({
     super.key,
     required this.cameras,
     required this.initialCamera,
     required this.guideImage,
+    this.preAngle,
+    this.preDistance,
   });
 
   @override
@@ -419,6 +298,11 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   Future<void>? _initializeControllerFuture;
   late CameraDescription currentCamera;
   bool _shooting = false;
+
+  // === variabili distanza ===
+  double _lastIpdPx = 0.0;
+  double _ipdMm = 63.0;
+  final double _targetMmPerPx = 0.117;
 
   @override
   void initState() {
@@ -435,182 +319,94 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
-    _initializeControllerFuture = _controller!.initialize().then((_) async {
-      await _controller!.setFlashMode(FlashMode.off);
-    });
+    _initializeControllerFuture = _controller!.initialize();
     if (mounted) setState(() {});
   }
 
-  Future<void> _switchCamera() async {
-    if (widget.cameras.length < 2) return;
-
-    if (currentCamera.lensDirection == CameraLensDirection.front) {
-      final back = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = back;
-    } else {
-      final front = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = front;
-    }
-    await _initCamera();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
   Future<void> _takePicture() async {
+    if (_shooting) return;
+    setState(() => _shooting = true);
     try {
-      if (_shooting) return;
-      setState(() => _shooting = true);
-
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
-      if (!mounted) return;
-
-      File file = File(image.path);
-
-      final bytes = await file.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-
-      if (decoded != null) {
-        final side =
-            decoded.width < decoded.height ? decoded.width : decoded.height;
-        final x = (decoded.width - side) ~/ 2;
-        final y = (decoded.height - side) ~/ 2;
-        img.Image cropped =
-            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (currentCamera.lensDirection == CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-
-        final outPath = "${file.path}_square.jpg";
-        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
-      }
-
-      Navigator.pop(context, file);
-    } catch (e) {
-      debugPrint("Errore scatto: $e");
-    } finally {
-      if (mounted) setState(() => _shooting = false);
+      Navigator.pop(context, File(image.path));
+    } catch (_) {} finally {
+      setState(() => _shooting = false);
     }
+  }
+
+  Widget _buildOverlay(BuildContext context) {
+    final double screenW = MediaQuery.of(context).size.width;
+    final double squareSize = min(300, screenW * 0.8);
+    final bool isFront =
+        currentCamera.lensDirection == CameraLensDirection.front;
+
+    return Stack(
+      children: [
+        Align(
+          alignment: const Alignment(0, -0.3),
+          child: Container(
+            width: squareSize,
+            height: squareSize,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.yellow, width: 4),
+            ),
+          ),
+        ),
+        // Livella verticale attuale
+        buildLivellaVerticaleOverlay(),
+        // Distanza cm attuale
+        buildDistanzaCmOverlay(
+          ipdPx: _lastIpdPx,
+          ipdMm: _ipdMm,
+          targetMmPerPx: _targetMmPerPx,
+          alignY: 0.8,
+          isFrontCamera: isFront,
+          mode: CaptureMode.volto,
+        ),
+        // Valori PRE
+        if (widget.preAngle != null && widget.preDistance != null)
+          Positioned(
+            top: 40,
+            left: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("PRE: ${widget.preAngle!.toStringAsFixed(1)}°",
+                    style: const TextStyle(
+                        color: Colors.yellow,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold)),
+                Text("PRE: ${widget.preDistance!.toStringAsFixed(1)} cm",
+                    style: const TextStyle(
+                        color: Colors.yellow,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.width;
-
     return Scaffold(
       backgroundColor: Colors.black,
-      body: FutureBuilder<void>(
+      body: FutureBuilder(
         future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done &&
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.done &&
               _controller != null) {
             return Stack(
-              alignment: Alignment.center,
               children: [
                 CameraPreview(_controller!),
-                Center(
-                  child: SizedBox(
-                    width: min(1024, screenW),
-                    height: min(1024, screenW),
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
-                    ),
-                  ),
-                ),
+                _buildOverlay(context),
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.image,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 86,
-                                  height: 86,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.10),
-                                  ),
-                                ),
-                                Container(
-                                  width: 78,
-                                  height: 78,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 6),
-                                  ),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 80),
-                                  width: _shooting ? 58 : 64,
-                                  height: _shooting ? 58 : 64,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 32),
-                          child: GestureDetector(
-                            onTap: _switchCamera,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.cameraswitch,
-                                  color: Colors.white, size: 28),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera, color: Colors.white, size: 48),
+                    onPressed: _takePicture,
                   ),
                 ),
               ],
@@ -622,4 +418,52 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       ),
     );
   }
+}
+
+// === Livella verticale con gradi ===
+Widget buildLivellaVerticaleOverlay({
+  double okThresholdDeg = 1.0,
+  double topOffsetPx = 65.0,
+}) {
+  return Positioned(
+    top: topOffsetPx,
+    left: 0,
+    right: 0,
+    child: Center(
+      child: StreamBuilder<AccelerometerEvent>(
+        stream: accelerometerEventStream(),
+        builder: (context, snap) {
+          double angleDeg = 0.0;
+          if (snap.hasData) {
+            final ax = snap.data!.x;
+            final ay = snap.data!.y;
+            final az = snap.data!.z;
+            final g = sqrt(ax * ax + ay * ay + az * az);
+            if (g > 0) {
+              double c = (-az) / g;
+              c = c.clamp(-1.0, 1.0);
+              angleDeg = (acos(c) * 180.0 / pi);
+            }
+          }
+          final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
+          final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              "${angleDeg.toStringAsFixed(1)}°",
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: bigColor,
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
