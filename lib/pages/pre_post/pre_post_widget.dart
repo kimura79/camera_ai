@@ -189,7 +189,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
  } 
-}
 
   // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
