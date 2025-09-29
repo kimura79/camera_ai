@@ -455,8 +455,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
   ),
 ).then((analyzed) {
   if (analyzed != null) {
-    // 🔴 IMPORTANTE: torna indietro a PrePostWidget con i dati dell’analisi
-    Navigator.pop(context, analyzed);
+    Navigator.pop(context); // chiude AnalysisPreview
+    Navigator.pop(context, analyzed); // chiude HomePageWidget e torna a PrePostWidget
   }
 });
       }
