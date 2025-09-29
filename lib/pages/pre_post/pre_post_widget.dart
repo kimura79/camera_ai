@@ -143,7 +143,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    final result = await Navigator.push<File?>(
+    final result = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(
         builder: (context) => HomePageWidget(
@@ -153,40 +153,28 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      final analyzed = await Navigator.push<Map<String, dynamic>?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
-          ),
-        ),
-      );
+      final overlayPath = result["overlay_path"] as String?;
+      final newPostFile = result["filename"] as String?;
 
-      if (analyzed != null) {
-        final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostFile = analyzed["filename"] as String?;
+      if (overlayPath != null) {
+        setState(() {
+          postImage = File(overlayPath);
+        });
+        debugPrint("✅ Overlay POST salvato: $overlayPath");
+      }
+      if (newPostFile != null) {
+        setState(() {
+          postFile = newPostFile;
+        });
+        await _loadCompareResults();
 
-        if (overlayPath != null) {
-          setState(() {
-            postImage = File(overlayPath);
+        // 👇 dopo analisi POST torna subito a pagina Pre/Post
+        if (mounted) {
+          Navigator.pop(context, {
+            "preFile": preFile,
+            "postFile": postFile,
+            "compareData": compareData,
           });
-          debugPrint("✅ Overlay POST salvato: $overlayPath");
-        }
-        if (newPostFile != null) {
-          setState(() {
-            postFile = newPostFile;
-          });
-          await _loadCompareResults();
-
-          // 👇 dopo analisi POST torna subito a pagina Pre/Post
-          if (mounted) {
-            Navigator.pop(context, {
-              "preFile": preFile,
-              "postFile": postFile,
-              "compareData": compareData,
-            });
-          }
         }
       }
     }
