@@ -32,14 +32,19 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     refineLandmarks: true,
   );
 
+  List<CameraDescription> _cameras = [];
+  late CameraDescription _currentCamera;
+
   bool _shooting = false;
   double _alignmentScore = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _currentCamera = widget.camera;
+
     _controller = CameraController(
-      widget.camera,
+      _currentCamera,
       ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
@@ -51,6 +56,11 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     });
 
     _loadGuideLandmarks();
+    _loadCameras();
+  }
+
+  Future<void> _loadCameras() async {
+    _cameras = await availableCameras();
   }
 
   Future<void> _loadGuideLandmarks() async {
@@ -88,8 +98,8 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             _extractLandmarks(results.first, image.width, image.height);
         setState(() {
           _livePoints = points;
-          _alignmentScore = _computeAlignment(_guidePoints, _livePoints,
-              image.width.toDouble(), image.height.toDouble());
+          _alignmentScore = _computeAlignment(
+              _guidePoints, _livePoints, image.width.toDouble(), image.height.toDouble());
         });
       }
     } catch (e) {
@@ -125,14 +135,13 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       final decoded = img.decodeImage(bytes);
 
       if (decoded != null) {
-        final side =
-            decoded.width < decoded.height ? decoded.width : decoded.height;
+        final side = decoded.width < decoded.height ? decoded.width : decoded.height;
         final x = (decoded.width - side) ~/ 2;
         final y = (decoded.height - side) ~/ 2;
         img.Image cropped =
             img.copyCrop(decoded, x: x, y: y, width: side, height: side);
         cropped = img.copyResize(cropped, width: 1024, height: 1024);
-        if (widget.camera.lensDirection == CameraLensDirection.front) {
+        if (_currentCamera.lensDirection == CameraLensDirection.front) {
           cropped = img.flipHorizontal(cropped);
         }
         final outPath = "${file.path}_square.jpg";
@@ -145,6 +154,36 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     } finally {
       if (mounted) setState(() => _shooting = false);
     }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.isEmpty) {
+      _cameras = await availableCameras();
+    }
+    if (_cameras.length < 2) return;
+
+    final newCamera = _currentCamera.lensDirection == CameraLensDirection.front
+        ? _cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.back,
+            orElse: () => _cameras.first,
+          )
+        : _cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.front,
+            orElse: () => _cameras.first,
+          );
+
+    _currentCamera = newCamera;
+
+    await _controller.dispose();
+    _controller = CameraController(
+      _currentCamera,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420,
+    );
+    await _controller.initialize();
+    _controller.startImageStream(_processCameraImage);
+    setState(() {});
   }
 
   @override
@@ -204,16 +243,53 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 25),
-                    child: GestureDetector(
-                      onTap: _takePicture,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 26),
+                            ),
+                          ),
                         ),
-                      ),
+                        GestureDetector(
+                          onTap: _takePicture,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 4),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
