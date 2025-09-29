@@ -617,20 +617,19 @@ class _HomePageWidgetState extends State<HomePageWidget>
           children: [
             Positioned.fill(child: preview),
 
-            // 👇 Overlay PRE dentro il riquadro (trasparente)
+            // 👇 Overlay PRE dentro il riquadro (segue squareSize)
 if (widget.guideImage != null)
   Align(
     alignment: const Alignment(0, -0.3), // stessa posizione del riquadro
-    child: IgnorePointer( // 👉 così non blocca il tap sullo scatto
-      child: SizedBox(
-        width: squareSize,
-        height: squareSize,
-        child: Opacity(
-          opacity: 0.4,
-          child: Image.file(
-            widget.guideImage!,
-            fit: BoxFit.cover, // 👈 mantiene proporzioni corrette
-          ),
+    child: SizedBox(
+      width: squareSize, // 👈 ricalcolato ogni frame
+      height: squareSize,
+      child: Opacity(
+        opacity: 0.4,
+        child: Image.file(
+          widget.guideImage!,
+          fit: BoxFit.cover,
+          gaplessPlayback: true, // 👈 evita flicker nei rebuild
         ),
       ),
     ),
