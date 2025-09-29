@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -68,12 +69,10 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
   }
 
   Future<void> _loadGuideLandmarks() async {
-    // carichiamo l’immagine guida PRE per estrarre landmark (simulati)
     try {
       final bytes = await widget.preImage.readAsBytes();
       final decoded = img.decodeImage(bytes);
       if (decoded != null) {
-        // prendiamo landmark fittizi al centro (puoi sostituire con vera estrazione MLKit se vuoi)
         final w = decoded.width.toDouble();
         final h = decoded.height.toDouble();
         setState(() {
@@ -81,8 +80,7 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             Offset(w * 0.3, h * 0.4), // occhio sx
             Offset(w * 0.7, h * 0.4), // occhio dx
             Offset(w * 0.5, h * 0.55), // naso
-            Offset(w * 0.4, h * 0.7), // bocca sx
-            Offset(w * 0.6, h * 0.7), // bocca dx
+            Offset(w * 0.5, h * 0.7), // bocca (centro)
           ];
         });
       }
@@ -113,9 +111,7 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
           Size(image.width.toDouble(), image.height.toDouble());
 
       final InputImageRotation rotation = InputImageRotation.rotation0deg;
-      final InputImageFormat format =
-          InputImageFormatMethods.fromRawValue(image.format.raw) ??
-              InputImageFormat.nv21;
+      final InputImageFormat format = InputImageFormat.yuv420;
 
       final inputImage = InputImage.fromBytes(
         bytes: bytes,
@@ -152,16 +148,10 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
+        if (landmarks[FaceLandmarkType.mouthBottom] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
-          ));
-        }
-        if (landmarks[FaceLandmarkType.mouthRight] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.mouthBottom]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthBottom]!.position.y.toDouble(),
           ));
         }
 
@@ -169,7 +159,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
           _livePoints = points;
         });
 
-        // calcolo semplice allineamento: confronto con centro
         final cx = face.boundingBox.center.dx / image.width;
         final cy = face.boundingBox.center.dy / image.height;
         final double distX = (cx - 0.5).abs();
@@ -203,7 +192,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     if (_cameras.isEmpty) {
       _cameras = await availableCameras();
     }
-
     if (_cameras.length < 2) return;
 
     final newCamera = _currentCamera.lensDirection == CameraLensDirection.front
@@ -244,7 +232,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
               alignment: Alignment.center,
               children: [
                 CameraPreview(_controller),
-                // Overlay guida trasparente
                 Center(
                   child: SizedBox(
                     width: screenW,
@@ -255,7 +242,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                     ),
                   ),
                 ),
-                // Cerchietti rossi su guida
                 CustomPaint(
                   painter: LandmarkPainter(
                     guidePoints: _guidePoints,
@@ -263,7 +249,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                   ),
                   size: Size.infinite,
                 ),
-                // Punteggio
                 Positioned(
                   top: 50,
                   left: 0,
@@ -279,7 +264,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                     ),
                   ),
                 ),
-                // Pulsanti in basso
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
@@ -381,13 +365,13 @@ class LandmarkPainter extends CustomPainter {
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
-    // cerchi rossi su guida
+    // cerchi rossi guida
     for (final p in guidePoints) {
       canvas.drawCircle(p, 6, redPaint);
     }
 
-    // linee verdi tra punti live
-    if (livePoints.length >= 5) {
+    // linee verdi live
+    if (livePoints.length >= 2) {
       for (int i = 0; i < livePoints.length - 1; i++) {
         canvas.drawLine(livePoints[i], livePoints[i + 1], greenPaint);
       }
