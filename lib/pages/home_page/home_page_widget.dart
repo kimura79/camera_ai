@@ -112,7 +112,12 @@ class AnalysisResultsPage extends StatelessWidget {
 }
 
 class HomePageWidget extends StatefulWidget {
-  const HomePageWidget({super.key});
+  final File? guideImage; // 👈 aggiunto
+
+  const HomePageWidget({
+    super.key,
+    this.guideImage, // 👈 aggiunto
+  });
 
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
@@ -655,12 +660,25 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
 
     return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: preview),
-        Positioned.fill(child: overlay),
-      ],
-    );
+  fit: StackFit.expand,
+  children: [
+    Positioned.fill(child: preview),
+
+    // 👇 AGGIUNGI QUESTO BLOCCO
+    if (widget.guideImage != null)
+      Positioned.fill(
+        child: Opacity(
+          opacity: 0.35,
+          child: Image.file(
+            widget.guideImage!,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+
+     Positioned.fill(child: overlay),
+    ],
+   );
   }
 
   Widget _buildBottomBar() {
