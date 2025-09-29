@@ -26,6 +26,7 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
   late FaceDetector _faceDetector;
 
   bool _isDetecting = false;
+  bool _shooting = false;
   double _alignmentScore = 0.0;
 
   List<Offset> _livePoints = [];
@@ -52,7 +53,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     });
 
     final options = FaceDetectorOptions(
-      enableContours: true,
       enableLandmarks: true,
     );
     _faceDetector = FaceDetector(options: options);
@@ -73,12 +73,11 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
         final w = decoded.width.toDouble();
         final h = decoded.height.toDouble();
         setState(() {
+          // Landmark guida simulati (occhi + naso) sulla foto PRE
           _guidePoints = [
-            Offset(w * 0.3, h * 0.4), // occhio sx
-            Offset(w * 0.7, h * 0.4), // occhio dx
-            Offset(w * 0.5, h * 0.55), // naso
-            Offset(w * 0.4, h * 0.7), // bocca sx
-            Offset(w * 0.6, h * 0.7), // bocca dx
+            Offset(w * 0.35, h * 0.4), // occhio sx approx
+            Offset(w * 0.65, h * 0.4), // occhio dx approx
+            Offset(w * 0.5, h * 0.55), // naso approx
           ];
         });
       }
@@ -99,18 +98,17 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
     _isDetecting = true;
 
     try {
-      final bytes = WriteBuffer()
-        ..putUint8List(image.planes[0].bytes)
-        ..putUint8List(image.planes[1].bytes)
-        ..putUint8List(image.planes[2].bytes);
-
-      final allBytes = bytes.done().buffer.asUint8List();
+      final WriteBuffer allBytes = WriteBuffer();
+      for (final Plane plane in image.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+      final bytes = allBytes.done().buffer.asUint8List();
 
       final Size imageSize =
           Size(image.width.toDouble(), image.height.toDouble());
 
       final inputImage = InputImage.fromBytes(
-        bytes: allBytes,
+        bytes: bytes,
         metadata: InputImageMetadata(
           size: imageSize,
           rotation: InputImageRotation.rotation0deg,
@@ -144,23 +142,12 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
-          ));
-        }
-        if (landmarks[FaceLandmarkType.mouthRight] != null) {
-          points.add(Offset(
-            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
-          ));
-        }
 
         setState(() {
           _livePoints = points;
         });
 
+        // Calcolo punteggio semplice (centro bounding box)
         final cx = face.boundingBox.center.dx / image.width;
         final cy = face.boundingBox.center.dy / image.height;
         final double distX = (cx - 0.5).abs();
@@ -171,6 +158,46 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
       debugPrint("Errore face detection: $e");
     } finally {
       _isDetecting = false;
+    }
+  }
+
+  Future<void> _takePicture() async {
+    try {
+      if (_shooting) return;
+      setState(() => _shooting = true);
+
+      await _controller.stopImageStream();
+      final image = await _controller.takePicture();
+      if (!mounted) return;
+
+      File file = File(image.path);
+
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+
+      if (decoded != null) {
+        final side =
+            decoded.width < decoded.height ? decoded.width : decoded.height;
+        final x = (decoded.width - side) ~/ 2;
+        final y = (decoded.height - side) ~/ 2;
+        img.Image cropped =
+            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+
+        cropped = img.copyResize(cropped, width: 1024, height: 1024);
+
+        if (_currentCamera.lensDirection == CameraLensDirection.front) {
+          cropped = img.flipHorizontal(cropped);
+        }
+
+        final outPath = "${file.path}_square.jpg";
+        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
+      }
+
+      Navigator.pop(context, file);
+    } catch (e) {
+      debugPrint("Errore scatto: $e");
+    } finally {
+      if (mounted) setState(() => _shooting = false);
     }
   }
 
@@ -273,6 +300,36 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                             ),
                           ),
                         ),
+                        GestureDetector(
+                          onTap: _takePicture,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
+                                ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                         Padding(
                           padding: const EdgeInsets.only(right: 32),
                           child: GestureDetector(
@@ -318,23 +375,21 @@ class LandmarkPainter extends CustomPainter {
 
     final bluePaint = Paint()
       ..color = Colors.blue
-      ..strokeWidth = 2
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
-    // Punti guida rossi
+    // Punti guida (rossi)
     for (final p in guidePoints) {
       canvas.drawCircle(p, 6, redPaint);
     }
 
-    // Punti live + linee blu
-    if (livePoints.isNotEmpty) {
-      for (final p in livePoints) {
-        canvas.drawCircle(p, 4, bluePaint);
-      }
-      if (livePoints.length >= 2) {
-        for (int i = 0; i < livePoints.length - 1; i++) {
-          canvas.drawLine(livePoints[i], livePoints[i + 1], bluePaint);
-        }
+    // Punti live (blu) + linee
+    for (final p in livePoints) {
+      canvas.drawCircle(p, 6, bluePaint);
+    }
+    if (livePoints.length >= 2) {
+      for (int i = 0; i < livePoints.length - 1; i++) {
+        canvas.drawLine(livePoints[i], livePoints[i + 1], bluePaint);
       }
     }
   }
