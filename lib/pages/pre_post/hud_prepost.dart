@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:flutter/foundation.dart'; // 🔹 Serve per WriteBuffer
 
 class HudPrePostPage extends StatefulWidget {
   final CameraDescription camera;
@@ -75,10 +76,10 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
           Size(image.width.toDouble(), image.height.toDouble());
 
       final InputImageRotation rotation =
-          InputImageRotation.rotation0deg; // puoi calcolare da sensorOrientation
+          InputImageRotation.rotation0deg; // TODO: calcolare da sensorOrientation se serve
 
       final InputImageFormat format =
-          InputImageFormatMethods.fromRawValue(image.format.raw) ??
+          InputImageFormatValue.fromRawValue(image.format.raw) ??
               InputImageFormat.nv21;
 
       final inputImage = InputImage.fromBytes(
