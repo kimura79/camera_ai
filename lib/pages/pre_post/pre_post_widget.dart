@@ -179,10 +179,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final firstCamera = cameras.first;
 
     final result = await Navigator.push<File?>(
-    context,
-    MaterialPageRoute(
-    builder: (context) => HudPrePostPage(
-      preImage: preImage!, // 👈 passiamo immagine PRE come guida
+      context,
+      MaterialPageRoute(
+        builder: (context) => CameraOverlayPage(
+          cameras: cameras,
+          initialCamera: firstCamera,
+          guideImage: preImage!,
         ),
       ),
     );
