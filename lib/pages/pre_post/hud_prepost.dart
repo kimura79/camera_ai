@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -28,7 +28,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
 
   bool _isDetecting = false;
   bool _shooting = false;
-  double _alignmentScore = 0.0;
 
   List<Offset> _livePoints = [];
   List<Offset> _guidePoints = [];
@@ -145,33 +144,22 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.leftMouth] != null) {
+        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.leftMouth]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.leftMouth]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.rightMouth] != null) {
+        if (landmarks[FaceLandmarkType.mouthRight] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.rightMouth]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.rightMouth]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
           ));
         }
 
         setState(() {
           _livePoints = points;
         });
-
-        final cx = face.boundingBox.center.dx / image.width;
-        final cy = face.boundingBox.center.dy / image.height;
-        final double distX = (cx - 0.5).abs();
-        final double distY = (cy - 0.5).abs();
-        _alignmentScore = (1.0 - (distX + distY)).clamp(0.0, 1.0);
-
-        if (_alignmentScore > 0.98 && !_shooting) {
-          _shooting = true;
-          await _takePicture();
-        }
       }
     } catch (e) {
       debugPrint("Errore face detection: $e");
@@ -183,9 +171,32 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
   Future<void> _takePicture() async {
     try {
       await _controller.stopImageStream();
-      final file = await _controller.takePicture();
+      final rawFile = await _controller.takePicture();
       if (!mounted) return;
-      Navigator.pop(context, File(file.path));
+
+      File file = File(rawFile.path);
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+
+      if (decoded != null) {
+        final side =
+            decoded.width < decoded.height ? decoded.width : decoded.height;
+        final x = (decoded.width - side) ~/ 2;
+        final y = (decoded.height - side) ~/ 2;
+        img.Image cropped =
+            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+
+        cropped = img.copyResize(cropped, width: 1024, height: 1024);
+
+        if (_currentCamera.lensDirection == CameraLensDirection.front) {
+          cropped = img.flipHorizontal(cropped);
+        }
+
+        final outPath = "${file.path}_square.jpg";
+        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
+      }
+
+      Navigator.pop(context, file);
     } catch (e) {
       debugPrint("Errore scatto: $e");
     }
@@ -237,8 +248,8 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                 CameraPreview(_controller),
                 Center(
                   child: SizedBox(
-                    width: screenW,
-                    height: screenW,
+                    width: min(1024, screenW),
+                    height: min(1024, screenW),
                     child: Opacity(
                       opacity: 0.3,
                       child: Image.file(widget.preImage, fit: BoxFit.cover),
@@ -251,21 +262,6 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                     livePoints: _livePoints,
                   ),
                   size: Size.infinite,
-                ),
-                Positioned(
-                  top: 50,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Text(
-                      "Allineamento: ${(_alignmentScore * 100).toStringAsFixed(1)}%",
-                      style: const TextStyle(
-                        color: Colors.greenAccent,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
                 ),
                 Align(
                   alignment: Alignment.bottomCenter,
@@ -316,6 +312,14 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
                                         color: Colors.white, width: 6),
                                   ),
                                 ),
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -363,18 +367,22 @@ class LandmarkPainter extends CustomPainter {
       ..color = Colors.red
       ..style = PaintingStyle.fill;
 
-    final greenPaint = Paint()
-      ..color = Colors.green
-      ..strokeWidth = 3
+    final bluePaint = Paint()
+      ..color = Colors.blue
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
     for (final p in guidePoints) {
       canvas.drawCircle(p, 6, redPaint);
     }
 
+    for (final p in livePoints) {
+      canvas.drawCircle(p, 4, bluePaint);
+    }
+
     if (livePoints.length >= 2) {
       for (int i = 0; i < livePoints.length - 1; i++) {
-        canvas.drawLine(livePoints[i], livePoints[i + 1], greenPaint);
+        canvas.drawLine(livePoints[i], livePoints[i + 1], bluePaint);
       }
     }
   }
