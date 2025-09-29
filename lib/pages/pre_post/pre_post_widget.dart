@@ -8,7 +8,6 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
-import 'package:custom_camera_component/pages/pre_post/hud_prepost.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
@@ -182,9 +181,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) => HudPrePostPage(
-          camera: firstCamera,
-          preImage: preImage!,
+        builder: (context) => CameraOverlayPage(
+          cameras: cameras,
+          initialCamera: firstCamera,
+          guideImage: preImage!,
         ),
       ),
     );
@@ -320,36 +320,20 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
-
-                        // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
-                        Builder(
-                          builder: (_) {
-                            final double pre =
-                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
-                                    .toDouble();
-                            final double post =
-                                (compareData!["macchie"]["perc_post"] ?? 0.0)
-                                    .toDouble();
-
-                            double diffPerc = 0.0;
-                            if (pre > 0) {
-                              diffPerc = ((post - pre) / pre) * 100;
-                            }
-
-                            return _buildBar(
-                              "Differenza",
-                              diffPerc.abs(),
-                              diffPerc <= 0 ? Colors.green : Colors.red,
-                            );
-                          },
-                        ),
-
+                        _buildBar(
+                            "Differenza",
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0).abs(),
+                            (compareData!["macchie"]["perc_diff"] ?? 0.0) <= 0
+                                ? Colors.green
+                                : Colors.red),
                         Text(
                             "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
                         Text(
@@ -358,7 +342,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
-
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
