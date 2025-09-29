@@ -554,7 +554,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     );
   }
 
-  Widget _buildCameraPreview() {
+   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
       return const Center(child: CircularProgressIndicator());
@@ -589,7 +589,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           )
         : previewFull;
 
-    Widget overlay = LayoutBuilder(
+    return LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
@@ -613,26 +613,48 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double safeTop = MediaQuery.of(context).padding.top;
 
         return Stack(
+          fit: StackFit.expand,
           children: [
-  Align(
-  alignment: const Alignment(0, -0.3),
-  child: Container(
-    width: squareSize,
-    height: squareSize,
-    decoration: BoxDecoration(
-      border: Border.all(color: frameColor, width: 4),
-      borderRadius: BorderRadius.circular(6),
-    ),
-  ),
-),
+            Positioned.fill(child: preview),
+
+            // 👇 Overlay PRE dentro il riquadro (trasparente)
+            if (widget.guideImage != null)
+              Align(
+                alignment: const Alignment(0, -0.3),
+                child: SizedBox(
+                  width: squareSize,
+                  height: squareSize,
+                  child: Opacity(
+                    opacity: 0.4,
+                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+
+            // 👇 Riquadro verde/giallo
+            Align(
+              alignment: const Alignment(0, -0.3),
+              child: Container(
+                width: squareSize,
+                height: squareSize,
+                decoration: BoxDecoration(
+                  border: Border.all(color: frameColor, width: 4),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+
+            // 👇 Overlay distanza cm
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
               mode: _mode,
-              isFrontCamera: isFront, // 👈 aggiunto qui
+              isFrontCamera: isFront,
             ),
+
+            // 👇 Livella orizzontale solo in volto
             if (_mode == CaptureMode.volto)
               Align(
                 alignment: const Alignment(0, -0.3),
@@ -642,12 +664,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
                   okThresholdDeg: 1.0,
                 ),
               ),
+
+            // 👇 Chip scala
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
+
+            // 👇 Selettore modalità
             Positioned(
               bottom: 180,
               left: 0,
@@ -658,28 +684,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
       },
     );
-
-    return Stack(
-  fit: StackFit.expand,
-  children: [
-    Positioned.fill(child: preview),
-
-    // 👇 Overlay PRE in trasparenza 1024×1024
-    if (widget.guideImage != null)
-      Center(
-        child: SizedBox(
-          width: 1024,
-          height: 1024,
-          child: Opacity(
-            opacity: 0.4,
-            child: Image.file(widget.guideImage!, fit: BoxFit.cover),
-          ),
-        ),
-      ),
-
-     Positioned.fill(child: overlay),
-    ],
-   );
   }
 
   Widget _buildBottomBar() {
