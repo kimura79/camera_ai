@@ -12,8 +12,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
-import 'level.dart';        // livella orizzontale stile iOS
-import 'distanza.dart';    // overlay distanza cm
+import '../level_guide.dart';           // livella orizzontale stile iOS
+import '../distanza_cm_overlay.dart';  // overlay distanza cm
 
 enum CaptureMode { volto, particolare }
 
@@ -66,7 +66,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE dalla galleria (identico al file allegato) ===
+  // === Seleziona PRE (identico al file allegato) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -143,7 +143,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             setState(() {
               preFile = serverFilename;
             });
-            debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
             setState(() {
               preFile = path.basename(file.path);
@@ -279,7 +278,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === CameraOverlayPage (stile identico a PRE + valori PRE) ===
+// === CameraOverlayPage ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -383,9 +382,9 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // Quadrato giallo con distanza cm dentro
+                // Quadrato giallo con distanza cm dentro (usa la stessa funzione della PRE)
                 buildDistanzaCmOverlay(
-                  ipdPx: 100.0, // placeholder: qui devi passare ipd reale
+                  ipdPx: 0, // ⚠️ qui la funzione interna calcola già il valore reale
                   ipdMm: 63.0,
                   targetMmPerPx: 0.117,
                   isFrontCamera:
