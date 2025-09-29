@@ -15,13 +15,13 @@ import '../analysis_preview.dart';
 
 enum CaptureMode { volto, particolare }
 
-// === Overlay distanza cm (da distanza.txt) ===
+// === Overlay distanza cm (uguale alla fotocamera PRE) ===
 Widget buildDistanzaCmOverlay({
   required double ipdPx,
   required bool isFrontCamera,
   double ipdMm = 63.0,
   double targetMmPerPx = 0.117,
-  double alignY = 0.4,
+  double alignY = 0.0,
   CaptureMode mode = CaptureMode.volto,
 }) {
   String testo;
@@ -30,32 +30,18 @@ Widget buildDistanzaCmOverlay({
   if (ipdPx <= 0 || !ipdPx.isFinite) {
     testo = '— cm';
   } else {
-    if (mode == CaptureMode.volto) {
-      final mmPerPxAttuale = ipdMm / ipdPx;
-      final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
-      if (distCm > 5 && distCm < 100) {
-        testo = '${distCm.toStringAsFixed(1)} cm';
-      } else {
-        testo = '— cm';
-      }
-      borderColor = Colors.green;
+    final mmPerPxAttuale = ipdMm / ipdPx;
+    final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
+    if (distCm > 5 && distCm < 100) {
+      testo = '${distCm.toStringAsFixed(1)} cm';
     } else {
-      final mmPerPxAttuale = ipdMm / ipdPx;
-      final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-      final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
-      if (distanzaCm > 5 && distanzaCm < 50) {
-        testo = '${distanzaCm.toStringAsFixed(1)} cm';
-      } else {
-        testo = '— cm';
-      }
-      if ((distanzaCm - 12.0).abs() <= 1.0) {
-        borderColor = Colors.green;
-      }
+      testo = '— cm';
     }
+    borderColor = ((distCm - 30).abs() < 2) ? Colors.green : Colors.yellow;
   }
 
   return Align(
-    alignment: Alignment(0, alignY),
+    alignment: Alignment.center,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
@@ -67,8 +53,8 @@ Widget buildDistanzaCmOverlay({
         testo,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
         ),
       ),
     ),
@@ -76,8 +62,8 @@ Widget buildDistanzaCmOverlay({
 }
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
+  final String? preFile;
+  final String? postFile;
 
   const PrePostWidget({
     super.key,
@@ -124,22 +110,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
+  // === Seleziona PRE ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
-    if (!ps.isAuth) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Permesso galleria negato")),
-      );
-      return;
-    }
-
-    final List<AssetPathEntity> paths =
-        await PhotoManager.getAssetPathList(type: RequestType.image);
+    if (!ps.isAuth) return;
+    final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
-
-    final List<AssetEntity> media =
-        await paths.first.getAssetListPaged(page: 0, size: 100);
+    final media = await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final file = await showDialog<File?>(
@@ -186,42 +163,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
+        preAngle = 0.0;
+        preDistance = 30.0;
       });
-
-      // 🔹 Usa timestamp per cercare nel DB il filename corretto
-      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
-
-      try {
-        final url =
-            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
-        final resp = await http.get(url);
-
-        if (resp.statusCode == 200) {
-          final data = jsonDecode(resp.body);
-          final serverFilename = data["filename"];
-
-          if (serverFilename != null) {
-            setState(() {
-              preFile = serverFilename;
-            });
-            debugPrint("✅ PRE associato a record DB: $serverFilename");
-          } else {
-            setState(() {
-              preFile = path.basename(file.path);
-            });
-            debugPrint("⚠️ PRE senza match DB, uso filename locale");
-          }
-        }
-      } catch (e) {
-        debugPrint("❌ Errore lookup PRE: $e");
-        setState(() {
-          preFile = path.basename(file.path);
-        });
-      }
     }
   }
 
-  // === Scatta POST con camera, analizza e torna indietro ===
+  // === Scatta POST ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -240,6 +188,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           cameras: cameras,
           initialCamera: firstCamera,
           guideImage: preImage!,
+          preAngle: preAngle,
+          preDistance: preDistance,
         ),
       ),
     );
@@ -250,7 +200,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
@@ -263,7 +213,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           setState(() {
             postImage = File(overlayPath);
           });
-          debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostFile != null) {
           setState(() {
@@ -275,7 +224,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -294,7 +242,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         ],
       ),
     );
-
     if (retake == true) {
       await _capturePostImage();
     }
@@ -343,7 +290,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === CameraOverlayPage con overlay ===
+// === CameraOverlayPage (stile identico alla fotocamera PRE) ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -393,6 +340,24 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _switchCamera() async {
+    if (widget.cameras.length < 2) return;
+    if (currentCamera.lensDirection == CameraLensDirection.front) {
+      final back = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = back;
+    } else {
+      final front = widget.cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => widget.cameras.first,
+      );
+      currentCamera = front;
+    }
+    await _initCamera();
+  }
+
   Future<void> _takePicture() async {
     if (_shooting) return;
     setState(() => _shooting = true);
@@ -405,59 +370,10 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     }
   }
 
-  Widget _buildOverlay(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.width;
-    final double squareSize = min(300, screenW * 0.8);
-    final bool isFront =
-        currentCamera.lensDirection == CameraLensDirection.front;
-
-    return Stack(
-      children: [
-        Align(
-          alignment: const Alignment(0, -0.3),
-          child: Container(
-            width: squareSize,
-            height: squareSize,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.yellow, width: 4),
-            ),
-          ),
-        ),
-        buildLivellaVerticaleOverlay(),
-        buildDistanzaCmOverlay(
-          ipdPx: _lastIpdPx,
-          ipdMm: _ipdMm,
-          targetMmPerPx: _targetMmPerPx,
-          alignY: 0.8,
-          isFrontCamera: isFront,
-          mode: CaptureMode.volto,
-        ),
-        if (widget.preAngle != null && widget.preDistance != null)
-          Positioned(
-            top: 40,
-            left: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("PRE: ${widget.preAngle!.toStringAsFixed(1)}°",
-                    style: const TextStyle(
-                        color: Colors.yellow,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
-                Text("PRE: ${widget.preDistance!.toStringAsFixed(1)} cm",
-                    style: const TextStyle(
-                        color: Colors.yellow,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final double screenW = MediaQuery.of(context).size.width;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: FutureBuilder(
@@ -466,14 +382,152 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
           if (snap.connectionState == ConnectionState.done &&
               _controller != null) {
             return Stack(
+              alignment: Alignment.center,
               children: [
                 CameraPreview(_controller!),
-                _buildOverlay(context),
+
+                // Overlay PRE semitrasparente
+                Center(
+                  child: SizedBox(
+                    width: min(1024, screenW),
+                    height: min(1024, screenW),
+                    child: Opacity(
+                      opacity: 0.4,
+                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+
+                // Quadrato giallo 1:1
+                Align(
+                  alignment: const Alignment(0, -0.3),
+                  child: Container(
+                    width: min(300, screenW * 0.8),
+                    height: min(300, screenW * 0.8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.yellow, width: 4),
+                    ),
+                  ),
+                ),
+
+                // Livella verticale
+                buildLivellaVerticaleOverlay(),
+
+                // Distanza cm attuale
+                buildDistanzaCmOverlay(
+                  ipdPx: _lastIpdPx,
+                  ipdMm: _ipdMm,
+                  targetMmPerPx: _targetMmPerPx,
+                  alignY: 0.0,
+                  isFrontCamera:
+                      currentCamera.lensDirection == CameraLensDirection.front,
+                  mode: CaptureMode.volto,
+                ),
+
+                // Valori PRE
+                if (widget.preAngle != null && widget.preDistance != null)
+                  Positioned(
+                    top: 40,
+                    left: 20,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("PRE: ${widget.preAngle!.toStringAsFixed(1)}°",
+                            style: const TextStyle(
+                                color: Colors.yellow,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold)),
+                        Text("PRE: ${widget.preDistance!.toStringAsFixed(1)} cm",
+                            style: const TextStyle(
+                                color: Colors.yellow,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+
+                // Pulsanti in basso
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: IconButton(
-                    icon: const Icon(Icons.camera, color: Colors.white, size: 48),
-                    onPressed: _takePicture,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 25),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.image,
+                                  color: Colors.white, size: 26),
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _takePicture,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 86,
+                            height: 86,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.10),
+                                  ),
+                                ),
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 6),
+                                  ),
+                                ),
+                                AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 80),
+                                  width: _shooting ? 58 : 64,
+                                  height: _shooting ? 58 : 64,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 32),
+                          child: GestureDetector(
+                            onTap: _switchCamera,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black38,
+                              ),
+                              child: const Icon(Icons.cameraswitch,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -487,7 +541,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   }
 }
 
-// === Livella verticale con gradi ===
+// === Livella verticale ===
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.0,
   double topOffsetPx = 65.0,
