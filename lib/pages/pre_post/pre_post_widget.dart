@@ -124,13 +124,22 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     } catch (_) {}
   }
 
-  // === Seleziona PRE dalla galleria ===
+  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
-    if (!ps.isAuth) return;
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.image);
+    if (!ps.isAuth) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Permesso galleria negato")),
+      );
+      return;
+    }
+
+    final List<AssetPathEntity> paths =
+        await PhotoManager.getAssetPathList(type: RequestType.image);
     if (paths.isEmpty) return;
-    final media = await paths.first.getAssetListPaged(page: 0, size: 100);
+
+    final List<AssetEntity> media =
+        await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
     final file = await showDialog<File?>(
@@ -177,15 +186,50 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (file != null) {
       setState(() {
         preImage = file;
-        preAngle = 0.0;     // in reale da sensore
-        preDistance = 30.0; // in reale da overlay distanza
       });
+
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+
+      try {
+        final url =
+            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
+
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
+
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
+          }
+        }
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
+        setState(() {
+          preFile = path.basename(file.path);
+        });
+      }
     }
   }
 
-  // === Scatta POST ===
+  // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
-    if (preFile == null) return;
+    if (preFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
+      );
+      return;
+    }
+
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
 
@@ -196,36 +240,42 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           cameras: cameras,
           initialCamera: firstCamera,
           guideImage: preImage!,
-          preAngle: preAngle,
-          preDistance: preDistance,
         ),
       ),
     );
+
     if (result != null) {
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",
+            mode: "prepost", // il server userà prefix POST_
           ),
         ),
       );
+
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
         final newPostFile = analyzed["filename"] as String?;
+
         if (overlayPath != null) {
-          setState(() => postImage = File(overlayPath));
+          setState(() {
+            postImage = File(overlayPath);
+          });
+          debugPrint("✅ Overlay POST salvato: $overlayPath");
         }
         if (newPostFile != null) {
-          setState(() => postFile = newPostFile);
+          setState(() {
+            postFile = newPostFile;
+          });
           await _loadCompareResults();
         }
       }
     }
   }
 
-  // === Conferma rifare POST ===
+  // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -244,6 +294,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         ],
       ),
     );
+
     if (retake == true) {
       await _capturePostImage();
     }
