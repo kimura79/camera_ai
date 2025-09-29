@@ -76,11 +76,11 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
         final h = decoded.height.toDouble();
         setState(() {
           _guidePoints = [
-            Offset(w * 0.3, h * 0.4),
-            Offset(w * 0.7, h * 0.4),
-            Offset(w * 0.5, h * 0.55),
-            Offset(w * 0.4, h * 0.7),
-            Offset(w * 0.6, h * 0.7),
+            Offset(w * 0.3, h * 0.4), // occhio sx
+            Offset(w * 0.7, h * 0.4), // occhio dx
+            Offset(w * 0.5, h * 0.55), // naso
+            Offset(w * 0.4, h * 0.7), // bocca sx
+            Offset(w * 0.6, h * 0.7), // bocca dx
           ];
         });
       }
@@ -145,16 +145,16 @@ class _HudPrePostPageState extends State<HudPrePostPage> {
             landmarks[FaceLandmarkType.noseBase]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.mouthLeft] != null) {
+        if (landmarks[FaceLandmarkType.leftMouth] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.mouthLeft]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthLeft]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.leftMouth]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.leftMouth]!.position.y.toDouble(),
           ));
         }
-        if (landmarks[FaceLandmarkType.mouthRight] != null) {
+        if (landmarks[FaceLandmarkType.rightMouth] != null) {
           points.add(Offset(
-            landmarks[FaceLandmarkType.mouthRight]!.position.x.toDouble(),
-            landmarks[FaceLandmarkType.mouthRight]!.position.y.toDouble(),
+            landmarks[FaceLandmarkType.rightMouth]!.position.x.toDouble(),
+            landmarks[FaceLandmarkType.rightMouth]!.position.y.toDouble(),
           ));
         }
 
