@@ -14,8 +14,6 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:custom_camera_component/models/capture_mode.dart';
-import 'package:http/http.dart' as http;
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -114,12 +112,7 @@ class AnalysisResultsPage extends StatelessWidget {
 }
 
 class HomePageWidget extends StatefulWidget {
-  final File? guideImage; // 👈 aggiunto
-
-  const HomePageWidget({
-    super.key,
-    this.guideImage, // 👈 aggiunto
-  });
+  const HomePageWidget({super.key});
 
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
@@ -127,6 +120,8 @@ class HomePageWidget extends StatefulWidget {
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
+
+enum CaptureMode { volto, particolare }
 
 class _HomePageWidgetState extends State<HomePageWidget>
     with WidgetsBindingObserver {
@@ -155,12 +150,16 @@ class _HomePageWidgetState extends State<HomePageWidget>
   double get _targetPxPart => _targetMmPart / _targetMmPerPx;
 
   bool get _scaleOkPart {
-    if (_lastIpdPx <= 0) return false;
-    final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
-    return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
-  }
+  if (_lastIpdPx <= 0) return false;
+
+  // Calcolo distanza stimata in cm per PARTICOLARE
+  final mmPerPxAttuale = _ipdMm / _lastIpdPx;
+  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0; // stesso calcolo badge
+
+  // Verde solo se 11–13 cm
+  return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
+ }
 
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
@@ -327,178 +326,156 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
- // ====== Scatto + salvataggio ======
-Future<void> _takeAndSavePicture() async {
-  final ctrl = _controller;
-  if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
+  // ====== Scatto + salvataggio ======
+  Future<void> _takeAndSavePicture() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
 
-  setState(() => _shooting = true);
-  try {
-    if (_streamRunning) {
-      await ctrl.stopImageStream();
-      _streamRunning = false;
-    }
+    setState(() => _shooting = true);
+    try {
+      if (_streamRunning) {
+        await ctrl.stopImageStream();
+        _streamRunning = false;
+      }
 
-    final bool isFront =
-        ctrl.description.lensDirection == CameraLensDirection.front;
+      final bool isFront =
+          ctrl.description.lensDirection == CameraLensDirection.front;
 
-    final XFile shot = await ctrl.takePicture();
-    final Uint8List origBytes = await File(shot.path).readAsBytes();
-    img.Image? original = img.decodeImage(origBytes);
-    if (original == null) throw Exception('Decodifica immagine fallita');
+      final XFile shot = await ctrl.takePicture();
+      final Uint8List origBytes = await File(shot.path).readAsBytes();
+      img.Image? original = img.decodeImage(origBytes);
+      if (original == null) throw Exception('Decodifica immagine fallita');
 
-    if (isFront) {
-      original = img.flipHorizontal(original);
-    }
+      if (isFront) {
+        original = img.flipHorizontal(original);
+      }
 
-    final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-    final double previewW = p.height.toDouble();
-    final double previewH = p.width.toDouble();
+      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
+      final double previewW = p.height.toDouble();
+      final double previewH = p.width.toDouble();
 
-    final Size screen = MediaQuery.of(context).size;
-    final double screenW = screen.width;
-    final double screenH = screen.height;
+      final Size screen = MediaQuery.of(context).size;
+      final double screenW = screen.width;
+      final double screenH = screen.height;
 
-    final double scale = math.max(screenW / previewW, screenH / previewH);
-    final double dispW = previewW * scale;
-    final double dispH = previewH * scale;
-    final double dx = (screenW - dispW) / 2.0;
-    final double dy = (screenH - dispH) / 2.0;
-    final double shortSideScreen = math.min(screenW, screenH);
+      final double scale = math.max(screenW / previewW, screenH / previewH);
+      final double dispW = previewW * scale;
+      final double dispH = previewH * scale;
+      final double dx = (screenW - dispW) / 2.0;
+      final double dy = (screenH - dispH) / 2.0;
+      final double shortSideScreen = math.min(screenW, screenH);
 
-    double squareSizeScreen;
-    if (_lastIpdPx > 0) {
-      final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-      final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-      squareSizeScreen =
-          (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
-    } else {
-      squareSizeScreen = shortSideScreen * 0.70;
-    }
+      double squareSizeScreen;
+      if (_lastIpdPx > 0) {
+        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+        squareSizeScreen =
+            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
+      } else {
+        squareSizeScreen = shortSideScreen * 0.70;
+      }
 
-    final double centerXScreen = screenW / 2.0;
-    final double centerYScreen =
-        screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
+      final double centerXScreen = screenW / 2.0;
+      final double centerYScreen =
+          screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
 
-    final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-    final double topScreen = centerYScreen - squareSizeScreen / 2.0;
+      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
+      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
-    final double leftInShown = leftScreen - dx;
-    final double topInShown = topScreen - dy;
+      final double leftInShown = leftScreen - dx;
+      final double topInShown = topScreen - dy;
 
-    final double leftPreview = leftInShown / scale;
-    final double topPreview = topInShown / scale;
-    final double sidePreview = squareSizeScreen / scale;
+      final double leftPreview = leftInShown / scale;
+      final double topPreview = topInShown / scale;
+      final double sidePreview = squareSizeScreen / scale;
 
-    final double ratioX = original.width / previewW;
-    final double ratioY = original.height / previewH;
+      final double ratioX = original.width / previewW;
+      final double ratioY = original.height / previewH;
 
-    int cropX = (leftPreview * ratioX).round();
-    int cropY = (topPreview * ratioY).round();
-    int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
+      int cropX = (leftPreview * ratioX).round();
+      int cropY = (topPreview * ratioY).round();
+      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
 
-    cropSide = cropSide.clamp(1, math.min(original.width, original.height));
-    cropX = cropX.clamp(0, original.width - cropSide);
-    cropY = cropY.clamp(0, original.height - cropSide);
+      cropSide =
+          cropSide.clamp(1, math.min(original.width, original.height));
+      cropX = cropX.clamp(0, original.width - cropSide);
+      cropY = cropY.clamp(0, original.height - cropSide);
 
-    img.Image cropped = img.copyCrop(
-      original,
-      x: cropX,
-      y: cropY,
-      width: cropSide,
-      height: cropSide,
-    );
+      img.Image cropped = img.copyCrop(
+        original,
+        x: cropX,
+        y: cropY,
+        width: cropSide,
+        height: cropSide,
+      );
 
-    img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-    final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
+      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-    final PermissionState pState =
-        await PhotoManager.requestPermissionExtend();
-    if (!pState.hasAccess) {
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
+      if (!pState.hasAccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+        }
+        return;
+      }
+
+      final String baseName =
+          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
+
+      final AssetEntity? asset = await PhotoManager.editor.saveImage(
+        pngBytes,
+        filename: '$baseName.png',
+      );
+      if (asset == null) throw Exception('Salvataggio PNG fallito');
+
+      final String newPath = (await _tempThumbPath('$baseName.png'));
+      await File(newPath).writeAsBytes(pngBytes);
+      _lastShotPath = newPath;
+
+      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permesso Foto negato')),
+          const SnackBar(
+              content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
         );
-      }
-      return;
-    }
-
-    final String baseName =
-        '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
-
-    final AssetEntity? asset = await PhotoManager.editor.saveImage(
-      pngBytes,
-      filename: '$baseName.png',
-    );
-    if (asset == null) throw Exception('Salvataggio PNG fallito');
-
-    final String newPath = (await _tempThumbPath('$baseName.png'));
-    await File(newPath).writeAsBytes(pngBytes);
-    _lastShotPath = newPath;
-
-    debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
-      );
-      setState(() {});
-
-      // 🔹 Invia immagine al server per analisi
-      final uri = Uri.parse("http://46.101.223.88:5000/analyze");
-      final request = http.MultipartRequest("POST", uri);
-      request.fields['mode'] =
-          _mode == CaptureMode.particolare ? "particolare" : "fullface";
-      request.files.add(
-          await http.MultipartFile.fromPath('file', newPath));
-
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        final respData = await response.stream.bytesToString();
-        final decoded = jsonDecode(respData);
-
-        final macchieOverlay = decoded["overlay_macchie"];
-        final rugheOverlay = decoded["overlay_rughe"];
+        setState(() {});
 
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AnalysisResultsPage(
-              baseImagePath: newPath,
-              macchieOverlayPath: macchieOverlay,
-              rugheOverlayPath: rugheOverlay,
-            ),
-          ),
-        );
-      } else {
+  MaterialPageRoute(
+    builder: (_) => AnalysisPreview(
+      imagePath: newPath,
+      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+    ),
+  ),
+);
+      }
+    } catch (e) {
+      debugPrint('Take/save error: $e');
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Errore analisi: ${response.statusCode}")),
+          SnackBar(content: Text('Errore salvataggio: $e')),
         );
       }
+    } finally {
+      try {
+        if (!ctrl.value.isStreamingImages) {
+          await ctrl.startImageStream(_processCameraImage);
+          _streamRunning = true;
+        }
+      } catch (_) {}
+      if (mounted) setState(() => _shooting = false);
     }
-  } catch (e) {
-    debugPrint('Take/save error: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore salvataggio: $e')),
-      );
-    }
-  } finally {
-    try {
-      if (!ctrl.value.isStreamingImages) {
-        await ctrl.startImageStream(_processCameraImage);
-        _streamRunning = true;
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _shooting = false);
   }
-}
 
-Future<String> _tempThumbPath(String fileName) async {
-  final dir = await Directory.systemTemp.createTemp('epi_thumbs');
-  return '${dir.path}/$fileName';
-}
+  Future<String> _tempThumbPath(String fileName) async {
+    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
+    return '${dir.path}/$fileName';
+  }
 
   // ====== UI ======
   Widget _buildScaleChip() {
@@ -607,7 +584,7 @@ Future<String> _tempThumbPath(String fileName) async {
           )
         : previewFull;
 
-    return LayoutBuilder(
+    Widget overlay = LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
@@ -619,7 +596,7 @@ Future<String> _tempThumbPath(String fileName) async {
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
           squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
         } else {
-          squareSize = shortSide * 0.70;
+          squareSize = shortSide * 0.70; // dimensione stabile se non trova pupille
         }
 
         final Color frameColor = (_mode == CaptureMode.volto
@@ -631,24 +608,7 @@ Future<String> _tempThumbPath(String fileName) async {
         final double safeTop = MediaQuery.of(context).padding.top;
 
         return Stack(
-          fit: StackFit.expand,
           children: [
-            Positioned.fill(child: preview),
-
-            // 👇 Overlay PRE dentro il riquadro (trasparente)
-            if (widget.guideImage != null)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: SizedBox(
-                  width: squareSize,
-                  height: squareSize,
-                  child: Opacity(
-                    opacity: 0.4,
-                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
-                  ),
-                ),
-              ),
-
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -660,16 +620,14 @@ Future<String> _tempThumbPath(String fileName) async {
                 ),
               ),
             ),
-
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
               mode: _mode,
-              isFrontCamera: isFront,
+              isFrontCamera: isFront, // 👈 aggiunto qui
             ),
-
             if (_mode == CaptureMode.volto)
               Align(
                 alignment: const Alignment(0, -0.3),
@@ -679,14 +637,12 @@ Future<String> _tempThumbPath(String fileName) async {
                   okThresholdDeg: 1.0,
                 ),
               ),
-
             Positioned(
               top: safeTop + 8,
               left: 0,
               right: 0,
               child: Center(child: _buildScaleChip()),
             ),
-
             Positioned(
               bottom: 180,
               left: 0,
@@ -696,6 +652,14 @@ Future<String> _tempThumbPath(String fileName) async {
           ],
         );
       },
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(child: preview),
+        Positioned.fill(child: overlay),
+      ],
     );
   }
 
