@@ -229,88 +229,87 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   Future<void> _resumeJob(String tipo, String jobId) async {
-    setState(() => _loading = true);
-    bool done = false;
-    Map<String, dynamic>? result;
+  setState(() => _loading = true);
+  bool done = false;
+  Map<String, dynamic>? result;
 
-    while (!done && mounted) {
-      await Future.delayed(const Duration(seconds: 2));
-      try {
-        final statusResp = await http
-            .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
-            .timeout(const Duration(seconds: 10));
-        if (statusResp.statusCode != 200) continue;
+  while (!done && mounted) {
+    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final statusResp = await http
+          .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
+          .timeout(const Duration(seconds: 10));
+      if (statusResp.statusCode != 200) continue;
 
-        final statusData = jsonDecode(statusResp.body);
-        if (statusData["status"] == "done") {
-          done = true;
-          result = statusData["result"];
-        } else if (statusData["status"] == "error") {
-          done = true;
-          result = {"error": statusData["result"]};
-        }
-      } catch (_) {
-        continue;
+      final statusData = jsonDecode(statusResp.body);
+      if (statusData["status"] == "done") {
+        done = true;
+        result = statusData["result"];
+      } else if (statusData["status"] == "error") {
+        done = true;
+        result = {"error": statusData["result"]};
       }
+    } catch (_) {
+      continue;
     }
+  }
 
-    if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
+  if (result != null) {
+    // 🔹 Caso PRE/POST → ritorno immediato a PrePost
+    if (widget.mode == "prepost") {
+      final overlayUrl = result["overlay_url"] != null
+          ? "http://46.101.223.88:5000${result["overlay_url"]}"
+          : null;
 
-      final prefs = await SharedPreferences.getInstance();
-      prefs.remove("last_job_id_$tipo");
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Analisi $tipo completata")),
-        );
-
-        // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
-        if (widget.mode == "prepost") {
-          final overlayUrl = result["overlay_url"] != null
-              ? "http://46.101.223.88:5000${result["overlay_url"]}"
-              : null;
-
-          String? overlayPath;
-          if (overlayUrl != null) {
-            final resp = await http.get(Uri.parse(overlayUrl));
-            if (resp.statusCode == 200) {
-              final dir = await getApplicationDocumentsDirectory();
-              overlayPath = path.join(
-                dir.path,
-                "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-              );
-              await File(overlayPath).writeAsBytes(resp.bodyBytes);
-            }
-          }
-
-          Navigator.pop(context, {
-            "result": result,
-            "overlay_path": overlayPath,
-            "id": result["id"],
-            "filename": result["filename"],
-          });
-          return; // 👈 qui forziamo la chiusura della pagina
+      String? overlayPath;
+      if (overlayUrl != null) {
+        final resp = await http.get(Uri.parse(overlayUrl));
+        if (resp.statusCode == 200) {
+          final dir = await getApplicationDocumentsDirectory();
+          overlayPath = path.join(
+            dir.path,
+            "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+          );
+          await File(overlayPath).writeAsBytes(resp.bodyBytes);
         }
       }
-    }
 
-    // fallback: se sei in prepost e arrivi qui, chiudi comunque
-    if (widget.mode == "prepost" && mounted) {
       Navigator.pop(context, {
         "result": result,
-        "overlay_path": null,
-        "id": null,
-        "filename": null,
+        "overlay_path": overlayPath,
+        "id": result["id"],
+        "filename": result["filename"],
       });
-      return;
+      return; // 👈 chiusura immediata come nel file old
     }
 
-    if (mounted) setState(() => _loading = false);
+    // 🔹 Altri casi → esegui i parser e aggiorna la UI
+    if (tipo == "rughe") _parseRughe(result);
+    if (tipo == "macchie") _parseMacchie(result);
+    if (tipo == "melasma") _parseMelasma(result);
+    if (tipo == "pori") _parsePori(result);
+
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove("last_job_id_$tipo");
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Analisi $tipo completata")),
+      );
+    }
+  } else if (widget.mode == "prepost" && mounted) {
+    // fallback se non arriva result
+    Navigator.pop(context, {
+      "result": null,
+      "overlay_path": null,
+      "id": null,
+      "filename": null,
+    });
+    return;
   }
+
+  if (mounted) setState(() => _loading = false);
+}
 
   // === Parsers ===
   void _parseRughe(dynamic data) async {
