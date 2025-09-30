@@ -43,24 +43,23 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  /// 🔹 Normalizza i nomi dei file (toglie overlay o path strani)
+  /// 🔹 Normalizza i nomi dei file (mantiene pre_ / post_ / photo_)
   String _normalizeFilename(String fileName) {
-    final idxPhoto = fileName.indexOf("photo_");
-    if (idxPhoto != -1) return fileName.substring(idxPhoto);
-
-    final idxPre = fileName.indexOf("pre_");
-    if (idxPre != -1) return fileName.substring(idxPre);
-
-    final idxPost = fileName.indexOf("post_");
-    if (idxPost != -1) return fileName.substring(idxPost);
-
+    if (fileName.contains("photo_")) {
+      return fileName.substring(fileName.indexOf("photo_"));
+    }
+    if (fileName.contains("pre_")) {
+      return fileName.substring(fileName.indexOf("pre_"));
+    }
+    if (fileName.contains("post_")) {
+      return fileName.substring(fileName.indexOf("post_"));
+    }
     return fileName;
   }
 
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
       return;
     }
 
@@ -71,7 +70,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         "http://46.101.223.88:5000/compare_from_db?pre_file=$cleanPre&post_file=$cleanPost");
     try {
       final resp = await http.get(url);
-      debugPrint("📡 Risposta server (${resp.statusCode}): ${resp.body}");
 
       if (resp.statusCode == 200) {
         final decoded = jsonDecode(resp.body);
@@ -108,10 +106,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                 : null,
           };
         });
-
-        debugPrint("✅ Dati comparazione normalizzati: $compareData");
-      } else {
-        debugPrint("❌ Errore server: ${resp.body}");
       }
     } catch (e) {
       debugPrint("❌ Errore richiesta: $e");
@@ -161,16 +155,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       onTap: () async {
                         final File? f = await media[index].file;
                         if (f != null && context.mounted) {
-                          final originalName =
-                              media[index].title ?? path.basename(f.path);
-
-                          // 🔹 Debug per capire che nome arriva
-                          debugPrint("🎯 Nome file galleria (title): ${media[index].title}");
-                          debugPrint("📂 Nome file path: ${path.basename(f.path)}");
-
+                          // 👇 Genera sempre un nome coerente
+                          final newName =
+                              "pre_1024_${DateTime.now().millisecondsSinceEpoch}.png";
                           setState(() {
                             preImage = f;
-                            preFile = originalName; // 👈 nome corretto
+                            preFile = newName;
                           });
                           Navigator.pop(context, f);
                         }
@@ -187,10 +177,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         ),
       ),
     );
-
-    if (file != null) {
-      debugPrint("📸 PRE selezionata → $preFile");
-    }
   }
 
   // === Scatta POST ===
@@ -219,7 +205,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         setState(() {
           postImage = File(overlayPath);
         });
-        debugPrint("✅ Overlay POST salvato: $overlayPath");
       }
       if (newPostFile != null) {
         setState(() {
@@ -272,15 +257,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
   }
 
-  // === Calcolo colore differenza ===
+  // === Colore differenza ===
   Color _diffColor(double pre, double post) {
-    if (post < pre) {
-      return Colors.green;
-    } else if (post > pre) {
-      return Colors.red;
-    } else {
-      return Colors.grey;
-    }
+    if (post < pre) return Colors.green;
+    if (post > pre) return Colors.red;
+    return Colors.grey;
   }
 
   @override
@@ -363,10 +344,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             final post =
                                 (compareData!["macchie"]["perc_post"] ?? 0.0)
                                     .toDouble();
-                            final diff = post - pre;
                             return _buildBar(
                               "Differenza",
-                              diff,
+                              post - pre,
                               _diffColor(pre, post),
                             );
                           },
@@ -406,15 +386,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         Builder(
                           builder: (_) {
                             final pre =
-                                (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
+                                (compareData!["pori"]["perc_pre_dilatati"] ??
+                                        0.0)
                                     .toDouble();
                             final post =
-                                (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
+                                (compareData!["pori"]["perc_post_dilatati"] ??
+                                        0.0)
                                     .toDouble();
-                            final diff = post - pre;
                             return _buildBar(
                               "Differenza",
-                              diff,
+                              post - pre,
                               _diffColor(pre, post),
                             );
                           },
