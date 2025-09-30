@@ -518,9 +518,11 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
           if (snapshot.connectionState == ConnectionState.done &&
               _controller != null) {
             return Stack(
-              alignment: Alignment.center,
+              fit: StackFit.expand,
               children: [
                 CameraPreview(_controller!),
+
+                // 👇 Overlay PRE semi-trasparente
                 Center(
                   child: SizedBox(
                     width: min(1024, screenW),
@@ -531,6 +533,63 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     ),
                   ),
                 ),
+
+                // 👇 Riquadro verde/giallo centrato
+                Align(
+                  alignment: const Alignment(0, -0.3),
+                  child: Container(
+                    width: min(280, screenW * 0.8),
+                    height: min(280, screenW * 0.8),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: Colors.yellow.withOpacity(0.9), width: 4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+
+                // 👇 Livella orizzontale (3 linee)
+                Align(
+                  alignment: const Alignment(0, -0.3),
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 320),
+                    width: 240,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Livella orizzontale",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 👇 Livella verticale
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 20, top: 100),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      "│",
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+
+                // 👇 Barra inferiore con pulsanti
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
