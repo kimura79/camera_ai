@@ -320,12 +320,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
+                        _buildBar("Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar(
-                            "Post",
+                        _buildBar("Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
@@ -350,15 +348,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("📊 Pori dilatati (rossi)",
+                        const Text("📊 Percentuali Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
+                        _buildBar("Pre",
                             compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
-                        _buildBar(
-                            "Post",
+                        _buildBar("Post",
                             compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
@@ -370,9 +366,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                                 ? Colors.green
                                 : Colors.red),
                         Text(
-                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
                         Text(
-                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
                       ],
                     ),
                   ),
