@@ -38,6 +38,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     super.initState();
     preFile = widget.preFile;
     postFile = widget.postFile;
+    debugPrint("🔵 initState → preFile=$preFile, postFile=$postFile");
     if (preFile != null && postFile != null) {
       _loadCompareResults();
     }
@@ -46,24 +47,30 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
+      debugPrint("⚠️ _loadCompareResults → preFile o postFile mancanti");
       return;
     }
 
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+    debugPrint("🌍 Chiamata API comparazione: $url");
+
     try {
       final resp = await http.get(url);
+      debugPrint("📡 Risposta server (${resp.statusCode}): ${resp.body}");
+
       if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body);
+        debugPrint("✅ JSON decodificato: $decoded");
+
         setState(() {
-          compareData = jsonDecode(resp.body);
+          compareData = decoded;
         });
-        debugPrint("✅ Dati comparazione ricevuti: $compareData");
       } else {
-        debugPrint("❌ Errore server: ${resp.body}");
+        debugPrint("❌ Errore server (${resp.statusCode}): ${resp.body}");
       }
     } catch (e) {
-      debugPrint("❌ Errore richiesta: $e");
+      debugPrint("❌ Errore richiesta API comparazione: $e");
     }
   }
 
@@ -131,6 +138,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
         preFile = path.basename(file.path);
       });
+      debugPrint("📸 PRE selezionata: $preFile");
     }
   }
 
@@ -155,6 +163,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (analyzed != null) {
       final overlayPath = analyzed["overlay_path"] as String?;
       final newPostFile = analyzed["filename"] as String?;
+      debugPrint("📥 Ritorno da PostCameraWidget: $analyzed");
 
       if (overlayPath != null) {
         setState(() {
@@ -166,6 +175,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         setState(() {
           postFile = newPostFile;
         });
+        debugPrint("✅ postFile aggiornato: $postFile");
         await _loadCompareResults();
       }
     }
@@ -198,6 +208,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Widget barra percentuale ===
   Widget _buildBar(String label, double value, Color color) {
+    debugPrint("📊 _buildBar($label) → $value%");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -215,6 +226,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Calcolo colore differenza ===
   Color _diffColor(double pre, double post) {
+    final diff = post - pre;
+    debugPrint("🎨 Calcolo diffColor → pre=$pre, post=$post, diff=$diff");
     if (post < pre) {
       return Colors.green; // miglioramento
     } else if (post > pre) {
@@ -227,6 +240,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
+
+    debugPrint("🔄 build() → compareData=$compareData");
 
     return Scaffold(
       appBar: AppBar(title: const Text("Pre/Post")),
@@ -273,6 +288,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
             // === Risultati comparazione ===
             if (compareData != null) ...[
+              debugPrint("📊 Rendering blocchi comparazione"),
+
               // --- Macchie
               if (compareData!["macchie"] != null)
                 Card(
@@ -378,6 +395,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
+            ] else ...[
+              const Text("⚠️ Nessun dato di comparazione disponibile"),
             ]
           ],
         ),
