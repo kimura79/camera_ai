@@ -11,10 +11,12 @@ import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
+// importa la nuova camera POST
+import '../post_camera_widget.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
+  final String? preFile; // Filename analisi PRE nel DB
+  final String? postFile; // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -175,16 +177,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    final cameras = await availableCameras();
-    final firstCamera = cameras.first;
-
     final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (context) => CameraOverlayPage(
-          cameras: cameras,
-          initialCamera: firstCamera,
-          guideImage: preImage!,
+        builder: (context) => PostCameraWidget(
+          guideImage: preImage, // 👈 overlay PRE
         ),
       ),
     );
@@ -310,50 +307,56 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
-  Card(
-    margin: const EdgeInsets.all(12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("📊 Percentuali Macchie",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          _buildBar("Pre",
-              compareData!["macchie"]["perc_pre"] ?? 0.0,
-              Colors.green),
-          _buildBar("Post",
-              compareData!["macchie"]["perc_post"] ?? 0.0,
-              Colors.blue),
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar(
+                            "Pre",
+                            compareData!["macchie"]["perc_pre"] ?? 0.0,
+                            Colors.green),
+                        _buildBar(
+                            "Post",
+                            compareData!["macchie"]["perc_post"] ?? 0.0,
+                            Colors.blue),
 
-          // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
-          Builder(
-            builder: (_) {
-              final double pre =
-                  (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-              final double post =
-                  (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
+                        // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
+                        Builder(
+                          builder: (_) {
+                            final double pre =
+                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                    .toDouble();
+                            final double post =
+                                (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                    .toDouble();
 
-              double diffPerc = 0.0;
-              if (pre > 0) {
-                diffPerc = ((post - pre) / pre) * 100;
-              }
+                            double diffPerc = 0.0;
+                            if (pre > 0) {
+                              diffPerc = ((post - pre) / pre) * 100;
+                            }
 
-              return _buildBar(
-                "Differenza",
-                diffPerc.abs(),
-                diffPerc <= 0 ? Colors.green : Colors.red,
-              );
-            },
-          ),
+                            return _buildBar(
+                              "Differenza",
+                              diffPerc.abs(),
+                              diffPerc <= 0 ? Colors.green : Colors.red,
+                            );
+                          },
+                        ),
 
-          Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-          Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-        ],
-      ),
-    ),
-  ),
-
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                      ],
+                    ),
+                  ),
+                ),
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -392,233 +395,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ]
           ],
         ),
-      ),
-    );
-  }
-}
-
-// === Camera con overlay guida ===
-class CameraOverlayPage extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  final CameraDescription initialCamera;
-  final File guideImage;
-
-  const CameraOverlayPage({
-    super.key,
-    required this.cameras,
-    required this.initialCamera,
-    required this.guideImage,
-  });
-
-  @override
-  State<CameraOverlayPage> createState() => _CameraOverlayPageState();
-}
-
-class _CameraOverlayPageState extends State<CameraOverlayPage> {
-  CameraController? _controller;
-  Future<void>? _initializeControllerFuture;
-  late CameraDescription currentCamera;
-  bool _shooting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    currentCamera = widget.initialCamera;
-    _initCamera();
-  }
-
-  Future<void> _initCamera() async {
-    await _controller?.dispose();
-    _controller = CameraController(
-      currentCamera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    _initializeControllerFuture = _controller!.initialize().then((_) async {
-      await _controller!.setFlashMode(FlashMode.off);
-    });
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _switchCamera() async {
-    if (widget.cameras.length < 2) return;
-
-    if (currentCamera.lensDirection == CameraLensDirection.front) {
-      final back = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = back;
-    } else {
-      final front = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = front;
-    }
-    await _initCamera();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _takePicture() async {
-    try {
-      if (_shooting) return;
-      setState(() => _shooting = true);
-
-      await _initializeControllerFuture;
-      final image = await _controller!.takePicture();
-      if (!mounted) return;
-
-      File file = File(image.path);
-
-      final bytes = await file.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-
-      if (decoded != null) {
-        final side =
-            decoded.width < decoded.height ? decoded.width : decoded.height;
-        final x = (decoded.width - side) ~/ 2;
-        final y = (decoded.height - side) ~/ 2;
-        img.Image cropped =
-            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (currentCamera.lensDirection == CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-
-        final outPath = "${file.path}_square.jpg";
-        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
-      }
-
-      Navigator.pop(context, file);
-    } catch (e) {
-      debugPrint("Errore scatto: $e");
-    } finally {
-      if (mounted) setState(() => _shooting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.width;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done &&
-              _controller != null) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                CameraPreview(_controller!),
-                Center(
-                  child: SizedBox(
-                    width: min(1024, screenW),
-                    height: min(1024, screenW),
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.image,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 86,
-                                  height: 86,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.10),
-                                  ),
-                                ),
-                                Container(
-                                  width: 78,
-                                  height: 78,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 6),
-                                  ),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 80),
-                                  width: _shooting ? 58 : 64,
-                                  height: _shooting ? 58 : 64,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 32),
-                          child: GestureDetector(
-                            onTap: _switchCamera,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.cameraswitch,
-                                  color: Colors.white, size: 28),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          } else {
-            return const Center(child: CircularProgressIndicator());
-          }
-        },
       ),
     );
   }
