@@ -39,6 +39,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     super.initState();
     preFile = widget.preFile;
     postFile = widget.postFile;
+    debugPrint("🔵 initState → preFile=$preFile postFile=$postFile");
     if (preFile != null && postFile != null) {
       _loadCompareResults();
     }
@@ -47,31 +48,41 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
-      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
+      debugPrint("⚠️ _loadCompareResults → preFile=$preFile postFile=$postFile → skip");
       return;
     }
 
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+    debugPrint("🌍 Chiamata GET compare_from_db: $url");
+
     try {
       final resp = await http.get(url);
+      debugPrint("📡 Response code: ${resp.statusCode}");
+      debugPrint("📡 Response body: ${resp.body}");
+
       if (resp.statusCode == 200) {
-        setState(() {
-          compareData = jsonDecode(resp.body);
-        });
-        debugPrint("✅ Dati comparazione ricevuti: $compareData");
+        final Map<String, dynamic> data = jsonDecode(resp.body);
+        if (data.isEmpty) {
+          debugPrint("⚠️ JSON vuoto → nessun dato di comparazione");
+        } else {
+          setState(() => compareData = data);
+          debugPrint("✅ compareData popolato: $compareData");
+        }
       } else {
-        debugPrint("❌ Errore server: ${resp.body}");
+        debugPrint("❌ Errore server compare_from_db: ${resp.body}");
       }
     } catch (e) {
-      debugPrint("❌ Errore richiesta: $e");
+      debugPrint("❌ Errore richiesta compare_from_db: $e");
     }
   }
 
-  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
+    debugPrint("📂 Avvio selezione PRE da galleria");
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
+      debugPrint("❌ Permesso galleria negato");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Permesso galleria negato")),
       );
@@ -80,11 +91,17 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
     final List<AssetPathEntity> paths =
         await PhotoManager.getAssetPathList(type: RequestType.image);
-    if (paths.isEmpty) return;
+    if (paths.isEmpty) {
+      debugPrint("⚠️ Nessuna cartella immagini trovata");
+      return;
+    }
 
     final List<AssetEntity> media =
         await paths.first.getAssetListPaged(page: 0, size: 100);
-    if (media.isEmpty) return;
+    if (media.isEmpty) {
+      debugPrint("⚠️ Nessuna immagine in galleria");
+      return;
+    }
 
     final file = await showDialog<File?>(
       context: context,
@@ -110,6 +127,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     return GestureDetector(
                       onTap: () async {
                         final File? f = await media[index].file;
+                        debugPrint("📷 PRE selezionato: ${f?.path}");
                         if (f != null && context.mounted) {
                           Navigator.pop(context, f);
                         }
@@ -132,29 +150,28 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
       });
 
-      // 🔹 Usa timestamp per cercare nel DB il filename corretto
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+      debugPrint("🔍 Lookup PRE in DB con timestamp=$ts");
 
       try {
         final url =
             Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
         final resp = await http.get(url);
+        debugPrint("📡 find_by_timestamp code=${resp.statusCode} body=${resp.body}");
 
         if (resp.statusCode == 200) {
           final data = jsonDecode(resp.body);
           final serverFilename = data["filename"];
-
           if (serverFilename != null) {
             setState(() {
               preFile = serverFilename;
             });
-            debugPrint("✅ PRE associato a record DB: $serverFilename");
+            debugPrint("✅ PRE associato a DB: $serverFilename");
           } else {
-            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
-            debugPrint("⚠️ PRE senza match DB, uso filename locale");
+            debugPrint("⚠️ Nessun match DB, uso filename locale=$preFile");
           }
         }
       } catch (e) {
@@ -166,9 +183,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera, analizza e torna indietro ===
+  // === Scatta POST ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
+      debugPrint("⚠️ Non hai selezionato PRE prima del POST");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
@@ -177,6 +195,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
     final cameras = await availableCameras();
     final firstCamera = cameras.first;
+    debugPrint("📸 Avvio fotocamera POST...");
 
     final result = await Navigator.push<File?>(
       context,
@@ -190,19 +209,25 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
+      debugPrint("📸 Foto POST acquisita: ${result.path}");
+
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
 
+      debugPrint("🟢 Ritorno da AnalysisPreview: $analyzed");
+
       if (analyzed != null) {
         final overlayPath = analyzed["overlay_path"] as String?;
         final newPostFile = analyzed["filename"] as String?;
+
+        debugPrint("📂 overlayPath=$overlayPath newPostFile=$newPostFile");
 
         if (overlayPath != null) {
           setState(() {
@@ -214,39 +239,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           setState(() {
             postFile = newPostFile;
           });
+          debugPrint("✅ POST associato a DB: $newPostFile");
           await _loadCompareResults();
         }
       }
     }
   }
 
-  // === Conferma per rifare la foto POST ===
-  Future<void> _confirmRetakePost() async {
-    final bool? retake = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Rifare la foto POST?"),
-        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Annulla"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Rifai foto"),
-          ),
-        ],
-      ),
-    );
-
-    if (retake == true) {
-      await _capturePostImage();
-    }
-  }
-
   // === Widget barra percentuale ===
   Widget _buildBar(String label, double value, Color color) {
+    debugPrint("📊 Build bar $label → ${value.toStringAsFixed(2)}%");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -265,6 +267,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
+
+    debugPrint("🔄 build() → compareData=$compareData");
 
     return Scaffold(
       appBar: AppBar(title: const Text("Pre/Post")),
@@ -289,7 +293,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
             ),
             GestureDetector(
-              onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
+              onTap: postImage == null ? _capturePostImage : null,
               child: Container(
                 width: boxSize,
                 height: boxSize,
@@ -308,52 +312,46 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             const SizedBox(height: 20),
 
             // === Risultati comparazione ===
-            if (compareData != null) ...[
+            if (compareData == null)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "⚠️ Nessun dato di comparazione trovato.\n"
+                  "Controlla i log debugPrint per capire cosa non arriva.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.red),
+                ),
+              )
+            else ...[
               if (compareData!["macchie"] != null)
-  Card(
-    margin: const EdgeInsets.all(12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("📊 Percentuali Macchie",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          _buildBar("Pre",
-              compareData!["macchie"]["perc_pre"] ?? 0.0,
-              Colors.green),
-          _buildBar("Post",
-              compareData!["macchie"]["perc_post"] ?? 0.0,
-              Colors.blue),
-
-          // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
-          Builder(
-            builder: (_) {
-              final double pre =
-                  (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-              final double post =
-                  (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
-
-              double diffPerc = 0.0;
-              if (pre > 0) {
-                diffPerc = ((post - pre) / pre) * 100;
-              }
-
-              return _buildBar(
-                "Differenza",
-                diffPerc.abs(),
-                diffPerc <= 0 ? Colors.green : Colors.red,
-              );
-            },
-          ),
-
-          Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-          Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-        ],
-      ),
-    ),
-  ),
-
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar(
+                            "Pre",
+                            (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                .toDouble(),
+                            Colors.green),
+                        _buildBar(
+                            "Post",
+                            (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                .toDouble(),
+                            Colors.blue),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                      ],
+                    ),
+                  ),
+                ),
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -367,16 +365,19 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar(
                             "Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
+                            (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
+                                .toDouble(),
                             Colors.green),
                         _buildBar(
                             "Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
+                            (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
+                                .toDouble(),
                             Colors.blue),
                         _buildBar(
                             "Differenza",
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
+                                .abs()
+                                .toDouble(),
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
                                     0
                                 ? Colors.green
@@ -392,233 +393,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ]
           ],
         ),
-      ),
-    );
-  }
-}
-
-// === Camera con overlay guida ===
-class CameraOverlayPage extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  final CameraDescription initialCamera;
-  final File guideImage;
-
-  const CameraOverlayPage({
-    super.key,
-    required this.cameras,
-    required this.initialCamera,
-    required this.guideImage,
-  });
-
-  @override
-  State<CameraOverlayPage> createState() => _CameraOverlayPageState();
-}
-
-class _CameraOverlayPageState extends State<CameraOverlayPage> {
-  CameraController? _controller;
-  Future<void>? _initializeControllerFuture;
-  late CameraDescription currentCamera;
-  bool _shooting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    currentCamera = widget.initialCamera;
-    _initCamera();
-  }
-
-  Future<void> _initCamera() async {
-    await _controller?.dispose();
-    _controller = CameraController(
-      currentCamera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    _initializeControllerFuture = _controller!.initialize().then((_) async {
-      await _controller!.setFlashMode(FlashMode.off);
-    });
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _switchCamera() async {
-    if (widget.cameras.length < 2) return;
-
-    if (currentCamera.lensDirection == CameraLensDirection.front) {
-      final back = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = back;
-    } else {
-      final front = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = front;
-    }
-    await _initCamera();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _takePicture() async {
-    try {
-      if (_shooting) return;
-      setState(() => _shooting = true);
-
-      await _initializeControllerFuture;
-      final image = await _controller!.takePicture();
-      if (!mounted) return;
-
-      File file = File(image.path);
-
-      final bytes = await file.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-
-      if (decoded != null) {
-        final side =
-            decoded.width < decoded.height ? decoded.width : decoded.height;
-        final x = (decoded.width - side) ~/ 2;
-        final y = (decoded.height - side) ~/ 2;
-        img.Image cropped =
-            img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (currentCamera.lensDirection == CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-
-        final outPath = "${file.path}_square.jpg";
-        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
-      }
-
-      Navigator.pop(context, file);
-    } catch (e) {
-      debugPrint("Errore scatto: $e");
-    } finally {
-      if (mounted) setState(() => _shooting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.width;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done &&
-              _controller != null) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                CameraPreview(_controller!),
-                Center(
-                  child: SizedBox(
-                    width: min(1024, screenW),
-                    height: min(1024, screenW),
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.image,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 86,
-                                  height: 86,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.10),
-                                  ),
-                                ),
-                                Container(
-                                  width: 78,
-                                  height: 78,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 6),
-                                  ),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 80),
-                                  width: _shooting ? 58 : 64,
-                                  height: _shooting ? 58 : 64,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 32),
-                          child: GestureDetector(
-                            onTap: _switchCamera,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.cameraswitch,
-                                  color: Colors.white, size: 28),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          } else {
-            return const Center(child: CircularProgressIndicator());
-          }
-        },
       ),
     );
   }
