@@ -15,6 +15,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:custom_camera_component/models/capture_mode.dart';
+import 'package:http/http.dart' as http;
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
