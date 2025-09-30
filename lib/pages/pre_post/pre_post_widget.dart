@@ -43,6 +43,17 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  /// 🔹 Utility per ripulire il nome file da prefissi tipo "PRE_overlay_macchie_..."
+  String _normalizeFilename(String fileName) {
+    // Se contiene "photo_", prendi tutto da lì in poi
+    final idx = fileName.indexOf("photo_");
+    if (idx != -1) {
+      return fileName.substring(idx);
+    }
+    // Altrimenti lascia invariato
+    return fileName;
+  }
+
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
@@ -50,8 +61,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
+    // 🔹 Normalizza i nomi prima di passarli al server
+    final cleanPre = _normalizeFilename(preFile!);
+    final cleanPost = _normalizeFilename(postFile!);
+
     final url = Uri.parse(
-        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+        "http://46.101.223.88:5000/compare_from_db?pre_file=$cleanPre&post_file=$cleanPost");
     try {
       final resp = await http.get(url);
       debugPrint("📡 Risposta server (${resp.statusCode}): ${resp.body}");
