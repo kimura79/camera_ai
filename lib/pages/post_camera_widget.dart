@@ -15,6 +15,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:custom_camera_component/models/capture_mode.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -37,8 +38,6 @@ class PostCameraWidget extends StatefulWidget {
   @override
   State<PostCameraWidget> createState() => _PostCameraWidgetState();
 }
-
-enum CaptureMode { volto, particolare }
 
 class _PostCameraWidgetState extends State<PostCameraWidget>
     with WidgetsBindingObserver {
