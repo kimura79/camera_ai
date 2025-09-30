@@ -19,8 +19,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
+import 'home_page/home_page_model.dart';
+export 'home_page/home_page_model.dart';
 
 // ✅ PAGINA CAMERA PER SCATTO POST
 class PostCameraWidget extends StatefulWidget {
