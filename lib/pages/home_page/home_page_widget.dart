@@ -352,7 +352,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
 
     // === Crop 1024x1024 ===
-    final img.Image resized = img.copyResizeCropSquare(original, 1024);
+    final img.Image resized = img.copyResizeCropSquare(original, size: 1024);
     final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
     // Salva in galleria
