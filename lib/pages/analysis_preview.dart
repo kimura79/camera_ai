@@ -303,18 +303,18 @@ if (widget.mode == "prepost" && mounted) {
     }
 
     // fallback: se sei in prepost e arrivi qui, chiudi comunque
-    if (widget.mode == "prepost" && mounted) {
-      Navigator.pop(context, {
-        "result": result,
-        "overlay_path": null,
-        "id": null,
-        "filename": null,
-      });
-      return;
-    }
+if (widget.mode == "prepost" && mounted) {
+  Navigator.pop(context, {
+    "result": result,
+    "overlay_path": null,
+    "filename": null,
+    "analysisType": tipo,
+  });
+  return;
+}
 
-    if (mounted) setState(() => _loading = false);
-  }
+if (mounted) setState(() => _loading = false);
+}
 
   // === Parsers ===
   void _parseRughe(dynamic data) async {
