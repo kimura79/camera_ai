@@ -187,48 +187,48 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   // === Chiamata async con polling ===
-  Future<void> _callAnalysisAsync(String tipo) async {
-    setState(() => _loading = true);
-    try {
-      final safePath = await copyToSafePath(widget.imagePath);
+Future<void> _callAnalysisAsync(String tipo) async {
+  setState(() => _loading = true);
+  try {
+    final safePath = await copyToSafePath(widget.imagePath);
 
-      final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
-      final req = http.MultipartRequest("POST", uri);
-      req.files.add(
-        await http.MultipartFile.fromPath(
-          "file",
-          safePath,
-          filename: path.basename(safePath),
-        ),
-      );
-      req.fields["mode"] = widget.mode;
+    final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+    final req = http.MultipartRequest("POST", uri);
+    req.files.add(
+      await http.MultipartFile.fromPath(
+        "file",
+        safePath,
+        filename: path.basename(safePath),
+      ),
+    );
+    req.fields["mode"] = widget.mode;
 
-      final resp = await req.send();
-      final body = await resp.stream.bytesToString();
+    final resp = await req.send();
+    final body = await resp.stream.bytesToString();
 
-      if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
-        throw Exception("Risposta non valida dal server: $body");
-      }
-
-      final decoded = jsonDecode(body);
-      final String jobId = decoded["job_id"];
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("last_job_id_$tipo", jobId);
-
-      await _resumeJob(tipo, jobId);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore analisi: $e")),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
+      throw Exception("Risposta non valida dal server: $body");
     }
-  }
 
-  Future<void> _resumeJob(String tipo, String jobId) async {
+    final decoded = jsonDecode(body);
+    final String jobId = decoded["job_id"];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("last_job_id_$tipo", jobId);
+
+    await _resumeJob(tipo, jobId);
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi: $e")),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _loading = false);
+  }
+}
+
+Future<void> _resumeJob(String tipo, String jobId) async {
   setState(() => _loading = true);
   bool done = false;
   Map<String, dynamic>? result;
@@ -255,39 +255,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   if (result != null) {
-    // 🔹 Caso PRE/POST → ritorno immediato a PrePost
-    if (widget.mode == "prepost") {
-  final overlayUrl = result["overlay_url"] != null
-      ? "http://46.101.223.88:5000${result["overlay_url"]}"
-      : null;
-
-  String? overlayPath;
-  if (overlayUrl != null) {
-    final resp = await http.get(Uri.parse(overlayUrl));
-    if (resp.statusCode == 200) {
-      final dir = await getApplicationDocumentsDirectory();
-      overlayPath = path.join(
-        dir.path,
-        "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-      );
-      await File(overlayPath).writeAsBytes(resp.bodyBytes);
-    }
-  }
-
-  // 👇 primo pop → chiude AnalysisPreview
-  Navigator.pop(context);
-
-  // 👇 secondo pop → chiude PostCameraWidget e torna a PrePostWidget passando i dati
-  Navigator.pop(context, {
-    "result": result,
-    "overlay_path": overlayPath,
-    "id": result?["id"],
-    "filename": result?["filename"],
-  });
-  return;
-}
-
-    // 🔹 Altri casi → esegui i parser e aggiorna la UI
     if (tipo == "rughe") _parseRughe(result);
     if (tipo == "macchie") _parseMacchie(result);
     if (tipo == "melasma") _parseMelasma(result);
@@ -300,16 +267,35 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("✅ Analisi $tipo completata")),
       );
+
+      // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
+      if (widget.mode == "prepost") {
+        final overlayUrl = result["overlay_url"] != null
+            ? "http://46.101.223.88:5000${result["overlay_url"]}"
+            : null;
+
+        String? overlayPath;
+        if (overlayUrl != null) {
+          final resp = await http.get(Uri.parse(overlayUrl));
+          if (resp.statusCode == 200) {
+            final dir = await getApplicationDocumentsDirectory();
+            overlayPath = path.join(
+              dir.path,
+              "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+            );
+            await File(overlayPath).writeAsBytes(resp.bodyBytes);
+          }
+        }
+
+        Navigator.pop(context, {
+          "result": result,
+          "overlay_path": overlayPath,
+          "id": result["id"],   // ⬅️ restituisci anche l’ID DB
+          "filename": result["filename"], // ⬅️ aggiungi questo
+        });
+        return;
+      }
     }
-  } else if (widget.mode == "prepost" && mounted) {
-    // fallback se non arriva result
-    Navigator.pop(context, {
-      "result": null,
-      "overlay_path": null,
-      "id": null,
-      "filename": null,
-    });
-    return;
   }
 
   if (mounted) setState(() => _loading = false);
