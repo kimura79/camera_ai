@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
 
+// importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
 
 class PrePostWidget extends StatefulWidget {
@@ -38,7 +39,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     super.initState();
     preFile = widget.preFile;
     postFile = widget.postFile;
-    debugPrint("🔵 initState → preFile=$preFile postFile=$postFile");
     if (preFile != null && postFile != null) {
       _loadCompareResults();
     }
@@ -53,26 +53,18 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
-    debugPrint("🌍 GET compare_from_db: $url");
-
     try {
       final resp = await http.get(url);
-      debugPrint("📡 Response code: ${resp.statusCode}");
-      debugPrint("📡 Response body: ${resp.body}");
-
       if (resp.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(resp.body);
-        if (data.isNotEmpty) {
-          setState(() => compareData = data);
-          debugPrint("✅ Dati comparazione settati in compareData");
-        } else {
-          debugPrint("⚠️ JSON vuoto → nessun dato comparazione");
-        }
+        setState(() {
+          compareData = jsonDecode(resp.body);
+        });
+        debugPrint("✅ Dati comparazione ricevuti: $compareData");
       } else {
         debugPrint("❌ Errore server: ${resp.body}");
       }
     } catch (e) {
-      debugPrint("❌ Errore richiesta compare_from_db: $e");
+      debugPrint("❌ Errore richiesta: $e");
     }
   }
 
@@ -142,13 +134,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
       // 🔹 Usa timestamp per cercare nel DB il filename corretto
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
-      debugPrint("🔍 Lookup PRE in DB con timestamp=$ts");
 
       try {
         final url =
             Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
         final resp = await http.get(url);
-        debugPrint("📡 find_by_timestamp → code=${resp.statusCode} body=${resp.body}");
 
         if (resp.statusCode == 200) {
           final data = jsonDecode(resp.body);
@@ -160,10 +150,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
+            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
-            debugPrint("⚠️ PRE senza match DB, uso filename locale=${preFile}");
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
           }
         }
       } catch (e) {
@@ -199,8 +190,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      debugPrint("📸 Foto POST acquisita: ${result.path}");
-
       final analyzed = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(
@@ -212,8 +201,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       );
 
       if (analyzed != null) {
-        debugPrint("🟢 Risposta AnalysisPreview POST: $analyzed");
-
         final overlayPath = analyzed["overlay_path"] as String?;
         final newPostFile = analyzed["filename"] as String?;
 
@@ -227,7 +214,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           setState(() {
             postFile = newPostFile;
           });
-          debugPrint("✅ POST associato a record DB: $newPostFile");
           await _loadCompareResults();
         }
       }
@@ -322,44 +308,52 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             const SizedBox(height: 20),
 
             // === Risultati comparazione ===
-            if (compareData == null)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  "⚠️ Nessun dato di comparazione trovato.\n"
-                  "Controlla i log debugPrint per capire cosa non arriva.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.red),
-                ),
-              )
-            else ...[
+            if (compareData != null) ...[
               if (compareData!["macchie"] != null)
-                Card(
-                  margin: const EdgeInsets.all(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("📊 Percentuali Macchie",
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
-                            (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble(),
-                            Colors.green),
-                        _buildBar(
-                            "Post",
-                            (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble(),
-                            Colors.blue),
-                        Text(
-                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-                        Text(
-                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-                      ],
-                    ),
-                  ),
-                ),
+  Card(
+    margin: const EdgeInsets.all(12),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("📊 Percentuali Macchie",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          _buildBar("Pre",
+              compareData!["macchie"]["perc_pre"] ?? 0.0,
+              Colors.green),
+          _buildBar("Post",
+              compareData!["macchie"]["perc_post"] ?? 0.0,
+              Colors.blue),
+
+          // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
+          Builder(
+            builder: (_) {
+              final double pre =
+                  (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
+              final double post =
+                  (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
+
+              double diffPerc = 0.0;
+              if (pre > 0) {
+                diffPerc = ((post - pre) / pre) * 100;
+              }
+
+              return _buildBar(
+                "Differenza",
+                diffPerc.abs(),
+                diffPerc <= 0 ? Colors.green : Colors.red,
+              );
+            },
+          ),
+
+          Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+          Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+        ],
+      ),
+    ),
+  ),
+
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -373,19 +367,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar(
                             "Pre",
-                            (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
                         _buildBar(
                             "Post",
-                            (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
-                                .toDouble(),
+                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
                             "Differenza",
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs()
-                                .toDouble(),
+                                .abs(),
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
                                     0
                                 ? Colors.green
@@ -509,7 +500,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
       Navigator.pop(context, file);
     } catch (e) {
-      debugPrint("❌ Errore scatto: $e");
+      debugPrint("Errore scatto: $e");
     } finally {
       if (mounted) setState(() => _shooting = false);
     }
