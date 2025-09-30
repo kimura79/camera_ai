@@ -446,18 +446,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
         setState(() {});
 
-        Navigator.of(context).push(
+        final analyzed = await Navigator.of(context).push<Map<String, dynamic>?>(
   MaterialPageRoute(
     builder: (_) => AnalysisPreview(
       imagePath: newPath,
       mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
     ),
   ),
-).then((analyzed) {
-  if (analyzed != null) {
-    Navigator.pop(context); // chiude AnalysisPreview
-    Navigator.pop(context, analyzed); // chiude HomePageWidget e torna a PrePostWidget
-  }
+);
+if (!mounted) return;
+if (analyzed != null) {
+  Navigator.pop(context, analyzed); // torna direttamente a PrePostWidget
+}
 });
       }
     } catch (e) {
