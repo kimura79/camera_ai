@@ -67,7 +67,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -134,44 +134,44 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST usando la fotocamera dedicata al POST ===
-Future<void> _capturePostImage() async {
-  if (preImage == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
-    );
-    return;
-  }
+  // === Scatta POST ===
+  Future<void> _capturePostImage() async {
+    if (preImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
+      );
+      return;
+    }
 
-  final analyzed = await Navigator.push<Map<String, dynamic>?>(
-    context,
-    MaterialPageRoute(
-      builder: (context) => PostCameraWidget(
-        guideImage: preImage, // 👈 overlay della foto PRE
+    final analyzed = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PostCameraWidget(
+          guideImage: preImage, // 👈 overlay della foto PRE
+        ),
       ),
-    ),
-  );
+    );
 
-  if (analyzed != null) {
-    final overlayPath = analyzed["overlay_path"] as String?;
-    final newPostFile = analyzed["filename"] as String?;
+    if (analyzed != null) {
+      final overlayPath = analyzed["overlay_path"] as String?;
+      final newPostFile = analyzed["filename"] as String?;
 
-    if (overlayPath != null) {
-      setState(() {
-        postImage = File(overlayPath);
-      });
-      debugPrint("✅ Overlay POST salvato: $overlayPath");
-    }
-    if (newPostFile != null) {
-      setState(() {
-        postFile = newPostFile;
-      });
-      await _loadCompareResults();
+      if (overlayPath != null) {
+        setState(() {
+          postImage = File(overlayPath);
+        });
+        debugPrint("✅ Overlay POST salvato: $overlayPath");
+      }
+      if (newPostFile != null) {
+        setState(() {
+          postFile = newPostFile;
+        });
+        await _loadCompareResults();
+      }
     }
   }
-}
 
-  // === Conferma per rifare la foto POST ===
+  // === Conferma rifare POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -211,6 +211,17 @@ Future<void> _capturePostImage() async {
         const SizedBox(height: 8),
       ],
     );
+  }
+
+  // === Calcolo colore differenza ===
+  Color _diffColor(double pre, double post) {
+    if (post < pre) {
+      return Colors.green; // miglioramento
+    } else if (post > pre) {
+      return Colors.red; // peggioramento
+    } else {
+      return Colors.grey; // invariato
+    }
   }
 
   @override
@@ -272,13 +283,38 @@ Future<void> _capturePostImage() async {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar(
-                            "Pre",
-                            compareData!["macchie"]["perc_pre"] ?? 0.0,
-                            Colors.green),
+                          "Pre",
+                          (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                              .toDouble(),
+                          Colors.green,
+                        ),
                         _buildBar(
-                            "Post",
-                            compareData!["macchie"]["perc_post"] ?? 0.0,
-                            Colors.blue),
+                          "Post",
+                          (compareData!["macchie"]["perc_post"] ?? 0.0)
+                              .toDouble(),
+                          Colors.blue,
+                        ),
+                        Builder(
+                          builder: (_) {
+                            final pre =
+                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                    .toDouble();
+                            final post =
+                                (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                    .toDouble();
+                            final diff = post - pre;
+                            return _buildBar(
+                              "Differenza",
+                              diff,
+                              _diffColor(pre, post),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"] ?? '-'}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"] ?? '-'}"),
                       ],
                     ),
                   ),
@@ -295,13 +331,44 @@ Future<void> _capturePostImage() async {
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         _buildBar(
-                            "Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
-                            Colors.green),
+                          "Pre",
+                          (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
+                              .toDouble(),
+                          Colors.green,
+                        ),
                         _buildBar(
-                            "Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
-                            Colors.blue),
+                          "Post",
+                          (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
+                              .toDouble(),
+                          Colors.blue,
+                        ),
+                        Builder(
+                          builder: (_) {
+                            final pre =
+                                (compareData!["pori"]["perc_pre_dilatati"] ??
+                                        0.0)
+                                    .toDouble();
+                            final post =
+                                (compareData!["pori"]["perc_post_dilatati"] ??
+                                        0.0)
+                                    .toDouble();
+                            final diff = post - pre;
+                            return _buildBar(
+                              "Differenza",
+                              diff,
+                              _diffColor(pre, post),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"] ?? '-'}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"] ?? '-'}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"] ?? '-'}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"] ?? '-'}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"] ?? '-'}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"] ?? '-'}"),
                       ],
                     ),
                   ),
