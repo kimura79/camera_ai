@@ -8,8 +8,8 @@ import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
-// importa la fotocamera della Home
-import '../home_page/home_page_widget.dart';
+// importa la fotocamera dedicata al POST
+import '../post_camera_widget.dart';
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
@@ -134,53 +134,42 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST usando la stessa fotocamera della Home ===
-  Future<void> _capturePostImage() async {
-    if (preImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
-      );
-      return;
-    }
-
-    final result = await Navigator.push<File?>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomePageWidget(
-          guideImage: preImage, // 👈 stessa camera, ma con overlay PRE
-        ),
-      ),
+  // === Scatta POST usando la fotocamera dedicata al POST ===
+Future<void> _capturePostImage() async {
+  if (preImage == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
     );
+    return;
+  }
 
-    if (result != null) {
-      final analyzed = await Navigator.push<Map<String, dynamic>?>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AnalysisPreview(
-            imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
-          ),
-        ),
-      );
+  final analyzed = await Navigator.push<Map<String, dynamic>?>(
+    context,
+    MaterialPageRoute(
+      builder: (context) => PostCameraWidget(
+        guideImage: preImage, // 👈 overlay della foto PRE
+      ),
+    ),
+  );
 
-      if (analyzed != null) {
-        final overlayPath = analyzed["overlay_path"] as String?;
-        final newPostFile = analyzed["filename"] as String?;
+  if (analyzed != null) {
+    final overlayPath = analyzed["overlay_path"] as String?;
+    final newPostFile = analyzed["filename"] as String?;
 
-        if (overlayPath != null) {
-          setState(() {
-            postImage = File(overlayPath);
-          });
-          debugPrint("✅ Overlay POST salvato: $overlayPath");
-        }
-        if (newPostFile != null) {
-          setState(() {
-            postFile = newPostFile;
-          });
-          await _loadCompareResults();
-        }
-      }
+    if (overlayPath != null) {
+      setState(() {
+        postImage = File(overlayPath);
+      });
+      debugPrint("✅ Overlay POST salvato: $overlayPath");
     }
+    if (newPostFile != null) {
+      setState(() {
+        postFile = newPostFile;
+      });
+      await _loadCompareResults();
+    }
+  }
+}
   }
 
   // === Conferma per rifare la foto POST ===
