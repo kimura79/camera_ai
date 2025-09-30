@@ -170,7 +170,6 @@ Future<void> _capturePostImage() async {
     }
   }
 }
-  }
 
   // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
