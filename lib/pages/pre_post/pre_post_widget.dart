@@ -13,7 +13,7 @@ import 'package:path/path.dart' as path;
 import '../analysis_preview.dart';
 // importa overlay distanza e livella
 import '../distanza_cm_overlay.dart';
-import '../level.dart';
+import '../level_guide.dart';
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
@@ -643,7 +643,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                 ),
 
                 // ✅ Livella
-                const LevelGuide(),
+                LevelGuide(),
 
                 // ✅ Distanza cm
                 buildDistanzaCmOverlay(
