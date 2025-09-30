@@ -1,4 +1,5 @@
-// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
+// 🔹 post_camera_widget.dart — Fotocamera dedicata al POST
+//    Copia di home_page_widget.dart ma adattata per flusso Pre/Post
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -21,114 +22,25 @@ import '/index.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// ✅ NUOVA PAGINA: risultati analisi con overlay macchie + rughe
-class AnalysisResultsPage extends StatelessWidget {
-  final String baseImagePath;
-  final String macchieOverlayPath;
-  final String rugheOverlayPath;
+// ✅ PAGINA CAMERA PER SCATTO POST
+class PostCameraWidget extends StatefulWidget {
+  final File? guideImage; // 👈 overlay PRE
 
-  const AnalysisResultsPage({
+  const PostCameraWidget({
     super.key,
-    required this.baseImagePath,
-    required this.macchieOverlayPath,
-    required this.rugheOverlayPath,
+    this.guideImage,
   });
 
-  Widget _buildResultItem({
-    required String title,
-    required String overlayPath,
-    required String scaleText,
-    required Color color,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.montserrat(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Image.file(
-          File(overlayPath),
-          width: 300,
-          height: 300,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color, width: 2),
-          ),
-          child: Text(
-            scaleText,
-            style: TextStyle(
-              fontSize: 14,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  static String routeName = 'PostCameraPage';
+  static String routePath = '/postCameraPage';
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text("Risultati Analisi"),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            _buildResultItem(
-              title: "Macchie Cutanee",
-              overlayPath: macchieOverlayPath,
-              scaleText: "Scala di giudizio: Lieve → Grave",
-              color: Colors.orangeAccent,
-            ),
-            _buildResultItem(
-              title: "Rughe",
-              overlayPath: rugheOverlayPath,
-              scaleText: "Scala di giudizio: Superficiale → Profonda",
-              color: Colors.cyanAccent,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class HomePageWidget extends StatefulWidget {
-  final File? guideImage; // 👈 aggiunto
-
-  const HomePageWidget({
-    super.key,
-    this.guideImage, // 👈 aggiunto
-  });
-
-  static String routeName = 'HomePage';
-  static String routePath = '/homePage';
-
-  @override
-  State<HomePageWidget> createState() => _HomePageWidgetState();
+  State<PostCameraWidget> createState() => _PostCameraWidgetState();
 }
 
 enum CaptureMode { volto, particolare }
 
-class _HomePageWidgetState extends State<HomePageWidget>
+class _PostCameraWidgetState extends State<PostCameraWidget>
     with WidgetsBindingObserver {
   late HomePageModel _model;
 
@@ -425,7 +337,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       }
 
       final String baseName =
-          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
+          'post_1024_${DateTime.now().millisecondsSinceEpoch}';
 
       final AssetEntity? asset = await PhotoManager.editor.saveImage(
         pngBytes,
@@ -442,7 +354,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
+              content: Text('✅ Foto POST 1024×1024 salvata (PNG lossless)')),
         );
         setState(() {});
 
@@ -450,7 +362,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           MaterialPageRoute(
             builder: (_) => AnalysisPreview(
               imagePath: newPath,
-              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
+              mode: "prepost", // 👈 forzato per POST
             ),
           ),
         );
