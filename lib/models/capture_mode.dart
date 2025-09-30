@@ -1,0 +1,4 @@
+enum CaptureMode {
+  volto,
+  particolare,
+}
