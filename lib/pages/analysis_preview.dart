@@ -268,33 +268,37 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
           SnackBar(content: Text("✅ Analisi $tipo completata")),
         );
 
-        // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
-        if (widget.mode == "prepost") {
-          final overlayUrl = result["overlay_url"] != null
-              ? "http://46.101.223.88:5000${result["overlay_url"]}"
-              : null;
+        // 🔹 Se siamo in modalità PRE/POST → torna indietro con i dati dell’analisi
+if (widget.mode == "prepost" && mounted) {
+  final overlayUrl = result?["overlay_url"] != null
+      ? "http://46.101.223.88:5000${result?["overlay_url"]}"
+      : null;
 
-          String? overlayPath;
-          if (overlayUrl != null) {
-            final resp = await http.get(Uri.parse(overlayUrl));
-            if (resp.statusCode == 200) {
-              final dir = await getApplicationDocumentsDirectory();
-              overlayPath = path.join(
-                dir.path,
-                "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-              );
-              await File(overlayPath).writeAsBytes(resp.bodyBytes);
-            }
-          }
+  String? overlayPath;
+  if (overlayUrl != null) {
+    try {
+      final resp = await http.get(Uri.parse(overlayUrl));
+      if (resp.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        overlayPath = path.join(
+          dir.path,
+          "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+        );
+        await File(overlayPath).writeAsBytes(resp.bodyBytes);
+      }
+    } catch (e) {
+      debugPrint("❌ Errore download overlay: $e");
+    }
+  }
 
-          Navigator.pop(context, {
-            "result": result,
-            "overlay_path": overlayPath,
-            "id": result["id"],
-            "filename": result["filename"],
-          });
-          return; // 👈 qui forziamo la chiusura della pagina
-        }
+  Navigator.pop(context, {
+    "result": result,
+    "overlay_path": overlayPath,
+    "filename": result?["filename"],
+    "analysisType": tipo,
+  });
+  return;
+}
       }
     }
 
