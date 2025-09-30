@@ -163,6 +163,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         if (f != null && context.mounted) {
                           final originalName =
                               media[index].title ?? path.basename(f.path);
+
+                          // 🔹 Debug per capire che nome arriva
+                          debugPrint("🎯 Nome file galleria (title): ${media[index].title}");
+                          debugPrint("📂 Nome file path: ${path.basename(f.path)}");
+
                           setState(() {
                             preImage = f;
                             preFile = originalName; // 👈 nome corretto
@@ -401,12 +406,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         Builder(
                           builder: (_) {
                             final pre =
-                                (compareData!["pori"]["perc_pre_dilatati"] ??
-                                        0.0)
+                                (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
                                     .toDouble();
                             final post =
-                                (compareData!["pori"]["perc_post_dilatati"] ??
-                                        0.0)
+                                (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
                                     .toDouble();
                             final diff = post - pre;
                             return _buildBar(
