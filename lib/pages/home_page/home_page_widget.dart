@@ -458,7 +458,6 @@ if (!mounted) return;
 if (analyzed != null) {
   Navigator.pop(context, analyzed); // torna direttamente a PrePostWidget
 }
-});
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
