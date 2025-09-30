@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -8,16 +8,17 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
-// importa overlay distanza e livella
 import '../distanza_cm_overlay.dart';
 import '../level_guide.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
+  final String? preFile; // Filename analisi PRE nel DB
+  final String? postFile; // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -323,76 +324,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
+                        _buildBar("Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar(
-                            "Post",
+                        _buildBar("Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
-
-                        Builder(
-                          builder: (_) {
-                            final double pre =
-                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
-                                    .toDouble();
-                            final double post =
-                                (compareData!["macchie"]["perc_post"] ?? 0.0)
-                                    .toDouble();
-
-                            double diffPerc = 0.0;
-                            if (pre > 0) {
-                              diffPerc = ((post - pre) / pre) * 100;
-                            }
-
-                            return _buildBar(
-                              "Differenza",
-                              diffPerc.abs(),
-                              diffPerc <= 0 ? Colors.green : Colors.red,
-                            );
-                          },
-                        ),
-
-                        Text(
-                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-                        Text(
-                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-                      ],
-                    ),
-                  ),
-                ),
-              if (compareData!["pori"] != null)
-                Card(
-                  margin: const EdgeInsets.all(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("📊 Pori dilatati (rossi)",
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar(
-                            "Pre",
-                            compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
-                            Colors.green),
-                        _buildBar(
-                            "Post",
-                            compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
-                            Colors.blue),
-                        _buildBar(
-                            "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                    0
-                                ? Colors.green
-                                : Colors.red),
-                        Text(
-                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
-                        Text(
-                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
                       ],
                     ),
                   ),
@@ -405,7 +342,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida ===
+// === Camera con overlay guida + MLKit + distanza cm + livelle ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -426,7 +363,20 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   late CameraDescription currentCamera;
+
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableLandmarks: true,
+      performanceMode: FaceDetectorMode.accurate,
+    ),
+  );
+
+  double _lastIpdPx = 0.0;
+  final double _ipdMm = 63.0; // distanza pupille media
+  final double _targetMmPerPx = 0.117;
   bool _shooting = false;
+  bool _streamRunning = false;
+  DateTime _lastProc = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -441,36 +391,90 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       currentCamera,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     _initializeControllerFuture = _controller!.initialize().then((_) async {
       await _controller!.setFlashMode(FlashMode.off);
+      await _controller!.startImageStream(_processCameraImage);
+      _streamRunning = true;
     });
     if (mounted) setState(() {});
   }
 
-  Future<void> _switchCamera() async {
-    if (widget.cameras.length < 2) return;
+  Future<void> _processCameraImage(CameraImage image) async {
+    final now = DateTime.now();
+    if (now.difference(_lastProc).inMilliseconds < 400) return;
+    _lastProc = now;
 
-    if (currentCamera.lensDirection == CameraLensDirection.front) {
-      final back = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = back;
-    } else {
-      final front = widget.cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => widget.cameras.first,
-      );
-      currentCamera = front;
+    if (!mounted) return;
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+
+    try {
+      final rotation = _rotationFromSensor(ctrl.description.sensorOrientation);
+      final inputImage = _inputImageFromCameraImage(image, rotation);
+
+      final faces = await _faceDetector.processImage(inputImage);
+      if (faces.isEmpty) {
+        setState(() => _lastIpdPx = 0.0);
+        return;
+      }
+      final f = faces.first;
+      final left = f.landmarks[FaceLandmarkType.leftEye];
+      final right = f.landmarks[FaceLandmarkType.rightEye];
+      if (left == null || right == null) {
+        setState(() => _lastIpdPx = 0.0);
+        return;
+      }
+      final dx = (left.position.x - right.position.x);
+      final dy = (left.position.y - right.position.y);
+      final distPx = math.sqrt(dx * dx + dy * dy);
+
+      setState(() => _lastIpdPx = distPx);
+    } catch (_) {}
+  }
+
+  InputImageRotation _rotationFromSensor(int sensorOrientation) {
+    switch (sensorOrientation) {
+      case 90:
+        return InputImageRotation.rotation90deg;
+      case 180:
+        return InputImageRotation.rotation180deg;
+      case 270:
+        return InputImageRotation.rotation270deg;
+      case 0:
+      default:
+        return InputImageRotation.rotation0deg;
     }
-    await _initCamera();
+  }
+
+  InputImage _inputImageFromCameraImage(
+      CameraImage image, InputImageRotation rotation) {
+    final b = BytesBuilder(copy: false);
+    for (final Plane plane in image.planes) {
+      b.add(plane.bytes);
+    }
+    final Uint8List bytes = b.toBytes();
+
+    final Size size = Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+
+    final metadata = InputImageMetadata(
+      size: size,
+      rotation: rotation,
+      format: InputImageFormat.yuv420,
+      bytesPerRow: image.planes.first.bytesPerRow,
+    );
+
+    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
   @override
   void dispose() {
     _controller?.dispose();
+    _faceDetector.close();
     super.dispose();
   }
 
@@ -484,7 +488,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
       if (!mounted) return;
 
       File file = File(image.path);
-
       final bytes = await file.readAsBytes();
       final decoded = img.decodeImage(bytes);
 
@@ -578,7 +581,15 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
             Padding(
               padding: const EdgeInsets.only(right: 32),
               child: GestureDetector(
-                onTap: _switchCamera,
+                onTap: () async {
+                  if (widget.cameras.length < 2) return;
+                  currentCamera = widget.cameras.firstWhere(
+                    (c) =>
+                        c.lensDirection != currentCamera.lensDirection,
+                    orElse: () => widget.cameras.first,
+                  );
+                  await _initCamera();
+                },
                 child: Container(
                   width: 50,
                   height: 50,
@@ -599,6 +610,9 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isFront =
+        currentCamera.lensDirection == CameraLensDirection.front;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: FutureBuilder<void>(
@@ -630,7 +644,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // ✅ Riquadro 1:1
+                // ✅ Riquadro 1:1 scalabile
                 Center(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -643,13 +657,14 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                 ),
 
                 // ✅ Livella
-                LevelGuide(),
+                const LevelGuide(),
 
-                // ✅ Distanza cm
+                // ✅ Distanza cm calcolata da MLKit
                 buildDistanzaCmOverlay(
-                  ipdPx: 200,
-                  isFrontCamera:
-                      currentCamera.lensDirection == CameraLensDirection.front,
+                  ipdPx: _lastIpdPx,
+                  ipdMm: _ipdMm,
+                  targetMmPerPx: _targetMmPerPx,
+                  isFrontCamera: isFront,
                   mode: "prepost",
                 ),
 
