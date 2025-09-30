@@ -12,8 +12,8 @@ import '../analysis_preview.dart';
 import '../home_page/home_page_widget.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile; // Filename analisi PRE nel DB
-  final String? postFile; // Filename analisi POST nel DB
+  final String? preFile;   // Filename analisi PRE nel DB
+  final String? postFile;  // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -143,7 +143,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    final result = await Navigator.push<Map<String, dynamic>?>(
+    final result = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
         builder: (context) => HomePageWidget(
@@ -153,33 +153,33 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (result != null) {
-      final overlayPath = result["overlay_path"] as String?;
-final newPostFile = result["filename"] as String?;
-final analysisType = result["analysisType"] as String?;
+      final analyzed = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "prepost", // il server userà prefix POST_
+          ),
+        ),
+      );
 
-if (overlayPath != null) {
-  setState(() {
-    postImage = File(overlayPath);
-  });
-  debugPrint("✅ Overlay POST salvato: $overlayPath");
-}
-if (newPostFile != null) {
-  setState(() {
-    postFile = newPostFile;
-  });
-  await _loadCompareResults();
+      if (analyzed != null) {
+        final overlayPath = analyzed["overlay_path"] as String?;
+        final newPostFile = analyzed["filename"] as String?;
 
-  // 👇 torna subito indietro con tutti i dati aggiornati
-  if (mounted) {
-    Navigator.pop(context, {
-      "preFile": preFile,
-      "postFile": postFile,
-      "compareData": compareData,
-      "analysisType": analysisType,
-      "overlayPath": overlayPath,
-    });
-  }
-}
+        if (overlayPath != null) {
+          setState(() {
+            postImage = File(overlayPath);
+          });
+          debugPrint("✅ Overlay POST salvato: $overlayPath");
+        }
+        if (newPostFile != null) {
+          setState(() {
+            postFile = newPostFile;
+          });
+          await _loadCompareResults();
+        }
+      }
     }
   }
 
@@ -283,10 +283,12 @@ if (newPostFile != null) {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                       ],
@@ -304,10 +306,12 @@ if (newPostFile != null) {
                         const Text("📊 Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                       ],
