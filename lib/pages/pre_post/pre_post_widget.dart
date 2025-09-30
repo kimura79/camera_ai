@@ -45,18 +45,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   /// 🔹 Normalizza i nomi dei file (toglie overlay o path strani)
   String _normalizeFilename(String fileName) {
-    final idx = fileName.indexOf("photo_");
-    if (idx != -1) {
-      return fileName.substring(idx);
-    }
+    final idxPhoto = fileName.indexOf("photo_");
+    if (idxPhoto != -1) return fileName.substring(idxPhoto);
+
     final idxPre = fileName.indexOf("pre_");
-    if (idxPre != -1) {
-      return fileName.substring(idxPre);
-    }
+    if (idxPre != -1) return fileName.substring(idxPre);
+
     final idxPost = fileName.indexOf("post_");
-    if (idxPost != -1) {
-      return fileName.substring(idxPost);
-    }
+    if (idxPost != -1) return fileName.substring(idxPost);
+
     return fileName;
   }
 
@@ -164,12 +161,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       onTap: () async {
                         final File? f = await media[index].file;
                         if (f != null && context.mounted) {
-                          // 👇 Usa il nome originale (title) invece di path temporaneo
                           final originalName =
                               media[index].title ?? path.basename(f.path);
                           setState(() {
                             preImage = f;
-                            preFile = originalName;
+                            preFile = originalName; // 👈 nome corretto
                           });
                           Navigator.pop(context, f);
                         }
@@ -205,7 +201,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       context,
       MaterialPageRoute(
         builder: (context) => PostCameraWidget(
-          guideImage: preImage, // 👈 overlay della foto PRE
+          guideImage: preImage,
         ),
       ),
     );
@@ -274,11 +270,11 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   // === Calcolo colore differenza ===
   Color _diffColor(double pre, double post) {
     if (post < pre) {
-      return Colors.green; // miglioramento
+      return Colors.green;
     } else if (post > pre) {
-      return Colors.red; // peggioramento
+      return Colors.red;
     } else {
-      return Colors.grey; // invariato
+      return Colors.grey;
     }
   }
 
@@ -331,7 +327,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
             // === Risultati comparazione ===
             if (compareData != null) ...[
-              // --- Macchie
               if (compareData!["macchie"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -380,8 +375,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
-
-              // --- Pori
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
