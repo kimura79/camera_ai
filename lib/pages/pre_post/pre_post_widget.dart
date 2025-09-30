@@ -43,14 +43,20 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  /// 🔹 Utility per ripulire il nome file da prefissi tipo "PRE_overlay_macchie_..."
+  /// 🔹 Normalizza i nomi dei file (toglie overlay o path strani)
   String _normalizeFilename(String fileName) {
-    // Se contiene "photo_", prendi tutto da lì in poi
     final idx = fileName.indexOf("photo_");
     if (idx != -1) {
       return fileName.substring(idx);
     }
-    // Altrimenti lascia invariato
+    final idxPre = fileName.indexOf("pre_");
+    if (idxPre != -1) {
+      return fileName.substring(idxPre);
+    }
+    final idxPost = fileName.indexOf("post_");
+    if (idxPost != -1) {
+      return fileName.substring(idxPost);
+    }
     return fileName;
   }
 
@@ -61,7 +67,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       return;
     }
 
-    // 🔹 Normalizza i nomi prima di passarli al server
     final cleanPre = _normalizeFilename(preFile!);
     final cleanPost = _normalizeFilename(postFile!);
 
@@ -74,7 +79,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       if (resp.statusCode == 200) {
         final decoded = jsonDecode(resp.body);
 
-        // 🔹 Normalizzazione dei dati per compatibilità UI
         setState(() {
           compareData = {
             "macchie": decoded["macchie"] != null
@@ -135,7 +139,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         await paths.first.getAssetListPaged(page: 0, size: 100);
     if (media.isEmpty) return;
 
-    final file = await showDialog<File?>(
+    final File? file = await showDialog<File?>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Seleziona foto PRE"),
@@ -160,6 +164,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                       onTap: () async {
                         final File? f = await media[index].file;
                         if (f != null && context.mounted) {
+                          // 👇 Usa il nome originale (title) invece di path temporaneo
+                          final originalName =
+                              media[index].title ?? path.basename(f.path);
+                          setState(() {
+                            preImage = f;
+                            preFile = originalName;
+                          });
                           Navigator.pop(context, f);
                         }
                       },
@@ -177,10 +188,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
 
     if (file != null) {
-      setState(() {
-        preImage = file;
-        preFile = path.basename(file.path);
-      });
+      debugPrint("📸 PRE selezionata → $preFile");
     }
   }
 
