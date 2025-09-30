@@ -2,19 +2,16 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
 
-import 'package:custom_camera_component/models/capture_mode.dart';
-
-
 /// 🔹 Overlay per mostrare la distanza stimata in cm.
-/// - In modalità VOLTO: invariata.
-/// - In modalità PARTICOLARE: 1024×1024, diventa verde a 12 cm ± tolleranza.
+/// - In modalità "fullface": invariata.
+/// - In modalità "particolare": 1024×1024, diventa verde a 12 cm ± tolleranza.
 Widget buildDistanzaCmOverlay({
   required double ipdPx,
   required bool isFrontCamera,
   double ipdMm = 63.0,
   double targetMmPerPx = 0.117,   // target scala volto
   double alignY = 0.4,
-  CaptureMode mode = CaptureMode.volto,
+  String mode = "fullface",       // 👈 ora è String come negli altri file
 }) {
   String testo;
   Color borderColor = Colors.yellow;
@@ -22,7 +19,7 @@ Widget buildDistanzaCmOverlay({
   if (ipdPx <= 0 || !ipdPx.isFinite) {
     testo = '— cm';
   } else {
-    if (mode == CaptureMode.volto) {
+    if (mode == "fullface") {
       final mmPerPxAttuale = ipdMm / ipdPx;
       final distCm = 55.0 * (mmPerPxAttuale / targetMmPerPx);
 
