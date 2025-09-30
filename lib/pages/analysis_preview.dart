@@ -275,6 +275,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }
 
   // 🔹 Ritorna direttamente alla pagina PrePost con i dati
+Navigator.popUntil(context, (route) {
+  return route.settings.name == "/prepost" || route.isFirst;
+});
 Navigator.pop(context, {
   "result": result,
   "overlay_path": overlayPath,
