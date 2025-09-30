@@ -320,10 +320,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         const Text("📊 Percentuali Macchie",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["macchie"]["perc_pre"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
@@ -348,13 +350,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("📊 Percentuali Pori dilatati (rossi)",
+                        const Text("📊 Pori dilatati (rossi)",
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        _buildBar("Pre",
+                        _buildBar(
+                            "Pre",
                             compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                             Colors.green),
-                        _buildBar("Post",
+                        _buildBar(
+                            "Post",
                             compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                             Colors.blue),
                         _buildBar(
