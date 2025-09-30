@@ -257,31 +257,30 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   if (result != null) {
     // 🔹 Caso PRE/POST → ritorno immediato a PrePost
     if (widget.mode == "prepost") {
-      final overlayUrl = result["overlay_url"] != null
-          ? "http://46.101.223.88:5000${result["overlay_url"]}"
-          : null;
+  final overlayUrl = result["overlay_url"] != null
+      ? "http://46.101.223.88:5000${result["overlay_url"]}"
+      : null;
 
-      String? overlayPath;
-      if (overlayUrl != null) {
-        final resp = await http.get(Uri.parse(overlayUrl));
-        if (resp.statusCode == 200) {
-          final dir = await getApplicationDocumentsDirectory();
-          overlayPath = path.join(
-            dir.path,
-            "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-          );
-          await File(overlayPath).writeAsBytes(resp.bodyBytes);
-        }
-      }
-
-      Navigator.pop(context, {
-        "result": result,
-        "overlay_path": overlayPath,
-        "id": result["id"],
-        "filename": result["filename"],
-      });
-      return; // 👈 chiusura immediata come nel file old
+  String? overlayPath;
+  if (overlayUrl != null) {
+    final resp = await http.get(Uri.parse(overlayUrl));
+    if (resp.statusCode == 200) {
+      final dir = await getApplicationDocumentsDirectory();
+      overlayPath = path.join(
+        dir.path,
+        "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+      );
+      await File(overlayPath).writeAsBytes(resp.bodyBytes);
     }
+  }
+
+  // 🔹 Ritorna direttamente alla pagina PrePost
+  Navigator.popUntil(context, (route) {
+    return route.settings.name == "/prepost" || route.isFirst;
+  });
+
+  return; // 👈 chiusura immediata come nel file old
+}
 
     // 🔹 Altri casi → esegui i parser e aggiorna la UI
     if (tipo == "rughe") _parseRughe(result);
