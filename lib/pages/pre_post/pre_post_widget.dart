@@ -233,6 +233,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Box PRE
             GestureDetector(
               onTap: preImage == null ? _pickPreImage : null,
               child: Container(
@@ -250,6 +251,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     : Image.file(preImage!, fit: BoxFit.cover),
               ),
             ),
+            // Box POST
             GestureDetector(
               onTap: postImage == null ? _capturePostImage : _confirmRetakePost,
               child: Container(
@@ -271,6 +273,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
             // === Risultati comparazione ===
             if (compareData != null) ...[
+              // --- Macchie
               if (compareData!["macchie"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -319,6 +322,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
+
+              // --- Pori
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
