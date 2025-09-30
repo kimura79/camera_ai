@@ -274,17 +274,17 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  // 🔹 Ritorna direttamente alla pagina PrePost con i dati
-Navigator.popUntil(context, (route) {
-  return route.settings.name == "/prepost" || route.isFirst;
-});
-Navigator.pop(context, {
-  "result": result,
-  "overlay_path": overlayPath,
-  "id": result?["id"],
-  "filename": result?["filename"],
-});
-return;
+  // 👇 primo pop → chiude AnalysisPreview
+  Navigator.pop(context);
+
+  // 👇 secondo pop → chiude PostCameraWidget e torna a PrePostWidget passando i dati
+  Navigator.pop(context, {
+    "result": result,
+    "overlay_path": overlayPath,
+    "id": result?["id"],
+    "filename": result?["filename"],
+  });
+  return;
 }
 
     // 🔹 Altri casi → esegui i parser e aggiorna la UI
