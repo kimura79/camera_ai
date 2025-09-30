@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
 
-import 'package:custom_camera_component/pages/home_page/home_page_widget.dart' show CaptureMode;
+import 'package:custom_camera_component/models/capture_mode.dart';
+
 
 /// 🔹 Overlay per mostrare la distanza stimata in cm.
 /// - In modalità VOLTO: invariata.
