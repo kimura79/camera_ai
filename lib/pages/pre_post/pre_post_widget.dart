@@ -398,6 +398,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 }
 
 // === Camera con overlay guida ===
+import 'distanza_cm_overlay.dart';
+import 'level.dart';
+
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -506,10 +509,91 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     }
   }
 
+  Widget _buildBottomBar() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 25),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.black38,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 26),
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: _takePicture,
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                width: 86,
+                height: 86,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.10),
+                      ),
+                    ),
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      width: _shooting ? 58 : 64,
+                      height: _shooting ? 58 : 64,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 32),
+              child: GestureDetector(
+                onTap: _switchCamera,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black38,
+                  ),
+                  child:
+                      const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.width;
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: FutureBuilder<void>(
@@ -520,13 +604,20 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                CameraPreview(_controller!),
+                // ✅ Preview non deformata
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller!.value.previewSize!.height,
+                    height: _controller!.value.previewSize!.width,
+                    child: CameraPreview(_controller!),
+                  ),
+                ),
 
-                // 👇 Overlay PRE semi-trasparente
+                // ✅ Overlay PRE semi-trasparente
                 Center(
                   child: SizedBox(
-                    width: min(1024, screenW),
-                    height: min(1024, screenW),
+                    width: MediaQuery.of(context).size.width,
                     child: Opacity(
                       opacity: 0.4,
                       child: Image.file(widget.guideImage, fit: BoxFit.cover),
@@ -534,144 +625,31 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // 👇 Riquadro verde/giallo centrato
-                Align(
-                  alignment: const Alignment(0, -0.3),
-                  child: Container(
-                    width: min(280, screenW * 0.8),
-                    height: min(280, screenW * 0.8),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: Colors.yellow.withOpacity(0.9), width: 4),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                // 👇 Livella orizzontale (3 linee)
-                Align(
-                  alignment: const Alignment(0, -0.3),
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 320),
-                    width: 240,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        "Livella orizzontale",
-                        style: TextStyle(color: Colors.white70),
+                // ✅ Riquadro 1:1
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.yellow, width: 3),
                       ),
                     ),
                   ),
                 ),
 
-                // 👇 Livella verticale
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 20, top: 100),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      "│",
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                // ✅ Livella (da sensori)
+                const LevelGuide(),
+
+                // ✅ Distanza cm (mock ipdPx: sostituisci con valore calcolato)
+                buildDistanzaCmOverlay(
+                  ipdPx: 200,
+                  isFrontCamera:
+                      currentCamera.lensDirection == CameraLensDirection.front,
+                  mode: "prepost",
                 ),
 
-                // 👇 Barra inferiore con pulsanti
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.image,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _takePicture,
-                          behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 86,
-                                  height: 86,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.10),
-                                  ),
-                                ),
-                                Container(
-                                  width: 78,
-                                  height: 78,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 6),
-                                  ),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 80),
-                                  width: _shooting ? 58 : 64,
-                                  height: _shooting ? 58 : 64,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 32),
-                          child: GestureDetector(
-                            onTap: _switchCamera,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black38,
-                              ),
-                              child: const Icon(Icons.cameraswitch,
-                                  color: Colors.white, size: 28),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                // ✅ Pulsanti inferiori
+                _buildBottomBar(),
               ],
             );
           } else {
