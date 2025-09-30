@@ -12,8 +12,8 @@ import '../analysis_preview.dart';
 import '../post_camera_widget.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile;   // Filename analisi PRE nel DB
-  final String? postFile;  // Filename analisi POST nel DB
+  final String? preFile; // Filename analisi PRE nel DB
+  final String? postFile; // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -38,7 +38,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     super.initState();
     preFile = widget.preFile;
     postFile = widget.postFile;
-    debugPrint("🔵 initState → preFile=$preFile, postFile=$postFile");
     if (preFile != null && postFile != null) {
       _loadCompareResults();
     }
@@ -47,30 +46,59 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   // === Carica risultati comparazione dal server ===
   Future<void> _loadCompareResults() async {
     if (preFile == null || postFile == null) {
-      debugPrint("⚠️ _loadCompareResults → preFile o postFile mancanti");
+      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
       return;
     }
 
     final url = Uri.parse(
         "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
-    debugPrint("🌍 Chiamata API comparazione: $url");
-
     try {
       final resp = await http.get(url);
       debugPrint("📡 Risposta server (${resp.statusCode}): ${resp.body}");
 
       if (resp.statusCode == 200) {
         final decoded = jsonDecode(resp.body);
-        debugPrint("✅ JSON decodificato: $decoded");
 
+        // 🔹 Normalizzazione dei dati per compatibilità UI
         setState(() {
-          compareData = decoded;
+          compareData = {
+            "macchie": decoded["macchie"] != null
+                ? {
+                    "perc_pre": decoded["macchie"]["perc_pre"] ?? 0.0,
+                    "perc_post": decoded["macchie"]["perc_post"] ?? 0.0,
+                    "numero_macchie_pre":
+                        decoded["macchie"]["numero_macchie_pre"] ?? 0,
+                    "numero_macchie_post":
+                        decoded["macchie"]["numero_macchie_post"] ?? 0,
+                  }
+                : null,
+            "pori": decoded["pori"] != null
+                ? {
+                    "perc_pre_dilatati":
+                        decoded["pori"]["perc_pre_dilatati"] ?? 0.0,
+                    "perc_post_dilatati":
+                        decoded["pori"]["perc_post_dilatati"] ?? 0.0,
+                    "num_pori_pre": decoded["pori"]["num_pori_pre"] ?? {
+                      "normali": 0,
+                      "borderline": 0,
+                      "dilatati": 0,
+                    },
+                    "num_pori_post": decoded["pori"]["num_pori_post"] ?? {
+                      "normali": 0,
+                      "borderline": 0,
+                      "dilatati": 0,
+                    },
+                  }
+                : null,
+          };
         });
+
+        debugPrint("✅ Dati comparazione normalizzati: $compareData");
       } else {
-        debugPrint("❌ Errore server (${resp.statusCode}): ${resp.body}");
+        debugPrint("❌ Errore server: ${resp.body}");
       }
     } catch (e) {
-      debugPrint("❌ Errore richiesta API comparazione: $e");
+      debugPrint("❌ Errore richiesta: $e");
     }
   }
 
@@ -138,7 +166,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
         preFile = path.basename(file.path);
       });
-      debugPrint("📸 PRE selezionata: $preFile");
     }
   }
 
@@ -163,7 +190,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     if (analyzed != null) {
       final overlayPath = analyzed["overlay_path"] as String?;
       final newPostFile = analyzed["filename"] as String?;
-      debugPrint("📥 Ritorno da PostCameraWidget: $analyzed");
 
       if (overlayPath != null) {
         setState(() {
@@ -175,7 +201,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         setState(() {
           postFile = newPostFile;
         });
-        debugPrint("✅ postFile aggiornato: $postFile");
         await _loadCompareResults();
       }
     }
@@ -208,7 +233,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Widget barra percentuale ===
   Widget _buildBar(String label, double value, Color color) {
-    debugPrint("📊 _buildBar($label) → $value%");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -226,8 +250,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
   // === Calcolo colore differenza ===
   Color _diffColor(double pre, double post) {
-    final diff = post - pre;
-    debugPrint("🎨 Calcolo diffColor → pre=$pre, post=$post, diff=$diff");
     if (post < pre) {
       return Colors.green; // miglioramento
     } else if (post > pre) {
@@ -240,8 +262,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width;
-
-    debugPrint("🔄 build() → compareData=$compareData");
 
     return Scaffold(
       appBar: AppBar(title: const Text("Pre/Post")),
@@ -287,109 +307,116 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             const SizedBox(height: 20),
 
             // === Risultati comparazione ===
-if (compareData != null) ...[
-  // 👇 log a console, non dentro children
-  ...(){
-    debugPrint("📊 Rendering blocchi comparazione");
-    return <Widget>[];
-  }(),
+            if (compareData != null) ...[
+              // --- Macchie
+              if (compareData!["macchie"] != null)
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar(
+                          "Pre",
+                          (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                              .toDouble(),
+                          Colors.green,
+                        ),
+                        _buildBar(
+                          "Post",
+                          (compareData!["macchie"]["perc_post"] ?? 0.0)
+                              .toDouble(),
+                          Colors.blue,
+                        ),
+                        Builder(
+                          builder: (_) {
+                            final pre =
+                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                    .toDouble();
+                            final post =
+                                (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                    .toDouble();
+                            final diff = post - pre;
+                            return _buildBar(
+                              "Differenza",
+                              diff,
+                              _diffColor(pre, post),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"] ?? '-'}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"] ?? '-'}"),
+                      ],
+                    ),
+                  ),
+                ),
 
-  // --- Macchie
-  if (compareData!["macchie"] != null)
-    Card(
-      margin: const EdgeInsets.all(12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("📊 Percentuali Macchie",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar(
-              "Pre",
-              (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble(),
-              Colors.green,
-            ),
-            _buildBar(
-              "Post",
-              (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble(),
-              Colors.blue,
-            ),
-            Builder(
-              builder: (_) {
-                final pre =
-                    (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-                final post =
-                    (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
-                final diff = post - pre;
-                return _buildBar(
-                  "Differenza",
-                  diff,
-                  _diffColor(pre, post),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            Text(
-                "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"] ?? '-'}"),
-            Text(
-                "Numero POST: ${compareData!["macchie"]["numero_macchie_post"] ?? '-'}"),
+              // --- Pori
+              if (compareData!["pori"] != null)
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Pori dilatati (rossi)",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar(
+                          "Pre",
+                          (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
+                              .toDouble(),
+                          Colors.green,
+                        ),
+                        _buildBar(
+                          "Post",
+                          (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
+                              .toDouble(),
+                          Colors.blue,
+                        ),
+                        Builder(
+                          builder: (_) {
+                            final pre =
+                                (compareData!["pori"]["perc_pre_dilatati"] ??
+                                        0.0)
+                                    .toDouble();
+                            final post =
+                                (compareData!["pori"]["perc_post_dilatati"] ??
+                                        0.0)
+                                    .toDouble();
+                            final diff = post - pre;
+                            return _buildBar(
+                              "Differenza",
+                              diff,
+                              _diffColor(pre, post),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                            "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"] ?? '-'}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"] ?? '-'}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"] ?? '-'}"),
+                        Text(
+                            "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"] ?? '-'}, "
+                            "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"] ?? '-'}, "
+                            "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"] ?? '-'}"),
+                      ],
+                    ),
+                  ),
+                ),
+            ]
           ],
         ),
       ),
-    ),
-
-  // --- Pori
-  if (compareData!["pori"] != null)
-    Card(
-      margin: const EdgeInsets.all(12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("📊 Pori dilatati (rossi)",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar(
-              "Pre",
-              (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0).toDouble(),
-              Colors.green,
-            ),
-            _buildBar(
-              "Post",
-              (compareData!["pori"]["perc_post_dilatati"] ?? 0.0).toDouble(),
-              Colors.blue,
-            ),
-            Builder(
-              builder: (_) {
-                final pre =
-                    (compareData!["pori"]["perc_pre_dilatati"] ?? 0.0)
-                        .toDouble();
-                final post =
-                    (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
-                        .toDouble();
-                final diff = post - pre;
-                return _buildBar(
-                  "Differenza",
-                  diff,
-                  _diffColor(pre, post),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            Text(
-                "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"] ?? '-'}, "
-                "Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"] ?? '-'}, "
-                "Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"] ?? '-'}"),
-            Text(
-                "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"] ?? '-'}, "
-                "Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"] ?? '-'}, "
-                "Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"] ?? '-'}"),
-          ],
-        ),
-      ),
-    ),
-] else ...[
-  const Text("⚠️ Nessun dato di comparazione disponibile"),
-]
-
+    );
+  }
+}
