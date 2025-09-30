@@ -154,29 +154,32 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 
     if (result != null) {
       final overlayPath = result["overlay_path"] as String?;
-      final newPostFile = result["filename"] as String?;
+final newPostFile = result["filename"] as String?;
+final analysisType = result["analysisType"] as String?;
 
-      if (overlayPath != null) {
-        setState(() {
-          postImage = File(overlayPath);
-        });
-        debugPrint("✅ Overlay POST salvato: $overlayPath");
-      }
-      if (newPostFile != null) {
-        setState(() {
-          postFile = newPostFile;
-        });
-        await _loadCompareResults();
+if (overlayPath != null) {
+  setState(() {
+    postImage = File(overlayPath);
+  });
+  debugPrint("✅ Overlay POST salvato: $overlayPath");
+}
+if (newPostFile != null) {
+  setState(() {
+    postFile = newPostFile;
+  });
+  await _loadCompareResults();
 
-        // 👇 dopo analisi POST torna subito a pagina Pre/Post
-        if (mounted) {
-          Navigator.pop(context, {
-            "preFile": preFile,
-            "postFile": postFile,
-            "compareData": compareData,
-          });
-        }
-      }
+  // 👇 torna subito indietro con tutti i dati aggiornati
+  if (mounted) {
+    Navigator.pop(context, {
+      "preFile": preFile,
+      "postFile": postFile,
+      "compareData": compareData,
+      "analysisType": analysisType,
+      "overlayPath": overlayPath,
+    });
+  }
+}
     }
   }
 
