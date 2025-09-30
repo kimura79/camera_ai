@@ -11,6 +11,9 @@ import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
+// importa overlay distanza e livella
+import '../distanza_cm_overlay.dart';
+import '../level.dart';
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
@@ -310,50 +313,55 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
-  Card(
-    margin: const EdgeInsets.all(12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("📊 Percentuali Macchie",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          _buildBar("Pre",
-              compareData!["macchie"]["perc_pre"] ?? 0.0,
-              Colors.green),
-          _buildBar("Post",
-              compareData!["macchie"]["perc_post"] ?? 0.0,
-              Colors.blue),
+                Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("📊 Percentuali Macchie",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        _buildBar(
+                            "Pre",
+                            compareData!["macchie"]["perc_pre"] ?? 0.0,
+                            Colors.green),
+                        _buildBar(
+                            "Post",
+                            compareData!["macchie"]["perc_post"] ?? 0.0,
+                            Colors.blue),
 
-          // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
-          Builder(
-            builder: (_) {
-              final double pre =
-                  (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-              final double post =
-                  (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
+                        Builder(
+                          builder: (_) {
+                            final double pre =
+                                (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                    .toDouble();
+                            final double post =
+                                (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                    .toDouble();
 
-              double diffPerc = 0.0;
-              if (pre > 0) {
-                diffPerc = ((post - pre) / pre) * 100;
-              }
+                            double diffPerc = 0.0;
+                            if (pre > 0) {
+                              diffPerc = ((post - pre) / pre) * 100;
+                            }
 
-              return _buildBar(
-                "Differenza",
-                diffPerc.abs(),
-                diffPerc <= 0 ? Colors.green : Colors.red,
-              );
-            },
-          ),
+                            return _buildBar(
+                              "Differenza",
+                              diffPerc.abs(),
+                              diffPerc <= 0 ? Colors.green : Colors.red,
+                            );
+                          },
+                        ),
 
-          Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-          Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-        ],
-      ),
-    ),
-  ),
-
+                        Text(
+                            "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                        Text(
+                            "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                      ],
+                    ),
+                  ),
+                ),
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -398,9 +406,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
 }
 
 // === Camera con overlay guida ===
-import 'distanza_cm_overlay.dart';
-import 'level.dart';
-
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -581,8 +586,8 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     shape: BoxShape.circle,
                     color: Colors.black38,
                   ),
-                  child:
-                      const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
+                  child: const Icon(Icons.cameraswitch,
+                      color: Colors.white, size: 28),
                 ),
               ),
             ),
@@ -637,10 +642,10 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // ✅ Livella (da sensori)
+                // ✅ Livella
                 const LevelGuide(),
 
-                // ✅ Distanza cm (mock ipdPx: sostituisci con valore calcolato)
+                // ✅ Distanza cm
                 buildDistanzaCmOverlay(
                   ipdPx: 200,
                   isFrontCamera:
