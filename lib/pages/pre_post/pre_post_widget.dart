@@ -13,8 +13,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 // importa AnalysisPreview per analisi sul server
-import '../analysis_preview.dart';
-import 'distanza_cm_overlay.dart';
+import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
+import 'package:custom_camera_component/pages/level_guide.dart';
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
