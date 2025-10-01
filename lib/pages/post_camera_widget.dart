@@ -555,7 +555,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
-              mode: _mode,
+              mode: _mode == CaptureMode.volto ? "fullface" : "particolare",
               isFrontCamera: isFront,
             ),
 
