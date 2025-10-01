@@ -1,5 +1,6 @@
 // 🔹 post_camera_widget.dart — Fotocamera dedicata al POST
 //    Copia di home_page_widget.dart ma adattata per flusso Pre/Post
+//    FIX: mutuati stessi parametri della HomeCamera (fluidità, scaling, throttling)
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -109,7 +110,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.max,
+      ResolutionPreset.medium, // 🔹 come in home: preview più leggera
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -149,7 +150,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 100) return;
+    if (now.difference(_lastProc).inMilliseconds < 350) return; // 🔹 throttling come home
     _lastProc = now;
 
     final ctrl = _controller;
@@ -193,9 +194,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     if (!mounted) return;
     setState(() {
       if (shown > 0) {
+        // 🔹 smoothing più forte come home
         _lastIpdPx = (_lastIpdPx == 0)
             ? shown
-            : (_lastIpdPx * 0.7 + shown * 0.3);
+            : (_lastIpdPx * 0.85 + shown * 0.15);
       }
       _scaleOkVolto = ok;
     });
@@ -248,7 +250,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     setState(() => _shooting = true);
     try {
       if (_streamRunning) {
-        await ctrl.stopImageStream();
+        await ctrl.stopImageStream(); // 🔹 stop stream durante lo scatto
         _streamRunning = false;
       }
 
@@ -264,6 +266,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         original = img.flipHorizontal(original);
       }
 
+      // crop e resize come prima...
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
@@ -273,10 +276,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final double screenH = screen.height;
 
       final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
+      final double dx = (screenW - previewW * scale) / 2.0;
+      final double dy = (screenH - previewH * scale) / 2.0;
       final double shortSideScreen = math.min(screenW, screenH);
 
       double squareSizeScreen;
@@ -296,11 +297,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
       final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
+      final double leftPreview = (leftScreen - dx) / scale;
+      final double topPreview = (topScreen - dy) / scale;
       final double sidePreview = squareSizeScreen / scale;
 
       final double ratioX = original.width / previewW;
@@ -326,14 +324,32 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
+      if (!pState.hasAccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+        }
+        return;
+      }
+
       final String baseName =
           'post_1024_${DateTime.now().millisecondsSinceEpoch}';
+
+      final AssetEntity? asset = await PhotoManager.editor.saveImage(
+        pngBytes,
+        filename: '$baseName.png',
+      );
+      if (asset == null) throw Exception('Salvataggio PNG fallito');
+
       final String newPath = (await _tempThumbPath('$baseName.png'));
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
       if (mounted) {
-        Navigator.pop(context, File(newPath));
+        Navigator.pop(context, File(newPath)); // 🔹 ritorna al PrePostWidget
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -352,7 +368,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return '${dir.path}/$fileName';
   }
 
-  // ====== UI ======
+  // ====== UI identica ======
   Widget _buildScaleChip() {
     Color c;
     String text;
@@ -707,7 +723,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// Livella verticale e orizzontale invariati...
+// Livelle invariati...
 Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
   double okThresholdDeg = 1.0,
