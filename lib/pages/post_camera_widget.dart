@@ -1,7 +1,8 @@
 // 🔹 post_camera_widget.dart — Fotocamera POST
 //    - Ghost PRE quadrato a tutta larghezza
-//    - Livella verticale
-//    - Crop esatto dal quadrato verde 1024x1024
+//    - Livella verticale stile Home
+//    - Pulsante scatto stile Home
+//    - Crop 1024x1024 dentro quadrato verde
 //    - NIENTE MLKit
 
 import 'dart:io';
@@ -40,10 +41,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   bool _shooting = false;
 
   String? _lastShotPath;
-  double _lastSquareSize = 0; // 👈 memorizziamo il lato del quadrato verde
-  double _lastDx = 0;         // offset per mapping
-  double _lastDy = 0;
-  double _lastScale = 1;
 
   @override
   void initState() {
@@ -102,7 +99,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Scatto + crop dal quadrato verde ======
+  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -116,15 +113,16 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
 
-      // 2) Decodifica
+      // 2) Decodifica immagine
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
+      // 3) Specchio se fotocamera frontale
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      // 3) Calcola mapping quadrato verde -> pixel immagine
+      // 4) Calcolo crop dal quadrato verde
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
@@ -139,12 +137,12 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final double dx = (screenW - dispW) / 2.0;
       final double dy = (screenH - dispH) / 2.0;
 
-      final double squareSizeScreen = _lastSquareSize > 0
-          ? _lastSquareSize
-          : math.min(screenW, screenH); // fallback
+      final double squareSizeScreen = screenW; // quadrato verde = larghezza schermo
+      final double centerXScreen = screenW / 2.0;
+      final double centerYScreen = screenH / 2.0;
 
-      final double leftScreen = (screenW - squareSizeScreen) / 2.0;
-      final double topScreen = (screenH - squareSizeScreen) / 2.0;
+      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
+      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
       final double leftInShown = leftScreen - dx;
       final double topInShown = topScreen - dy;
@@ -165,7 +163,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       cropX = cropX.clamp(0, original.width - cropSide);
       cropY = cropY.clamp(0, original.height - cropSide);
 
-      // 4) Crop preciso del quadrato verde
       img.Image cropped = img.copyCrop(
         original,
         x: cropX,
@@ -174,17 +171,18 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         height: cropSide,
       );
 
-      // 5) Resize 1024x1024
+      // 5) Resize a 1024x1024
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      // 6) Salva
+      // 6) Salva in galleria
       final PermissionState pState = await PhotoManager.requestPermissionExtend();
       if (pState.hasAccess) {
         final String baseName = 'post_1024_${DateTime.now().millisecondsSinceEpoch}';
         await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.png');
       }
 
+      // 7) Salva file temporaneo
       final String outPath = await _tempThumbPath(
         'post_1024_${DateTime.now().millisecondsSinceEpoch}.png',
       );
@@ -192,10 +190,19 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       _lastShotPath = outPath;
 
       if (mounted) {
-        Navigator.pop(context, File(outPath));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Foto POST crop 1024×1024 salvata')),
+        );
+        setState(() {});
+        Navigator.pop(context, File(outPath)); // torna a PrePost
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore salvataggio: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _shooting = false);
     }
@@ -229,30 +236,33 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return LayoutBuilder(
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
-        final double squareSize = screenW; // 👈 quadrato verde max larghezza
-        _lastSquareSize = squareSize;
 
         return Stack(
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: previewFull),
 
+            // 👇 Ghost PRE quadrato
             if (widget.guideImage != null)
               Center(
                 child: SizedBox(
-                  width: squareSize,
-                  height: squareSize,
+                  width: screenW,
+                  height: screenW,
                   child: Opacity(
                     opacity: 0.35,
-                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
+                    child: Image.file(
+                      widget.guideImage!,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
 
+            // 👇 Riquadro target
             Center(
               child: Container(
-                width: squareSize,
-                height: squareSize,
+                width: screenW,
+                height: screenW,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.green, width: 4),
                 ),
@@ -274,21 +284,89 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const SizedBox(width: 54, height: 54),
+            GestureDetector(
+              onTap: (_lastShotPath != null)
+                  ? () async {
+                      final p = _lastShotPath!;
+                      await showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.9),
+                        builder: (_) => GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: InteractiveViewer(
+                            child: Center(child: Image.file(File(p))),
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (_lastShotPath != null)
+                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
+                    : const Icon(Icons.image, color: Colors.white70),
+              ),
+            ),
+
+            // 👇 Pulsante scatto stile Home
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
-              child: Container(
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 6),
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                width: 86,
+                height: 86,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.10),
+                      ),
+                    ),
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      width: _shooting ? 58 : 64,
+                      height: _shooting ? 58 : 64,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+
             GestureDetector(
               onTap: _switchCamera,
-              child: const Icon(Icons.cameraswitch, color: Colors.white),
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const Icon(Icons.cameraswitch, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -300,6 +378,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final ctrl = _controller;
     if (ctrl == null) return;
+
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
@@ -320,10 +399,15 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       key: scaffoldKey,
       backgroundColor: Colors.black,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Stack(
           children: [
             Positioned.fill(child: _buildCameraPreview()),
+
+            // 👇 Livella verticale stile Home
             buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
+
             Align(
               alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
@@ -335,7 +419,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// ====== Livella verticale ======
+// ====== Livella verticale stile Home ======
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.0,
   double topOffsetPx = 65.0,
@@ -367,20 +451,49 @@ Widget buildLivellaVerticaleOverlay({
 
               final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
               final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
+              final Color badgeBg =
+                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBor =
+                  isOk ? Colors.greenAccent : Colors.white24;
               final String badgeTxt = isOk ? "OK" : "Inclina";
 
               return Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("${angleDeg.toStringAsFixed(1)}°",
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "${angleDeg.toStringAsFixed(1)}°",
                       style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: bigColor)),
-                  Text(badgeTxt,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: bigColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: badgeBor, width: 1.2),
+                    ),
+                    child: Text(
+                      badgeTxt,
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700)),
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ],
               );
             },
