@@ -1,5 +1,5 @@
 // 🔹 post_camera_widget.dart — Fotocamera dedicata al POST
-//    Copia di home_page_widget.dart ma adattata per flusso Pre/Post
+//    Allineata alla Home camera (UI e parametri) + crop 1024x1024 affidabile
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -53,10 +53,11 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   CaptureMode _mode = CaptureMode.volto;
 
-  final double _targetMmPerPx = 0.117;
-
-  double _ipdMm = 63.0;
+  // —— stessi parametri della Home camera ——
+  final double _targetMmPerPx = 0.117; // scala target
+  double _ipdMm = 63.0;                 // distanza pupillare media
   double get _targetPxVolto => _ipdMm / _targetMmPerPx;
+
   double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
 
@@ -71,6 +72,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
   }
 
+  // ——— ML Kit per occhi (scala live) ———
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
@@ -95,9 +97,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-      );
+      final backIndex =
+          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -147,9 +148,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
+  // ——— stream per misura IPD ———
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return; // 👈 come Home
+    if (now.difference(_lastProc).inMilliseconds < 100) return;
     _lastProc = now;
 
     final ctrl = _controller;
@@ -192,8 +194,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
     if (!mounted) return;
     setState(() {
+      // smoothing come Home
       if (shown > 0) {
-        _lastIpdPx = shown; // 👈 come HomeCamera
+        _lastIpdPx = (_lastIpdPx == 0) ? shown : (_lastIpdPx * 0.7 + shown * 0.3);
       }
       _scaleOkVolto = ok;
     });
@@ -223,10 +226,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
     final Uint8List bytes = b.toBytes();
 
-    final Size size = Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
+    final Size size = Size(image.width.toDouble(), image.height.toDouble());
 
     final metadata = InputImageMetadata(
       size: size,
@@ -253,47 +253,129 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
+      // 1) Scatta
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
+
+      // 2) Decodifica + applica orientamento EXIF
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
+      original = img.bakeOrientation(original);
 
+      // 3) Specchio per camera frontale (come preview)
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      // 👇 salvataggio ridotto per performance, come Home
-      final img.Image resized = img.copyResize(original, width: 1024, height: 1024);
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
+      // 4) Calcolo mapping cover (UI identica alla Home)
+      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
+      // in CameraPreview il child è SizedBox(width: p.height, height: p.width)
+      final double previewW = p.height.toDouble();
+      final double previewH = p.width.toDouble();
 
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
-      if (!pState.hasAccess) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
-        }
-        return;
+      final Size screen = MediaQuery.of(context).size;
+      final double screenW = screen.width;
+      final double screenH = screen.height;
+
+      // BoxFit.cover
+      final double scale = math.max(screenW / previewW, screenH / previewH);
+      final double dispW = previewW * scale;
+      final double dispH = previewH * scale;
+      final double dx = (screenW - dispW) / 2.0;
+      final double dy = (screenH - dispH) / 2.0;
+
+      final double shortSideScreen = math.min(screenW, screenH);
+
+      // dimensione riquadro come in Home
+      double squareSizeScreen;
+      if (_lastIpdPx > 0) {
+        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
+        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+        squareSizeScreen = (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
+      } else {
+        squareSizeScreen = shortSideScreen * 0.70;
       }
 
-      final String baseName =
-          'post_1024_${DateTime.now().millisecondsSinceEpoch}';
+      // stessa posizione riquadro (leggermente alto)
+      final double centerXScreen = screenW / 2.0;
+      final double centerYScreen = screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
 
-      final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        filename: '$baseName.png',
+      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
+      final double topScreen  = centerYScreen  - squareSizeScreen / 2.0;
+
+      // Schermo -> area “shown” (cover)
+      final double leftInShown = leftScreen - dx;
+      final double topInShown  = topScreen  - dy;
+
+      // Area “shown” -> preview
+      final double leftPreview = leftInShown / scale;
+      final double topPreview  = topInShown  / scale;
+      final double sidePreview = squareSizeScreen / scale;
+
+      // Preview -> pixels dell'immagine scattata
+      final double ratioX = original.width  / previewW;
+      final double ratioY = original.height / previewH;
+
+      int cropX    = (leftPreview * ratioX).round();
+      int cropY    = (topPreview  * ratioY).round();
+      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
+
+      // ——— CLAMP + FALLBACK SICURO ———
+      final int minSide = math.min(original.width, original.height);
+      // se i valori escono o sono “troppo grandi”, faccio un quadrato centrato
+      bool bad =
+          cropSide <= 0 ||
+          cropSide > minSide ||
+          cropX < 0 ||
+          cropY < 0 ||
+          cropX + cropSide > original.width ||
+          cropY + cropSide > original.height;
+
+      if (bad) {
+        cropSide = (minSide * 0.9).round(); // un po' meno del lato min per sicurezza
+        // mantengo allineamento verticale “alto” come l’overlay
+        final double yAlign = 0.5 - 0.2; // 0.3–0.4 sopra il centro (come UI)
+        cropX = ((original.width  - cropSide) / 2).round();
+        cropY = ((original.height - cropSide) * yAlign).round();
+        cropY = cropY.clamp(0, original.height - cropSide);
+      } else {
+        // clamp normale
+        cropSide = cropSide.clamp(1, minSide);
+        cropX = cropX.clamp(0, original.width - cropSide);
+        cropY = cropY.clamp(0, original.height - cropSide);
+      }
+
+      // 5) Crop quadrato + resize 1024
+      img.Image cropped = img.copyCrop(
+        original,
+        x: cropX,
+        y: cropY,
+        width: cropSide,
+        height: cropSide,
       );
-      if (asset == null) throw Exception('Salvataggio PNG fallito');
+      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      final String newPath = (await _tempThumbPath('$baseName.png'));
-      await File(newPath).writeAsBytes(pngBytes);
-      _lastShotPath = newPath;
+      // 6) Salva (galleria opzionale) + restituisci file TEMP a PrePost
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (pState.hasAccess) {
+        final String baseName = 'post_1024_${DateTime.now().millisecondsSinceEpoch}';
+        await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.png');
+      }
 
-      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
+      final String outPath = await _tempThumbPath(
+        'post_1024_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await File(outPath).writeAsBytes(pngBytes);
+      _lastShotPath = outPath;
 
       if (mounted) {
-        Navigator.pop(context, File(newPath)); // 👈 ritorna a PrePost
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Foto POST crop 1024×1024 salvata')),
+        );
+        setState(() {});
+        // 👉 torna a PrePost: da qui in poi gestisce tutto PrePost
+        Navigator.pop(context, File(outPath));
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -304,7 +386,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       }
     } finally {
       try {
-        if (!ctrl.value.isStreamingImages) {
+        if (ctrl.value.isInitialized && !ctrl.value.isStreamingImages) {
           await ctrl.startImageStream(_processCameraImage);
           _streamRunning = true;
         }
@@ -392,9 +474,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Widget _buildCameraPreview() {
     final ctrl = _controller;
-    if (_initializing) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_initializing) return const Center(child: CircularProgressIndicator());
     if (ctrl == null || !ctrl.value.isInitialized) {
       return const Center(child: Text('Fotocamera non disponibile'));
     }
@@ -402,12 +482,12 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
 
+    // Solo Android: mirror in preview, lo scatto viene già specchiato da noi.
     final bool needsMirror = isFront && Platform.isAndroid;
 
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-
     final Widget inner = SizedBox(
-      width: p.height,
+      width: p.height, // stessa scelta della Home (swap)
       height: p.width,
       child: CameraPreview(ctrl),
     );
@@ -435,16 +515,15 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
+          squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
           squareSize = shortSide * 0.70;
         }
 
-        final Color frameColor = (_mode == CaptureMode.volto
-                ? _scaleOkVolto
-                : _scaleOkPart)
-            ? Colors.green
-            : Colors.yellow.withOpacity(0.95);
+        final Color frameColor =
+            (_mode == CaptureMode.volto ? _scaleOkVolto : _scaleOkPart)
+                ? Colors.green
+                : Colors.yellow.withOpacity(0.95);
 
         final double safeTop = MediaQuery.of(context).padding.top;
 
@@ -453,16 +532,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           children: [
             Positioned.fill(child: preview),
 
+            // 👇 ghost PRE dentro il riquadro (trasparente)
             if (widget.guideImage != null)
               Align(
                 alignment: const Alignment(0, -0.3),
-                child: Container(
+                child: SizedBox(
                   width: squareSize,
                   height: squareSize,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  clipBehavior: Clip.hardEdge,
                   child: Opacity(
                     opacity: 0.4,
                     child: Image.file(widget.guideImage!, fit: BoxFit.cover),
@@ -470,6 +546,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
                 ),
               ),
 
+            // Riquadro target
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -482,6 +559,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               ),
             ),
 
+            // Distanza cm overlay (stesso stile Home)
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
@@ -491,6 +569,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               isFrontCamera: isFront,
             ),
 
+            // Livella orizzontale solo per volto
             if (_mode == CaptureMode.volto)
               Align(
                 alignment: const Alignment(0, -0.3),
@@ -521,9 +600,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 
   Widget _buildBottomBar() {
-    final canShoot = _controller != null &&
-        _controller!.value.isInitialized &&
-        !_shooting;
+    final canShoot =
+        _controller != null && _controller!.value.isInitialized && !_shooting;
     return SafeArea(
       top: false,
       child: Padding(
@@ -677,7 +755,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// Livelle invariati...
+// ————————————————————————————————————————
+// Livelle (uguali a Home)
+// ————————————————————————————————————————
 Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
   double okThresholdDeg = 1.0,
