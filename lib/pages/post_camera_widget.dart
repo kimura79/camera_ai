@@ -71,9 +71,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
   }
 
-  // 🔹 aggiunta variabile per distanza
-  double _distanzaCm = 0.0;
-
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
@@ -112,7 +109,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.medium, // 👈 più leggero rispetto a max
+      ResolutionPreset.medium, // 👈 come in home camera
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -152,7 +149,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 350) return; // 👈 meno frequente
+    // 👇 come in home: 300ms tra un frame e l’altro
+    if (now.difference(_lastProc).inMilliseconds < 300) return;
     _lastProc = now;
 
     final ctrl = _controller;
@@ -178,14 +176,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final dy = (left.position.y - right.position.y);
       final distPx = math.sqrt(dx * dx + dy * dy);
 
-      // 🔹 calcolo distanza cm
-      final mmPerPxAttuale = _ipdMm / distPx;
-      final distanzaCm = (mmPerPxAttuale * 1024.0) / 10.0 * 2.0;
-
-      setState(() {
-        _distanzaCm = distanzaCm;
-      });
-
       _updateScaleVolto(distPx);
     } catch (_) {}
   }
@@ -196,18 +186,12 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     final double maxT = tgt * 1.05;
 
     bool ok = false;
-    double shown = 0;
     if (ipdPx != null && ipdPx.isFinite) {
-      shown = ipdPx;
+      _lastIpdPx = ipdPx; // 👈 come in home, niente smoothing
       ok = (ipdPx >= minT && ipdPx <= maxT);
     }
     if (!mounted) return;
     setState(() {
-      if (shown > 0) {
-        _lastIpdPx = (_lastIpdPx == 0)
-            ? shown
-            : (_lastIpdPx * 0.85 + shown * 0.15); // 👈 smoothing più forte
-      }
       _scaleOkVolto = ok;
     });
   }
@@ -295,7 +279,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
         final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
         squareSizeScreen =
-            (shortSideScreen / scalaFattore).clamp(120.0, shortSideScreen);
+            (shortSideScreen / scalaFattore).clamp(300.0, shortSideScreen); // 👈 come in home
       } else {
         squareSizeScreen = shortSideScreen * 0.70;
       }
@@ -364,14 +348,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Foto POST 1024×1024 salvata (PNG lossless)')),
-        );
-        setState(() {});
-
-        // 🔹 Restituisci il file al PrePostWidget
-        Navigator.pop(context, File(newPath));
+        Navigator.pop(context, File(newPath)); // 👈 ritorna il file al PrePost
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -513,7 +490,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(120.0, shortSide);
+          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide); // 👈 come home
         } else {
           squareSize = shortSide * 0.70;
         }
@@ -531,6 +508,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           children: [
             Positioned.fill(child: preview),
 
+            // 👇 Overlay PRE dentro il riquadro (trasparente)
             if (widget.guideImage != null)
               Align(
                 alignment: const Alignment(0, -0.3),
@@ -556,13 +534,11 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               ),
             ),
 
-            // 🔹 overlay distanza ora riceve distanzaCm
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
-              distanzaCm: _distanzaCm,
               mode: _mode == CaptureMode.volto ? "fullface" : "particolare",
               isFrontCamera: isFront,
             ),
