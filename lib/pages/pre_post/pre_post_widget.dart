@@ -1,19 +1,20 @@
 import 'dart:io';
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
+// importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
-import '../distanza_cm_overlay.dart';
-import '../level_guide.dart';
+import 'distanza_cm_overlay.dart';
 
 class PrePostWidget extends StatefulWidget {
   final String? preFile;   // Filename analisi PRE nel DB
@@ -71,7 +72,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria ===
+  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -135,7 +136,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
       });
 
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+
       try {
         final url =
             Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
@@ -151,6 +154,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
+            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -166,7 +170,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera ===
+  // === Scatta POST con camera, analizza e torna indietro ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,7 +199,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost",
+            mode: "prepost", // il server userà prefix POST_
           ),
         ),
       );
@@ -220,7 +224,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Conferma rifare POST ===
+  // === Conferma per rifare la foto POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -245,6 +249,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  // === Widget barra percentuale ===
   Widget _buildBar(String label, double value, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,6 +311,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
             const SizedBox(height: 20),
 
+            // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
                 Card(
@@ -334,10 +340,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             final double post =
                                 (compareData!["macchie"]["perc_post"] ?? 0.0)
                                     .toDouble();
+
                             double diffPerc = 0.0;
                             if (pre > 0) {
                               diffPerc = ((post - pre) / pre) * 100;
                             }
+
                             return _buildBar(
                               "Differenza",
                               diffPerc.abs(),
@@ -397,7 +405,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida + MLKit ===
+// === CameraOverlayPage aggiornata come Home ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -430,6 +438,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   double _lastIpdPx = 0.0;
   final double _ipdMm = 63.0;
   final double _targetMmPerPx = 0.117;
+  bool _scaleOk = false;
   DateTime _lastProc = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -443,7 +452,7 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     await _controller?.dispose();
     _controller = CameraController(
       currentCamera,
-      ResolutionPreset.high,
+      ResolutionPreset.max,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -456,65 +465,72 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 400) return;
+    if (now.difference(_lastProc).inMilliseconds < 300) return;
     _lastProc = now;
 
     if (_controller == null || !_controller!.value.isInitialized) return;
 
     try {
-      final rotation = InputImageRotation.rotation0deg;
-      final b = BytesBuilder(copy: false);
-      for (final Plane plane in image.planes) {
-        b.add(plane.bytes);
-      }
-      final Uint8List bytes = b.toBytes();
-
-      final Size size = Size(
-        image.width.toDouble(),
-        image.height.toDouble(),
-      );
-
-      final metadata = InputImageMetadata(
-        size: size,
-        rotation: rotation,
-        format: InputImageFormat.yuv420,
-        bytesPerRow: image.planes.first.bytesPerRow,
-      );
-
-      final inputImage = InputImage.fromBytes(
-        bytes: bytes,
-        metadata: metadata,
-      );
+      final rotation = _rotationFromSensor(_controller!.description.sensorOrientation);
+      final inputImage = _inputImageFromCameraImage(image, rotation);
 
       final faces = await _faceDetector.processImage(inputImage);
-      if (faces.isNotEmpty) {
-        final f = faces.first;
-        final left = f.landmarks[FaceLandmarkType.leftEye];
-        final right = f.landmarks[FaceLandmarkType.rightEye];
-        if (left != null && right != null) {
-          final dx = (left.position.x - right.position.x);
-          final dy = (left.position.y - right.position.y);
-          final distPx = sqrt(dx * dx + dy * dy);
-          if (mounted) {
-            setState(() {
-              _lastIpdPx = distPx;
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint("Errore process frame: $e");
+      if (faces.isEmpty) return;
+
+      final f = faces.first;
+      final left = f.landmarks[FaceLandmarkType.leftEye];
+      final right = f.landmarks[FaceLandmarkType.rightEye];
+      if (left == null || right == null) return;
+
+      final dx = (left.position.x - right.position.x);
+      final dy = (left.position.y - right.position.y);
+      final distPx = math.sqrt(dx * dx + dy * dy);
+
+      final tgt = _ipdMm / _targetMmPerPx;
+      final minT = tgt * 0.95;
+      final maxT = tgt * 1.05;
+      setState(() {
+        _lastIpdPx = distPx;
+        _scaleOk = (distPx >= minT && distPx <= maxT);
+      });
+    } catch (_) {}
+  }
+
+  InputImageRotation _rotationFromSensor(int sensorOrientation) {
+    switch (sensorOrientation) {
+      case 90:
+        return InputImageRotation.rotation90deg;
+      case 180:
+        return InputImageRotation.rotation180deg;
+      case 270:
+        return InputImageRotation.rotation270deg;
+      case 0:
+      default:
+        return InputImageRotation.rotation0deg;
     }
   }
 
-  Future<void> _switchCamera() async {
-    if (widget.cameras.length < 2) return;
+  InputImage _inputImageFromCameraImage(
+      CameraImage image, InputImageRotation rotation) {
+    final allBytes = WriteBuffer();
+    for (final Plane plane in image.planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+    final bytes = allBytes.done().buffer.asUint8List();
 
-    currentCamera = widget.cameras.firstWhere(
-      (c) => c.lensDirection != currentCamera.lensDirection,
-      orElse: () => widget.cameras.first,
+    final Size size = Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
     );
-    await _initCamera();
+
+    final metadata = InputImageMetadata(
+      size: size,
+      rotation: rotation,
+      format: InputImageFormat.yuv420,
+      bytesPerRow: image.planes.first.bytesPerRow,
+    );
+
+    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
   @override
@@ -545,186 +561,217 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
         final y = (decoded.height - side) ~/ 2;
         img.Image cropped =
             img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+        img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-        cropped = img.copyResize(cropped, width: 1024, height: 1024);
-
-        if (currentCamera.lensDirection == CameraLensDirection.front) {
-          cropped = img.flipHorizontal(cropped);
-        }
-
-        final outPath = "${file.path}_square.jpg";
-        file = await File(outPath).writeAsBytes(img.encodeJpg(cropped));
+        file = await file.writeAsBytes(img.encodePng(resized));
       }
 
       Navigator.pop(context, file);
     } catch (e) {
       debugPrint("Errore scatto: $e");
     } finally {
-      if (mounted) setState(() => _shooting = false);
+      setState(() => _shooting = false);
     }
-  }
-
-  Widget _buildBottomBar() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 25),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 32),
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 45,
-                  height: 45,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.black38,
-                  ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 26),
-                ),
-              ),
-            ),
-            GestureDetector(
-              onTap: _takePicture,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: 86,
-                height: 86,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.10),
-                      ),
-                    ),
-                    Container(
-                      width: 78,
-                      height: 78,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 6),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 80),
-                      width: _shooting ? 58 : 64,
-                      height: _shooting ? 58 : 64,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 32),
-              child: GestureDetector(
-                onTap: _switchCamera,
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black38,
-                  ),
-                  child:
-                      const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final distanzaCm = (_lastIpdPx > 0)
-        ? ((_ipdMm / _lastIpdPx) / _targetMmPerPx * 12.0)
-        : 0.0;
+    if (_controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final bool isFront =
+        _controller!.description.lensDirection == CameraLensDirection.front;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done &&
-              _controller != null) {
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _controller!.value.previewSize!.height,
-                    height: _controller!.value.previewSize!.width,
-                    child: CameraPreview(_controller!),
-                  ),
-                ),
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              CameraPreview(_controller!),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final shortSide =
+                      math.min(constraints.maxWidth, constraints.maxHeight);
 
-                Center(
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width,
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Image.file(widget.guideImage, fit: BoxFit.cover),
-                    ),
-                  ),
-                ),
+                  double squareSize;
+                  if (_lastIpdPx > 0) {
+                    final mmPerPxAttuale = _ipdMm / _lastIpdPx;
+                    final scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+                    squareSize =
+                        (shortSide / scalaFattore).clamp(300.0, shortSide);
+                  } else {
+                    squareSize = shortSide * 0.70;
+                  }
 
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.yellow, width: 3),
+                  final frameColor =
+                      _scaleOk ? Colors.green : Colors.yellow.withOpacity(0.95);
+
+                  return Stack(
+                    children: [
+                      Align(
+                        alignment: const Alignment(0, -0.3),
+                        child: Container(
+                          width: squareSize,
+                          height: squareSize,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: frameColor, width: 4),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: const Alignment(0, -0.3),
+                        child: Opacity(
+                          opacity: 0.3,
+                          child: Image.file(widget.guideImage,
+                              width: squareSize, height: squareSize),
+                        ),
+                      ),
+                      buildDistanzaCmOverlay(
+                        ipdPx: _lastIpdPx,
+                        ipdMm: _ipdMm,
+                        targetMmPerPx: _targetMmPerPx,
+                        alignY: -0.05,
+                        mode: "prepost",
+                        isFrontCamera: isFront,
+                      ),
+                      Align(
+                        alignment: const Alignment(0, -0.3),
+                        child: _buildLivellaOrizzontale3Linee(
+                          width: math.max(squareSize * 0.82, 300.0),
+                          height: 62,
+                          okThresholdDeg: 1.0,
+                        ),
+                      ),
+                      buildLivellaVerticaleOverlay(
+                        mode: null,
+                        topOffsetPx: 80.0,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 25),
+                  child: GestureDetector(
+                    onTap: _takePicture,
+                    behavior: HitTestBehavior.opaque,
+                    child: SizedBox(
+                      width: 86,
+                      height: 86,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 86,
+                            height: 86,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.10),
+                            ),
+                          ),
+                          Container(
+                            width: 78,
+                            height: 78,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 6),
+                            ),
+                          ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 80),
+                            width: _shooting ? 58 : 64,
+                            height: _shooting ? 58 : 64,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-
-                const LevelGuide(),
-
-                buildDistanzaCmOverlay(
-                  ipdPx: _lastIpdPx,
-                  ipdMm: _ipdMm,
-                  targetMmPerPx: _targetMmPerPx,
-                  mode: "prepost",
-                  isFrontCamera:
-                      currentCamera.lensDirection == CameraLensDirection.front,
-                ),
-
-                Positioned(
-                  top: 60,
-                  right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    color: Colors.black54,
-                    child: Text(
-                      "${distanzaCm.toStringAsFixed(1)} cm",
-                      style: const TextStyle(color: Colors.white, fontSize: 18),
-                    ),
-                  ),
-                ),
-
-                _buildBottomBar(),
-              ],
-            );
-          } else {
-            return const Center(child: CircularProgressIndicator());
-          }
+              ),
+            ],
+          );
         },
       ),
     );
   }
+}
+
+// === Livella orizzontale identica a Home ===
+Widget _buildLivellaOrizzontale3Linee({
+  required double width,
+  required double height,
+  double okThresholdDeg = 1.0,
+}) {
+  Widget _segment(double w, double h, Color c) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(h),
+        ),
+      );
+
+  return StreamBuilder<AccelerometerEvent>(
+    stream: accelerometerEventStream(),
+    builder: (context, snap) {
+      double rollDeg = 0.0;
+      if (snap.hasData) {
+        final ax = snap.data!.x;
+        final ay = snap.data!.y;
+        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
+      }
+
+      final bool isOk = rollDeg.abs() <= okThresholdDeg;
+      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
+
+      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double midRot = (rollDeg) * math.pi / 180;
+
+      return Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isOk ? Colors.greenAccent : Colors.white24,
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Transform.rotate(
+              angle: topRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+            Transform.rotate(
+              angle: midRot,
+              child: _segment(width - 20, 3, lineColor),
+            ),
+            Transform.rotate(
+              angle: botRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
