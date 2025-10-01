@@ -1,6 +1,5 @@
 // 🔹 post_camera_widget.dart — Fotocamera dedicata al POST
 //    Copia di home_page_widget.dart ma adattata per flusso Pre/Post
-//    FIX: mutuati stessi parametri della HomeCamera (fluidità, scaling, throttling)
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -72,6 +71,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
   }
 
+  // 🔹 aggiunta variabile per distanza
+  double _distanzaCm = 0.0;
+
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
@@ -110,7 +112,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.medium, // 🔹 come in home: preview più leggera
+      ResolutionPreset.medium, // 👈 più leggero rispetto a max
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -150,7 +152,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 350) return; // 🔹 throttling come home
+    if (now.difference(_lastProc).inMilliseconds < 350) return; // 👈 meno frequente
     _lastProc = now;
 
     final ctrl = _controller;
@@ -176,6 +178,14 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final dy = (left.position.y - right.position.y);
       final distPx = math.sqrt(dx * dx + dy * dy);
 
+      // 🔹 calcolo distanza cm
+      final mmPerPxAttuale = _ipdMm / distPx;
+      final distanzaCm = (mmPerPxAttuale * 1024.0) / 10.0 * 2.0;
+
+      setState(() {
+        _distanzaCm = distanzaCm;
+      });
+
       _updateScaleVolto(distPx);
     } catch (_) {}
   }
@@ -194,10 +204,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     if (!mounted) return;
     setState(() {
       if (shown > 0) {
-        // 🔹 smoothing più forte come home
         _lastIpdPx = (_lastIpdPx == 0)
             ? shown
-            : (_lastIpdPx * 0.85 + shown * 0.15);
+            : (_lastIpdPx * 0.85 + shown * 0.15); // 👈 smoothing più forte
       }
       _scaleOkVolto = ok;
     });
@@ -250,7 +259,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     setState(() => _shooting = true);
     try {
       if (_streamRunning) {
-        await ctrl.stopImageStream(); // 🔹 stop stream durante lo scatto
+        await ctrl.stopImageStream();
         _streamRunning = false;
       }
 
@@ -266,7 +275,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         original = img.flipHorizontal(original);
       }
 
-      // crop e resize come prima...
       final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
       final double previewW = p.height.toDouble();
       final double previewH = p.width.toDouble();
@@ -276,8 +284,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final double screenH = screen.height;
 
       final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dx = (screenW - previewW * scale) / 2.0;
-      final double dy = (screenH - previewH * scale) / 2.0;
+      final double dispW = previewW * scale;
+      final double dispH = previewH * scale;
+      final double dx = (screenW - dispW) / 2.0;
+      final double dy = (screenH - dispH) / 2.0;
       final double shortSideScreen = math.min(screenW, screenH);
 
       double squareSizeScreen;
@@ -285,7 +295,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
         final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
         squareSizeScreen =
-            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
+            (shortSideScreen / scalaFattore).clamp(120.0, shortSideScreen);
       } else {
         squareSizeScreen = shortSideScreen * 0.70;
       }
@@ -297,8 +307,11 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
       final double topScreen = centerYScreen - squareSizeScreen / 2.0;
 
-      final double leftPreview = (leftScreen - dx) / scale;
-      final double topPreview = (topScreen - dy) / scale;
+      final double leftInShown = leftScreen - dx;
+      final double topInShown = topScreen - dy;
+
+      final double leftPreview = leftInShown / scale;
+      final double topPreview = topInShown / scale;
       final double sidePreview = squareSizeScreen / scale;
 
       final double ratioX = original.width / previewW;
@@ -348,8 +361,17 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
+      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
+
       if (mounted) {
-        Navigator.pop(context, File(newPath)); // 🔹 ritorna al PrePostWidget
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('✅ Foto POST 1024×1024 salvata (PNG lossless)')),
+        );
+        setState(() {});
+
+        // 🔹 Restituisci il file al PrePostWidget
+        Navigator.pop(context, File(newPath));
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -359,6 +381,12 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         );
       }
     } finally {
+      try {
+        if (!ctrl.value.isStreamingImages) {
+          await ctrl.startImageStream(_processCameraImage);
+          _streamRunning = true;
+        }
+      } catch (_) {}
       if (mounted) setState(() => _shooting = false);
     }
   }
@@ -368,7 +396,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return '${dir.path}/$fileName';
   }
 
-  // ====== UI identica ======
+  // ====== UI ======
   Widget _buildScaleChip() {
     Color c;
     String text;
@@ -485,7 +513,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
+          squareSize = (shortSide / scalaFattore).clamp(120.0, shortSide);
         } else {
           squareSize = shortSide * 0.70;
         }
@@ -528,11 +556,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               ),
             ),
 
+            // 🔹 overlay distanza ora riceve distanzaCm
             buildDistanzaCmOverlay(
               ipdPx: _lastIpdPx,
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
+              distanzaCm: _distanzaCm,
               mode: _mode == CaptureMode.volto ? "fullface" : "particolare",
               isFrontCamera: isFront,
             ),
