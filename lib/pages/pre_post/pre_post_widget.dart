@@ -11,7 +11,7 @@ import 'package:path/path.dart' as path;
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
-// importa la nuova camera POST
+// importa la camera POST (solo UI + scatto)
 import '../post_camera_widget.dart';
 
 class PrePostWidget extends StatefulWidget {
@@ -152,7 +152,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
-            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -168,7 +167,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera (UI completa), analizza e torna indietro ===
+  // === Scatta POST con camera (solo UI), analizza e torna in PrePost ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -322,8 +321,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         _buildBar("Post",
                             compareData!["macchie"]["perc_post"] ?? 0.0,
                             Colors.blue),
-
-                        // 🔹 Calcolo differenza fatta 100 direttamente in Flutter
                         Builder(
                           builder: (_) {
                             final double pre =
@@ -343,14 +340,12 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             );
                           },
                         ),
-
                         Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
                         Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
                       ],
                     ),
                   ),
                 ),
-
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -372,10 +367,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             Colors.blue),
                         _buildBar(
                             "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
-                                .abs(),
-                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
-                                    0
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0).abs(),
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <= 0
                                 ? Colors.green
                                 : Colors.red),
                         Text(
