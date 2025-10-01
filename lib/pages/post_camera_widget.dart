@@ -326,40 +326,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
-      if (!pState.hasAccess) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
-        }
-        return;
-      }
-
       final String baseName =
           'post_1024_${DateTime.now().millisecondsSinceEpoch}';
-
-      final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        filename: '$baseName.png',
-      );
-      if (asset == null) throw Exception('Salvataggio PNG fallito');
-
       final String newPath = (await _tempThumbPath('$baseName.png'));
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
-      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Foto POST 1024×1024 salvata (PNG lossless)')),
-        );
-        setState(() {});
-
-        // 🔹 Restituisci il file al PrePostWidget
         Navigator.pop(context, File(newPath));
       }
     } catch (e) {
@@ -370,12 +343,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         );
       }
     } finally {
-      try {
-        if (!ctrl.value.isStreamingImages) {
-          await ctrl.startImageStream(_processCameraImage);
-          _streamRunning = true;
-        }
-      } catch (_) {}
       if (mounted) setState(() => _shooting = false);
     }
   }
@@ -740,7 +707,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// Livelle invariati...
+// Livella verticale e orizzontale invariati...
 Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
   double okThresholdDeg = 1.0,
