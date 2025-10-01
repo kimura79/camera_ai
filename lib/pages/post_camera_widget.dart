@@ -570,15 +570,15 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
             ),
 
             // Livella orizzontale solo per volto
-            if (_mode == CaptureMode.volto)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: _buildLivellaOrizzontale3Linee(
-                  width: math.max(squareSize * 0.82, 300.0),
-                  height: 62,
-                  okThresholdDeg: 1.0,
-                ),
-              ),
+// if (_mode == CaptureMode.volto)
+//   Align(
+//     alignment: const Alignment(0, -0.3),
+//     child: _buildLivellaOrizzontale3Linee(
+//       width: math.max(squareSize * 0.82, 300.0),
+//       height: 62,
+//       okThresholdDeg: 1.0,
+//     ),
+//   ),
 
             Positioned(
               top: safeTop + 8,
