@@ -1,8 +1,8 @@
 // 🔹 post_camera_widget.dart — Fotocamera POST semplificata
-//    - NIENTE MLKit (fluida)
-//    - Ghost PRE a massima larghezza schermo
-//    - Riquadro crop 1024x1024
+//    - Ghost PRE quadrato a tutta larghezza
 //    - Livella verticale
+//    - Crop 1024x1024 allo scatto
+//    - NIENTE MLKit
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -15,9 +15,12 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 class PostCameraWidget extends StatefulWidget {
-  final File? guideImage; // 👈 immagine PRE da usare come ghost
+  final File? guideImage; // 👈 immagine PRE come ghost
 
-  const PostCameraWidget({super.key, this.guideImage});
+  const PostCameraWidget({
+    super.key,
+    this.guideImage,
+  });
 
   static String routeName = 'PostCameraPage';
   static String routePath = '/postCameraPage';
@@ -35,6 +38,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
+
   String? _lastShotPath;
 
   @override
@@ -51,8 +55,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
-          (c) => c.lensDirection == CameraLensDirection.back);
+      final backIndex =
+          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -66,12 +70,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       desc,
       ResolutionPreset.max,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
     try {
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
+
       setState(() {
         _controller = ctrl;
         _initializing = false;
@@ -93,7 +98,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // === Scatto + crop 1024 ===
+  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -103,53 +108,81 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
+      // 1) Scatta
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
-      img.Image? original = img.decodeImage(origBytes);
-      if (original == null) throw Exception('Decodifica fallita');
-      original = img.bakeOrientation(original);
-      if (isFront) original = img.flipHorizontal(original);
 
-      // Crop quadrato
+      // 2) Decodifica immagine
+      img.Image? original = img.decodeImage(origBytes);
+      if (original == null) throw Exception('Decodifica immagine fallita');
+
+      // 3) Specchio se fotocamera frontale
+      if (isFront) {
+        original = img.flipHorizontal(original);
+      }
+
+      // 4) Crop quadrato centrale
       final int minSide = math.min(original.width, original.height);
-      int cropSide = (minSide * 0.9).round();
-      int cropX = ((original.width - cropSide) / 2).round();
-      int cropY = ((original.height - cropSide) / 2.2).round(); // alzato un po'
+      final int cropX = ((original.width - minSide) / 2).round();
+      final int cropY = ((original.height - minSide) / 2).round();
 
       img.Image cropped = img.copyCrop(
         original,
         x: cropX,
         y: cropY,
-        width: cropSide,
-        height: cropSide,
+        width: minSide,
+        height: minSide,
       );
+
+      // 5) Resize a 1024x1024
       img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      final String outPath =
-          '${(await Directory.systemTemp.createTemp()).path}/post_${DateTime.now().millisecondsSinceEpoch}.png';
+      // 6) Salva in galleria
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (pState.hasAccess) {
+        final String baseName = 'post_1024_${DateTime.now().millisecondsSinceEpoch}';
+        await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.png');
+      }
+
+      // 7) Salva file temporaneo
+      final String outPath = await _tempThumbPath(
+        'post_1024_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
       await File(outPath).writeAsBytes(pngBytes);
       _lastShotPath = outPath;
 
-      if (mounted) Navigator.pop(context, File(outPath));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Foto POST crop 1024×1024 salvata')),
+        );
+        setState(() {});
+        Navigator.pop(context, File(outPath)); // torna a PrePost
+      }
     } catch (e) {
       debugPrint('Take/save error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore salvataggio: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _shooting = false);
     }
   }
 
-  // === UI ===
+  Future<String> _tempThumbPath(String fileName) async {
+    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
+    return '${dir.path}/$fileName';
+  }
+
+  // ====== UI ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) return const Center(child: CircularProgressIndicator());
     if (ctrl == null || !ctrl.value.isInitialized) {
       return const Center(child: Text('Fotocamera non disponibile'));
     }
-
-    final bool isFront =
-        ctrl.description.lensDirection == CameraLensDirection.front;
-    final bool needsMirror = isFront && Platform.isAndroid;
 
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
     final Widget inner = SizedBox(
@@ -158,45 +191,50 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       child: CameraPreview(ctrl),
     );
 
-    final Widget previewFull = FittedBox(fit: BoxFit.cover, child: inner);
+    final Widget previewFull = FittedBox(
+      fit: BoxFit.cover,
+      child: inner,
+    );
 
-    final Widget preview = needsMirror
-        ? Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
-            child: previewFull,
-          )
-        : previewFull;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double screenW = constraints.maxWidth;
+        final double squareSize = screenW; // 👈 ghost quadrato max larghezza
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: preview),
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: previewFull),
 
-        // 👇 Ghost PRE: massima larghezza, semi-trasparente
-        if (widget.guideImage != null)
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.35,
-              child: Image.file(widget.guideImage!, fit: BoxFit.cover),
+            // 👇 Ghost PRE quadrato
+            if (widget.guideImage != null)
+              Center(
+                child: SizedBox(
+                  width: squareSize,
+                  height: squareSize,
+                  child: Opacity(
+                    opacity: 0.35,
+                    child: Image.file(
+                      widget.guideImage!,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+
+            // 👇 Riquadro target
+            Center(
+              child: Container(
+                width: squareSize,
+                height: squareSize,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.green, width: 4),
+                ),
+              ),
             ),
-          ),
-
-        // 👇 Riquadro target
-        Align(
-          alignment: const Alignment(0, -0.3),
-          child: Container(
-            width: 320,
-            height: 320,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.green, width: 3),
-            ),
-          ),
-        ),
-
-        // 👇 Livella verticale
-        buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -210,26 +248,103 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const SizedBox(width: 54, height: 54), // spazio thumbnail
+            GestureDetector(
+              onTap: (_lastShotPath != null)
+                  ? () async {
+                      final p = _lastShotPath!;
+                      await showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.9),
+                        builder: (_) => GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: InteractiveViewer(
+                            child: Center(child: Image.file(File(p))),
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (_lastShotPath != null)
+                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
+                    : const Icon(Icons.image, color: Colors.white70),
+              ),
+            ),
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
-              child: Container(
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
                 width: 86,
                 height: 86,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 6),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.10),
+                      ),
+                    ),
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      width: _shooting ? 58 : 64,
+                      height: _shooting ? 58 : 64,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             GestureDetector(
               onTap: _switchCamera,
-              child: const Icon(Icons.cameraswitch, color: Colors.white),
+              child: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const Icon(Icons.cameraswitch, color: Colors.white),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    if (state == AppLifecycleState.inactive) {
+      _controller?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _startController(_cameras[_cameraIndex]);
+    }
   }
 
   @override
@@ -250,7 +365,14 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         child: Stack(
           children: [
             Positioned.fill(child: _buildCameraPreview()),
-            Align(alignment: Alignment.bottomCenter, child: _buildBottomBar()),
+
+            // 👇 Livella verticale
+            buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
+
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _buildBottomBar(),
+            ),
           ],
         ),
       ),
@@ -258,7 +380,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// === Livella verticale (semplice) ===
+// ====== Livella verticale ======
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.0,
   double topOffsetPx = 65.0,
@@ -266,6 +388,7 @@ Widget buildLivellaVerticaleOverlay({
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
+
       return Positioned(
         top: safeTop + topOffsetPx,
         left: 0,
@@ -286,24 +409,53 @@ Widget buildLivellaVerticaleOverlay({
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
               }
+
               final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
-              return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: isOk ? Colors.greenAccent : Colors.white24),
-                ),
-                child: Text(
-                  "${angleDeg.toStringAsFixed(1)}°",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: isOk ? Colors.greenAccent : Colors.white,
+              final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
+              final Color badgeBg =
+                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBor =
+                  isOk ? Colors.greenAccent : Colors.white24;
+              final String badgeTxt = isOk ? "OK" : "Inclina";
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "${angleDeg.toStringAsFixed(1)}°",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: bigColor,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: badgeBor, width: 1.2),
+                    ),
+                    child: Text(
+                      badgeTxt,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
