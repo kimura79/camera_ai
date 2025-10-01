@@ -151,7 +151,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
+    // 🔹 aggiorna più spesso (ogni 100ms)
+    if (now.difference(_lastProc).inMilliseconds < 100) return;
     _lastProc = now;
 
     final ctrl = _controller;
@@ -194,7 +195,12 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
     if (!mounted) return;
     setState(() {
-      _lastIpdPx = shown;
+      // 🔹 smoothing per fluidità
+      if (shown > 0) {
+        _lastIpdPx = (_lastIpdPx == 0)
+            ? shown
+            : (_lastIpdPx * 0.7 + shown * 0.3);
+      }
       _scaleOkVolto = ok;
     });
   }
@@ -281,6 +287,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       if (_lastIpdPx > 0) {
         final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
         final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
+        // 🔹 clamp come in home camera
         squareSizeScreen =
             (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
       } else {
@@ -506,7 +513,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
+          // 🔹 clamp come in home camera
+          squareSize = (shortSide / scalaFattore).clamp(32.0, shortSide);
         } else {
           squareSize = shortSide * 0.70;
         }
@@ -745,6 +753,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
+// Livella verticale e orizzontale invariati...
 Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
   double okThresholdDeg = 1.0,
