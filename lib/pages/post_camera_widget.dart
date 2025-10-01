@@ -109,7 +109,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.medium, // 👈 come in home camera
+      ResolutionPreset.max,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -149,8 +149,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
 
   Future<void> _processCameraImage(CameraImage image) async {
     final now = DateTime.now();
-    // 👇 come in home: 300ms tra un frame e l’altro
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
+    if (now.difference(_lastProc).inMilliseconds < 300) return; // 👈 come Home
     _lastProc = now;
 
     final ctrl = _controller;
@@ -186,12 +185,16 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     final double maxT = tgt * 1.05;
 
     bool ok = false;
+    double shown = 0;
     if (ipdPx != null && ipdPx.isFinite) {
-      _lastIpdPx = ipdPx; // 👈 come in home, niente smoothing
+      shown = ipdPx;
       ok = (ipdPx >= minT && ipdPx <= maxT);
     }
     if (!mounted) return;
     setState(() {
+      if (shown > 0) {
+        _lastIpdPx = shown; // 👈 come HomeCamera
+      }
       _scaleOkVolto = ok;
     });
   }
@@ -259,66 +262,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         original = img.flipHorizontal(original);
       }
 
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble();
-      final double previewH = p.width.toDouble();
-
-      final Size screen = MediaQuery.of(context).size;
-      final double screenW = screen.width;
-      final double screenH = screen.height;
-
-      final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
-      final double shortSideScreen = math.min(screenW, screenH);
-
-      double squareSizeScreen;
-      if (_lastIpdPx > 0) {
-        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-        squareSizeScreen =
-            (shortSideScreen / scalaFattore).clamp(300.0, shortSideScreen); // 👈 come in home
-      } else {
-        squareSizeScreen = shortSideScreen * 0.70;
-      }
-
-      final double centerXScreen = screenW / 2.0;
-      final double centerYScreen =
-          screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
-
-      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
-
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
-      final double sidePreview = squareSizeScreen / scale;
-
-      final double ratioX = original.width / previewW;
-      final double ratioY = original.height / previewH;
-
-      int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview * ratioY).round();
-      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
-
-      cropSide =
-          cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width - cropSide);
-      cropY = cropY.clamp(0, original.height - cropSide);
-
-      img.Image cropped = img.copyCrop(
-        original,
-        x: cropX,
-        y: cropY,
-        width: cropSide,
-        height: cropSide,
-      );
-
-      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+      // 👇 salvataggio ridotto per performance, come Home
+      final img.Image resized = img.copyResize(original, width: 1024, height: 1024);
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
 
       final PermissionState pState =
@@ -348,7 +293,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
 
       if (mounted) {
-        Navigator.pop(context, File(newPath)); // 👈 ritorna il file al PrePost
+        Navigator.pop(context, File(newPath)); // 👈 ritorna a PrePost
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -490,7 +435,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         if (_lastIpdPx > 0) {
           final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
           final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide); // 👈 come home
+          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
         } else {
           squareSize = shortSide * 0.70;
         }
@@ -508,13 +453,16 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           children: [
             Positioned.fill(child: preview),
 
-            // 👇 Overlay PRE dentro il riquadro (trasparente)
             if (widget.guideImage != null)
               Align(
                 alignment: const Alignment(0, -0.3),
-                child: SizedBox(
+                child: Container(
                   width: squareSize,
                   height: squareSize,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  clipBehavior: Clip.hardEdge,
                   child: Opacity(
                     opacity: 0.4,
                     child: Image.file(widget.guideImage!, fit: BoxFit.cover),
