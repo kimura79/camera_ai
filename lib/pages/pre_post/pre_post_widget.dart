@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:math' as math;
+import 'dart:math';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -11,14 +11,13 @@ import 'package:path/path.dart' as path;
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-// importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
 import '../distanza_cm_overlay.dart';
 import '../level_guide.dart';
 
 class PrePostWidget extends StatefulWidget {
-  final String? preFile; // Filename analisi PRE nel DB
-  final String? postFile; // Filename analisi POST nel DB
+  final String? preFile;   // Filename analisi PRE nel DB
+  final String? postFile;  // Filename analisi POST nel DB
 
   const PrePostWidget({
     super.key,
@@ -72,7 +71,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Seleziona PRE dalla galleria (lookup su server per filename DB) ===
+  // === Seleziona PRE dalla galleria ===
   Future<void> _pickPreImage() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (!ps.isAuth) {
@@ -136,9 +135,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         preImage = file;
       });
 
-      // 🔹 Usa timestamp per cercare nel DB il filename corretto
       final ts = file.lastModifiedSync().millisecondsSinceEpoch;
-
       try {
         final url =
             Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
@@ -154,7 +151,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             });
             debugPrint("✅ PRE associato a record DB: $serverFilename");
           } else {
-            // fallback se non trovato
             setState(() {
               preFile = path.basename(file.path);
             });
@@ -170,7 +166,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Scatta POST con camera, analizza e torna indietro ===
+  // === Scatta POST con camera ===
   Future<void> _capturePostImage() async {
     if (preFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -199,7 +195,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         MaterialPageRoute(
           builder: (context) => AnalysisPreview(
             imagePath: result.path,
-            mode: "prepost", // il server userà prefix POST_
+            mode: "prepost",
           ),
         ),
       );
@@ -224,7 +220,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Conferma per rifare la foto POST ===
+  // === Conferma rifare POST ===
   Future<void> _confirmRetakePost() async {
     final bool? retake = await showDialog<bool>(
       context: context,
@@ -249,7 +245,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Widget barra percentuale ===
   Widget _buildBar(String label, double value, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,7 +306,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
             ),
             const SizedBox(height: 20),
 
-            // === Risultati comparazione ===
             if (compareData != null) ...[
               if (compareData!["macchie"] != null)
                 Card(
@@ -340,12 +334,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             final double post =
                                 (compareData!["macchie"]["perc_post"] ?? 0.0)
                                     .toDouble();
-
                             double diffPerc = 0.0;
                             if (pre > 0) {
                               diffPerc = ((post - pre) / pre) * 100;
                             }
-
                             return _buildBar(
                               "Differenza",
                               diffPerc.abs(),
@@ -361,6 +353,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     ),
                   ),
                 ),
+
               if (compareData!["pori"] != null)
                 Card(
                   margin: const EdgeInsets.all(12),
@@ -382,8 +375,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                             Colors.blue),
                         _buildBar(
                             "Differenza",
-                            (compareData!["pori"]["perc_diff_dilatati"] ??
-                                    0.0)
+                            (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
                                 .abs(),
                             (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0) <=
                                     0
@@ -405,7 +397,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 }
 
-// === Camera con overlay guida aggiornata con MLKit ===
+// === Camera con overlay guida + MLKit ===
 class CameraOverlayPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   final CameraDescription initialCamera;
@@ -428,17 +420,16 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
   late CameraDescription currentCamera;
   bool _shooting = false;
 
-  // === MLKit / distanza ===
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
       performanceMode: FaceDetectorMode.accurate,
     ),
   );
+
   double _lastIpdPx = 0.0;
   final double _ipdMm = 63.0;
   final double _targetMmPerPx = 0.117;
-  bool _streamRunning = false;
   DateTime _lastProc = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -459,20 +450,68 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     _initializeControllerFuture = _controller!.initialize().then((_) async {
       await _controller!.setFlashMode(FlashMode.off);
       await _controller!.startImageStream(_processCameraImage);
-      _streamRunning = true;
     });
     if (mounted) setState(() {});
   }
 
+  Future<void> _processCameraImage(CameraImage image) async {
+    final now = DateTime.now();
+    if (now.difference(_lastProc).inMilliseconds < 400) return;
+    _lastProc = now;
+
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    try {
+      final rotation = InputImageRotation.rotation0deg;
+      final b = BytesBuilder(copy: false);
+      for (final Plane plane in image.planes) {
+        b.add(plane.bytes);
+      }
+      final Uint8List bytes = b.toBytes();
+
+      final Size size = Size(
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+
+      final metadata = InputImageMetadata(
+        size: size,
+        rotation: rotation,
+        format: InputImageFormat.yuv420,
+        bytesPerRow: image.planes.first.bytesPerRow,
+      );
+
+      final inputImage = InputImage.fromBytes(
+        bytes: bytes,
+        metadata: metadata,
+      );
+
+      final faces = await _faceDetector.processImage(inputImage);
+      if (faces.isNotEmpty) {
+        final f = faces.first;
+        final left = f.landmarks[FaceLandmarkType.leftEye];
+        final right = f.landmarks[FaceLandmarkType.rightEye];
+        if (left != null && right != null) {
+          final dx = (left.position.x - right.position.x);
+          final dy = (left.position.y - right.position.y);
+          final distPx = sqrt(dx * dx + dy * dy);
+          if (mounted) {
+            setState(() {
+              _lastIpdPx = distPx;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Errore process frame: $e");
+    }
+  }
+
   Future<void> _switchCamera() async {
     if (widget.cameras.length < 2) return;
-    if (_streamRunning) {
-      await _controller?.stopImageStream();
-      _streamRunning = false;
-    }
+
     currentCamera = widget.cameras.firstWhere(
-      (c) =>
-          c.lensDirection != currentCamera.lensDirection,
+      (c) => c.lensDirection != currentCamera.lensDirection,
       orElse: () => widget.cameras.first,
     );
     await _initCamera();
@@ -485,76 +524,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
     super.dispose();
   }
 
-  // === Processing frames for IPD ===
-  Future<void> _processCameraImage(CameraImage image) async {
-    final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
-    _lastProc = now;
-
-    if (!mounted || _controller == null || !_controller!.value.isInitialized) {
-      return;
-    }
-
-    try {
-      final rotation = _rotationFromSensor(currentCamera.sensorOrientation);
-      final inputImage = _inputImageFromCameraImage(image, rotation);
-
-      final faces = await _faceDetector.processImage(inputImage);
-      if (faces.isEmpty) return;
-
-      final f = faces.first;
-      final left = f.landmarks[FaceLandmarkType.leftEye];
-      final right = f.landmarks[FaceLandmarkType.rightEye];
-      if (left == null || right == null) return;
-
-      final dx = (left.position.x - right.position.x);
-      final dy = (left.position.y - right.position.y);
-      final distPx = math.sqrt(dx * dx + dy * dy);
-
-      if (mounted) {
-        setState(() {
-          _lastIpdPx = distPx;
-        });
-      }
-    } catch (_) {}
-  }
-
-  InputImageRotation _rotationFromSensor(int sensorOrientation) {
-    switch (sensorOrientation) {
-      case 90:
-        return InputImageRotation.rotation90deg;
-      case 180:
-        return InputImageRotation.rotation180deg;
-      case 270:
-        return InputImageRotation.rotation270deg;
-      case 0:
-      default:
-        return InputImageRotation.rotation0deg;
-    }
-  }
-
-  InputImage _inputImageFromCameraImage(
-      CameraImage image, InputImageRotation rotation) {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    final bytes = allBytes.done().buffer.asUint8List();
-
-    final Size imageSize =
-        Size(image.width.toDouble(), image.height.toDouble());
-
-    final metadata = InputImageMetadata(
-      size: imageSize,
-      rotation: rotation,
-      format: InputImageFormat.yuv420,
-      bytesPerRow: image.planes.first.bytesPerRow,
-    );
-
-    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
-  }
-
-  // === Scatto foto ===
   Future<void> _takePicture() async {
     try {
       if (_shooting) return;
@@ -667,8 +636,8 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                     shape: BoxShape.circle,
                     color: Colors.black38,
                   ),
-                  child: const Icon(Icons.cameraswitch,
-                      color: Colors.white, size: 28),
+                  child:
+                      const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
                 ),
               ),
             ),
@@ -680,8 +649,9 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isFront =
-        currentCamera.lensDirection == CameraLensDirection.front;
+    final distanzaCm = (_lastIpdPx > 0)
+        ? ((_ipdMm / _lastIpdPx) / _targetMmPerPx * 12.0)
+        : 0.0;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -693,7 +663,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                // ✅ Preview non deformata
                 FittedBox(
                   fit: BoxFit.cover,
                   child: SizedBox(
@@ -703,7 +672,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // ✅ Overlay PRE semi-trasparente
                 Center(
                   child: SizedBox(
                     width: MediaQuery.of(context).size.width,
@@ -714,7 +682,6 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // ✅ Riquadro 1:1 scalabile
                 Center(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -726,19 +693,30 @@ class _CameraOverlayPageState extends State<CameraOverlayPage> {
                   ),
                 ),
 
-                // ✅ Livella
                 const LevelGuide(),
 
-                // ✅ Distanza cm calcolata da MLKit
                 buildDistanzaCmOverlay(
                   ipdPx: _lastIpdPx,
                   ipdMm: _ipdMm,
                   targetMmPerPx: _targetMmPerPx,
-                  isFrontCamera: isFront,
                   mode: "prepost",
+                  isFrontCamera:
+                      currentCamera.lensDirection == CameraLensDirection.front,
                 ),
 
-                // ✅ Pulsanti inferiori
+                Positioned(
+                  top: 60,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    color: Colors.black54,
+                    child: Text(
+                      "${distanzaCm.toStringAsFixed(1)} cm",
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  ),
+                ),
+
                 _buildBottomBar(),
               ],
             );
