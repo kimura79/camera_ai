@@ -1,505 +1,464 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST
-//    - Ghost PRE quadrato a tutta larghezza
-//    - Livella verticale stile Home
-//    - Pulsante scatto stile Home
-//    - Crop 1024x1024 dentro quadrato verde
-//    - NIENTE MLKit
-
 import 'dart:io';
-import 'dart:math' as math;
+import 'dart:math';
+import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
+import 'package:camera/camera.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 
-class PostCameraWidget extends StatefulWidget {
-  final File? guideImage; // 👈 immagine PRE come ghost
+// importa AnalysisPreview per analisi sul server
+import '../analysis_preview.dart';
+// importa la camera POST (solo UI + scatto)
+import '../post_camera_widget.dart';
 
-  const PostCameraWidget({
+class PrePostWidget extends StatefulWidget {
+  final String? preFile;   // Filename analisi PRE nel DB
+  final String? postFile;  // Filename analisi POST nel DB
+
+  const PrePostWidget({
     super.key,
-    this.guideImage,
+    this.preFile,
+    this.postFile,
   });
 
-  static String routeName = 'PostCameraPage';
-  static String routePath = '/postCameraPage';
-
   @override
-  State<PostCameraWidget> createState() => _PostCameraWidgetState();
+  State<PrePostWidget> createState() => _PrePostWidgetState();
 }
 
-class _PostCameraWidgetState extends State<PostCameraWidget>
-    with WidgetsBindingObserver {
-  final scaffoldKey = GlobalKey<ScaffoldState>();
+class _PrePostWidgetState extends State<PrePostWidget> {
+  File? preImage;
+  File? postImage;
+  Map<String, dynamic>? compareData;
 
-  List<CameraDescription> _cameras = const [];
-  CameraController? _controller;
-  int _cameraIndex = 0;
-  bool _initializing = true;
-  bool _shooting = false;
+  String? preFile;
+  String? postFile;
 
-  String? _lastShotPath;
+  // per esportare foto+barre
+  final GlobalKey _exportKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initCamera();
-  }
-
-  Future<void> _initCamera() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
-        setState(() => _initializing = false);
-        return;
-      }
-      final backIndex =
-          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
-      _cameraIndex = backIndex >= 0 ? backIndex : 0;
-      await _startController(_cameras[_cameraIndex]);
-    } catch (e) {
-      debugPrint('Camera init error: $e');
-      setState(() => _initializing = false);
+    preFile = widget.preFile;
+    postFile = widget.postFile;
+    if (preFile != null && postFile != null) {
+      _loadCompareResults();
     }
   }
 
-  Future<void> _startController(CameraDescription desc) async {
-    final ctrl = CameraController(
-      desc,
-      ResolutionPreset.max,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    try {
-      await ctrl.initialize();
-      await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0);
+  // === Carica risultati comparazione dal server ===
+  Future<void> _loadCompareResults() async {
+    if (preFile == null || postFile == null) {
+      debugPrint("⚠️ preFile o postFile mancanti, skip comparazione");
+      return;
+    }
 
-      setState(() {
-        _controller = ctrl;
-        _initializing = false;
-      });
+    final url = Uri.parse(
+        "http://46.101.223.88:5000/compare_from_db?pre_file=$preFile&post_file=$postFile");
+    try {
+      final resp = await http.get(url);
+      if (resp.statusCode == 200) {
+        setState(() {
+          compareData = jsonDecode(resp.body);
+        });
+        debugPrint("✅ Dati comparazione ricevuti: $compareData");
+      } else {
+        debugPrint("❌ Errore server: ${resp.body}");
+      }
     } catch (e) {
-      debugPrint('Controller start error: $e');
-      await ctrl.dispose();
-      setState(() => _initializing = false);
+      debugPrint("❌ Errore richiesta: $e");
     }
   }
 
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2) return;
-    setState(() => _initializing = true);
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
-    final old = _controller;
-    _controller = null;
-    await old?.dispose();
-    await _startController(_cameras[_cameraIndex]);
-  }
-
-  // ====== Scatto + salvataggio ======
-  Future<void> _takeAndSavePicture() async {
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
-
-    setState(() => _shooting = true);
-    try {
-      final bool isFront =
-          ctrl.description.lensDirection == CameraLensDirection.front;
-
-      // 1) Scatta
-      final XFile shot = await ctrl.takePicture();
-      final Uint8List origBytes = await File(shot.path).readAsBytes();
-
-      // 2) Decodifica immagine
-      img.Image? original = img.decodeImage(origBytes);
-      if (original == null) throw Exception('Decodifica immagine fallita');
-
-      // 3) Specchio se fotocamera frontale
-      if (isFront) {
-        original = img.flipHorizontal(original);
-      }
-
-      // 4) Calcolo crop dal quadrato verde
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble();
-      final double previewH = p.width.toDouble();
-
-      final Size screen = MediaQuery.of(context).size;
-      final double screenW = screen.width;
-      final double screenH = screen.height;
-
-      final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
-
-      final double squareSizeScreen = screenW; // quadrato verde = larghezza schermo
-      final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = screenH / 2.0;
-
-      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
-
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
-      final double sidePreview = squareSizeScreen / scale;
-
-      final double ratioX = original.width / previewW;
-      final double ratioY = original.height / previewH;
-
-      int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview * ratioY).round();
-      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
-
-      cropSide =
-          cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width - cropSide);
-      cropY = cropY.clamp(0, original.height - cropSide);
-
-      img.Image cropped = img.copyCrop(
-        original,
-        x: cropX,
-        y: cropY,
-        width: cropSide,
-        height: cropSide,
+  // === Seleziona PRE dalla galleria ===
+  Future<void> _pickPreImage() async {
+    final PermissionState ps = await PhotoManager.requestPermissionExtend();
+    if (!ps.isAuth) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Permesso galleria negato")),
       );
-
-      // 5) Resize a 1024x1024
-      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
-
-      // 6) Salva in galleria
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
-      if (pState.hasAccess) {
-        final String baseName = 'post_1024_${DateTime.now().millisecondsSinceEpoch}';
-        await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.png');
-      }
-
-      // 7) Salva file temporaneo
-      final String outPath = await _tempThumbPath(
-        'post_1024_${DateTime.now().millisecondsSinceEpoch}.png',
-      );
-      await File(outPath).writeAsBytes(pngBytes);
-      _lastShotPath = outPath;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto POST crop 1024×1024 salvata')),
-        );
-        setState(() {});
-        Navigator.pop(context, File(outPath)); // torna a PrePost
-      }
-    } catch (e) {
-      debugPrint('Take/save error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore salvataggio: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _shooting = false);
-    }
-  }
-
-  Future<String> _tempThumbPath(String fileName) async {
-    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
-    return '${dir.path}/$fileName';
-  }
-
-  // ====== UI ======
-  Widget _buildCameraPreview() {
-    final ctrl = _controller;
-    if (_initializing) return const Center(child: CircularProgressIndicator());
-    if (ctrl == null || !ctrl.value.isInitialized) {
-      return const Center(child: Text('Fotocamera non disponibile'));
+      return;
     }
 
-    final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-    final Widget inner = SizedBox(
-      width: p.height,
-      height: p.width,
-      child: CameraPreview(ctrl),
-    );
+    final List<AssetPathEntity> paths =
+        await PhotoManager.getAssetPathList(type: RequestType.image);
+    if (paths.isEmpty) return;
 
-    final Widget previewFull = FittedBox(
-      fit: BoxFit.cover,
-      child: inner,
-    );
+    final List<AssetEntity> media =
+        await paths.first.getAssetListPaged(page: 0, size: 100);
+    if (media.isEmpty) return;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: previewFull),
-
-            // 👇 Ghost PRE quadrato
-            if (widget.guideImage != null)
-              Center(
-                child: SizedBox(
-                  width: screenW,
-                  height: screenW,
-                  child: Opacity(
-                    opacity: 0.35,
-                    child: Image.file(
-                      widget.guideImage!,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
-
-            // 👇 Riquadro target
-            Center(
-              child: Container(
-                width: screenW,
-                height: screenW,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green, width: 4),
-                ),
-              ),
+    final file = await showDialog<File?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Seleziona foto PRE"),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomBar() {
-    final canShoot =
-        _controller != null && _controller!.value.isInitialized && !_shooting;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            GestureDetector(
-              onTap: (_lastShotPath != null)
-                  ? () async {
-                      final p = _lastShotPath!;
-                      await showDialog(
-                        context: context,
-                        barrierColor: Colors.black.withOpacity(0.9),
-                        builder: (_) => GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: InteractiveViewer(
-                            child: Center(child: Image.file(File(p))),
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: (_lastShotPath != null)
-                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
-                    : const Icon(Icons.image, color: Colors.white70),
-              ),
-            ),
-
-            // 👇 Pulsante scatto stile Home
-            GestureDetector(
-              onTap: canShoot ? _takeAndSavePicture : null,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: 86,
-                height: 86,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.10),
-                      ),
-                    ),
-                    Container(
-                      width: 78,
-                      height: 78,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 6),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 80),
-                      width: _shooting ? 58 : 64,
-                      height: _shooting ? 58 : 64,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            GestureDetector(
-              onTap: _switchCamera,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Icon(Icons.cameraswitch, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _controller;
-    if (ctrl == null) return;
-
-    if (state == AppLifecycleState.inactive) {
-      _controller?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _startController(_cameras[_cameraIndex]);
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      key: scaffoldKey,
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Stack(
-          children: [
-            Positioned.fill(child: _buildCameraPreview()),
-
-            // 👇 Livella verticale stile Home
-            buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
-
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomBar(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ====== Livella verticale stile Home ======
-Widget buildLivellaVerticaleOverlay({
-  double okThresholdDeg = 1.0,
-  double topOffsetPx = 65.0,
-}) {
-  return Builder(
-    builder: (context) {
-      final double safeTop = MediaQuery.of(context).padding.top;
-
-      return Positioned(
-        top: safeTop + topOffsetPx,
-        left: 0,
-        right: 0,
-        child: Center(
-          child: StreamBuilder<AccelerometerEvent>(
-            stream: accelerometerEventStream(),
-            builder: (context, snap) {
-              double angleDeg = 0.0;
-              if (snap.hasData) {
-                final ax = snap.data!.x;
-                final ay = snap.data!.y;
-                final az = snap.data!.z;
-                final g = math.sqrt(ax * ax + ay * ay + az * az);
-                if (g > 0) {
-                  double c = (-az) / g;
-                  c = c.clamp(-1.0, 1.0);
-                  angleDeg = (math.acos(c) * 180.0 / math.pi);
-                }
-              }
-
-              final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
-              final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-              final Color badgeBg =
-                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
-              final Color badgeBor =
-                  isOk ? Colors.greenAccent : Colors.white24;
-              final String badgeTxt = isOk ? "OK" : "Inclina";
-
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "${angleDeg.toStringAsFixed(1)}°",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: bigColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: badgeBor, width: 1.2),
-                    ),
-                    child: Text(
-                      badgeTxt,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+            itemCount: media.length,
+            itemBuilder: (context, index) {
+              return FutureBuilder<Uint8List?>(
+                future: media[index]
+                    .thumbnailDataWithSize(const ThumbnailSize(200, 200)),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      snapshot.data != null) {
+                    return GestureDetector(
+                      onTap: () async {
+                        final File? f = await media[index].file;
+                        if (f != null && context.mounted) {
+                          Navigator.pop(context, f);
+                        }
+                      },
+                      child: Image.memory(snapshot.data!, fit: BoxFit.cover),
+                    );
+                  } else {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                },
               );
             },
           ),
         ),
+      ),
+    );
+
+    if (file != null) {
+      setState(() {
+        preImage = file;
+      });
+
+      // 🔹 Usa timestamp per cercare nel DB il filename corretto
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+
+      try {
+        final url =
+            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
+
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
+
+          if (serverFilename != null) {
+            setState(() {
+              preFile = serverFilename;
+            });
+            debugPrint("✅ PRE associato a record DB: $serverFilename");
+          } else {
+            setState(() {
+              preFile = path.basename(file.path);
+            });
+            debugPrint("⚠️ PRE senza match DB, uso filename locale");
+          }
+        }
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
+        setState(() {
+          preFile = path.basename(file.path);
+        });
+      }
+    }
+  }
+
+  // === Scatta POST ===
+  Future<void> _capturePostImage() async {
+    if (preFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Devi avere un PRE prima del POST")),
       );
-    },
-  );
+      return;
+    }
+
+    final result = await Navigator.push<File?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PostCameraWidget(
+          guideImage: preImage, // 👈 overlay PRE
+        ),
+      ),
+    );
+
+    if (result != null) {
+      final analyzed = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisPreview(
+            imagePath: result.path,
+            mode: "prepost", // il server userà prefix POST_
+          ),
+        ),
+      );
+
+      if (analyzed != null) {
+        final overlayPath = analyzed["overlay_path"] as String?;
+        final newPostFile = analyzed["filename"] as String?;
+
+        if (overlayPath != null) {
+          setState(() {
+            postImage = File(overlayPath);
+          });
+          debugPrint("✅ Overlay POST salvato: $overlayPath");
+        }
+        if (newPostFile != null) {
+          setState(() {
+            postFile = newPostFile;
+          });
+          await _loadCompareResults();
+        }
+      }
+    }
+  }
+
+  // === Conferma rifai POST ===
+  Future<void> _confirmRetakePost() async {
+    final bool? retake = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Rifare la foto POST?"),
+        content: const Text("Vuoi davvero scattare di nuovo la foto POST?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annulla"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Rifai foto"),
+          ),
+        ],
+      ),
+    );
+
+    if (retake == true) {
+      await _capturePostImage();
+    }
+  }
+
+  // === Widget barra percentuale ===
+  Widget _buildBar(String label, double value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("$label: ${value.toStringAsFixed(2)}%"),
+        LinearProgressIndicator(
+          value: value / 100,
+          backgroundColor: Colors.grey[300],
+          color: color,
+          minHeight: 12,
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  // === Esporta e salva in Galleria ===
+  Future<void> _exportAndSaveToGallery() async {
+    try {
+      RenderRepaintBoundary boundary =
+          _exportKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+
+      // Converte a JPEG
+      final decoded = img.decodeImage(pngBytes);
+      if (decoded == null) throw Exception("Decode fallita");
+      final jpegBytes = img.encodeJpg(decoded, quality: 90);
+
+      // Permessi
+      final PermissionState ps = await PhotoManager.requestPermissionExtend();
+      if (!ps.hasAccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Permesso galleria negato")),
+        );
+        return;
+      }
+
+      // Salvataggio in Galleria
+      final filename = "prepost_${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final asset = await PhotoManager.editor.saveImage(
+        Uint8List.fromList(jpegBytes),
+        filename: filename,
+      );
+
+      if (asset != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Esportato e salvato in Galleria")),
+        );
+      } else {
+        throw Exception("Salvataggio fallito");
+      }
+    } catch (e) {
+      debugPrint("❌ Errore export: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Errore export: $e")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double boxSize = MediaQuery.of(context).size.width / 2;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Pre/Post")),
+      body: SingleChildScrollView(
+        child: RepaintBoundary(
+          key: _exportKey,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: preImage == null ? _pickPreImage : null,
+                      child: Container(
+                        height: boxSize,
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.blueAccent, width: 2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: preImage == null
+                            ? const Center(
+                                child: Icon(Icons.add,
+                                    size: 80, color: Colors.blue),
+                              )
+                            : Image.file(preImage!, fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: postImage == null
+                          ? _capturePostImage
+                          : _confirmRetakePost,
+                      child: Container(
+                        height: boxSize,
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.green, width: 2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: postImage == null
+                            ? const Center(
+                                child: Icon(Icons.add,
+                                    size: 80, color: Colors.green),
+                              )
+                            : Image.file(postImage!, fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // === Risultati comparazione ===
+              if (compareData != null) ...[
+                if (compareData!["macchie"] != null)
+                  Card(
+                    margin: const EdgeInsets.all(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("📊 Percentuali Macchie",
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          _buildBar("Pre",
+                              compareData!["macchie"]["perc_pre"] ?? 0.0,
+                              Colors.green),
+                          _buildBar("Post",
+                              compareData!["macchie"]["perc_post"] ?? 0.0,
+                              Colors.blue),
+                          Builder(
+                            builder: (_) {
+                              final double pre =
+                                  (compareData!["macchie"]["perc_pre"] ?? 0.0)
+                                      .toDouble();
+                              final double post =
+                                  (compareData!["macchie"]["perc_post"] ?? 0.0)
+                                      .toDouble();
+
+                              double diffPerc = 0.0;
+                              if (pre > 0) {
+                                diffPerc = ((post - pre) / pre) * 100;
+                              }
+
+                              return _buildBar(
+                                "Differenza",
+                                diffPerc.abs(),
+                                diffPerc <= 0 ? Colors.green : Colors.red,
+                              );
+                            },
+                          ),
+                          Text(
+                              "Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
+                          Text(
+                              "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (compareData!["pori"] != null)
+                  Card(
+                    margin: const EdgeInsets.all(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("📊 Pori dilatati (rossi)",
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          _buildBar(
+                              "Pre",
+                              compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
+                              Colors.green),
+                          _buildBar(
+                              "Post",
+                              compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
+                              Colors.blue),
+                          _buildBar(
+                              "Differenza",
+                              (compareData!["pori"]["perc_diff_dilatati"] ?? 0.0)
+                                  .abs(),
+                              (compareData!["pori"]["perc_diff_dilatati"] ??
+                                          0.0) <=
+                                      0
+                                  ? Colors.green
+                                  : Colors.red),
+                          Text(
+                              "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
+                          Text(
+                              "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
+                        ],
+                      ),
+                    ),
+                  ),
+              ]
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _exportAndSaveToGallery,
+        icon: const Icon(Icons.download),
+        label: const Text("Download"),
+      ),
+    );
+  }
 }
