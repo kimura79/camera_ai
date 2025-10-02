@@ -479,10 +479,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Pre",
                               compareData!["pori"]["perc_pre_dilatati"] ?? 0.0,
                               Colors.green),
+                          Text(
+                              "Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_pre"]["totali"]}"),
+                          const SizedBox(height: 8),
                           _buildBar(
                               "Post",
                               compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                               Colors.blue),
+                          Text(
+                              "Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_post"]["totali"]}"),
+                          const SizedBox(height: 8),
                           _buildBar(
                               "Differenza",
                               (compareData!["pori"]["perc_diff_dilatati"] ??
@@ -493,10 +499,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                                       0
                                   ? Colors.green
                                   : Colors.red),
-                          Text(
-                              "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
-                          Text(
-                              "POST → Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}"),
                         ],
                       ),
                     ),
