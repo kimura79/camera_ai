@@ -10,6 +10,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
+import 'package:flutter/rendering.dart';
 
 // importa AnalysisPreview per analisi sul server
 import '../analysis_preview.dart';
