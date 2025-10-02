@@ -309,6 +309,20 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
+  // === Fullscreen viewer ===
+  void _showFullscreenImage(File image) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.9),
+      builder: (_) => GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: InteractiveViewer(
+          child: Center(child: Image.file(image, fit: BoxFit.contain)),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final double boxSize = MediaQuery.of(context).size.width / 2;
@@ -324,7 +338,9 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: preImage == null ? _pickPreImage : null,
+                      onTap: preImage == null
+                          ? _pickPreImage
+                          : () => _showFullscreenImage(preImage!),
                       child: Container(
                         height: boxSize,
                         margin: const EdgeInsets.all(8),
@@ -345,7 +361,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                     child: GestureDetector(
                       onTap: postImage == null
                           ? _capturePostImage
-                          : _confirmRetakePost,
+                          : () => _showFullscreenImage(postImage!),
+                      onLongPress: postImage == null ? null : _confirmRetakePost,
                       child: Container(
                         height: boxSize,
                         margin: const EdgeInsets.all(8),
