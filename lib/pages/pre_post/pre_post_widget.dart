@@ -309,7 +309,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     }
   }
 
-  // === Fullscreen viewer ===
+  // === Fullscreen singola immagine ===
   void _showFullscreenImage(File image) {
     showDialog(
       context: context,
@@ -320,6 +320,29 @@ class _PrePostWidgetState extends State<PrePostWidget> {
           child: Center(child: Image.file(image, fit: BoxFit.contain)),
         ),
       ),
+    );
+  }
+
+  // === Fullscreen swipe PRE/POST ===
+  void _showSwipeViewer(File pre, File post) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.9),
+      builder: (_) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: PageView(
+            children: [
+              InteractiveViewer(
+                child: Center(child: Image.file(pre, fit: BoxFit.contain)),
+              ),
+              InteractiveViewer(
+                child: Center(child: Image.file(post, fit: BoxFit.contain)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -338,9 +361,13 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: preImage == null
-                          ? _pickPreImage
-                          : () => _showFullscreenImage(preImage!),
+                      onTap: () {
+                        if (preImage != null && postImage != null) {
+                          _showSwipeViewer(preImage!, postImage!);
+                        } else if (preImage != null) {
+                          _showFullscreenImage(preImage!);
+                        }
+                      },
                       child: Container(
                         height: boxSize,
                         margin: const EdgeInsets.all(8),
@@ -359,9 +386,15 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                   ),
                   Expanded(
                     child: GestureDetector(
-                      onTap: postImage == null
-                          ? _capturePostImage
-                          : () => _showFullscreenImage(postImage!),
+                      onTap: () {
+                        if (preImage != null && postImage != null) {
+                          _showSwipeViewer(preImage!, postImage!);
+                        } else if (postImage != null) {
+                          _showFullscreenImage(postImage!);
+                        } else {
+                          _capturePostImage();
+                        }
+                      },
                       onLongPress: postImage == null ? null : _confirmRetakePost,
                       child: Container(
                         height: boxSize,
@@ -450,29 +483,16 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Post",
                               compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                               Colors.blue),
-                          Builder(
-                            builder: (_) {
-                              final double pre =
-                                  (compareData!["pori"]["perc_pre_dilatati"] ??
-                                          0.0)
-                                      .toDouble();
-                              final double post =
-                                  (compareData!["pori"]["perc_post_dilatati"] ??
-                                          0.0)
-                                      .toDouble();
-
-                              double diffPerc = 0.0;
-                              if (pre > 0) {
-                                diffPerc = ((post - pre) / pre) * 100;
-                              }
-
-                              return _buildBar(
-                                "Differenza",
-                                diffPerc.abs(),
-                                diffPerc <= 0 ? Colors.green : Colors.red,
-                              );
-                            },
-                          ),
+                          _buildBar(
+                              "Differenza",
+                              (compareData!["pori"]["perc_diff_dilatati"] ??
+                                      0.0)
+                                  .abs(),
+                              (compareData!["pori"]["perc_diff_dilatati"] ??
+                                          0.0) <=
+                                      0
+                                  ? Colors.green
+                                  : Colors.red),
                           Text(
                               "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
                           Text(
@@ -512,6 +532,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               double diffPerc = 0.0;
                               if (pre > 0) {
                                 diffPerc = ((post - pre) / pre) * 100;
+                                diffPerc -= 5; // 🔹 sottrai 5% rumore
                               }
 
                               return _buildBar(
@@ -550,27 +571,14 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Post",
                               compareData!["melasma"]["perc_post"] ?? 0.0,
                               Colors.blue),
-                          Builder(
-                            builder: (_) {
-                              final double pre =
-                                  (compareData!["melasma"]["perc_pre"] ?? 0.0)
-                                      .toDouble();
-                              final double post =
-                                  (compareData!["melasma"]["perc_post"] ?? 0.0)
-                                      .toDouble();
-
-                              double diffPerc = 0.0;
-                              if (pre > 0) {
-                                diffPerc = ((post - pre) / pre) * 100;
-                              }
-
-                              return _buildBar(
-                                "Differenza",
-                                diffPerc.abs(),
-                                diffPerc <= 0 ? Colors.green : Colors.red,
-                              );
-                            },
-                          ),
+                          _buildBar(
+                              "Differenza",
+                              (compareData!["melasma"]["perc_diff"] ?? 0.0)
+                                  .abs(),
+                              (compareData!["melasma"]["perc_diff"] ?? 0.0) <=
+                                      0
+                                  ? Colors.green
+                                  : Colors.red),
                           Text(
                               "Area PRE: ${(compareData!["melasma"]["area_pre"] ?? 0).toStringAsFixed(2)} cm²"),
                           Text(
