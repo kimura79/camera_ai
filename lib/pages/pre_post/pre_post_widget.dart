@@ -450,16 +450,29 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Post",
                               compareData!["pori"]["perc_post_dilatati"] ?? 0.0,
                               Colors.blue),
-                          _buildBar(
-                              "Differenza",
-                              (compareData!["pori"]["perc_diff_dilatati"] ??
-                                      0.0)
-                                  .abs(),
-                              (compareData!["pori"]["perc_diff_dilatati"] ??
-                                          0.0) <=
-                                      0
-                                  ? Colors.green
-                                  : Colors.red),
+                          Builder(
+                            builder: (_) {
+                              final double pre =
+                                  (compareData!["pori"]["perc_pre_dilatati"] ??
+                                          0.0)
+                                      .toDouble();
+                              final double post =
+                                  (compareData!["pori"]["perc_post_dilatati"] ??
+                                          0.0)
+                                      .toDouble();
+
+                              double diffPerc = 0.0;
+                              if (pre > 0) {
+                                diffPerc = ((post - pre) / pre) * 100;
+                              }
+
+                              return _buildBar(
+                                "Differenza",
+                                diffPerc.abs(),
+                                diffPerc <= 0 ? Colors.green : Colors.red,
+                              );
+                            },
+                          ),
                           Text(
                               "PRE → Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}"),
                           Text(
@@ -487,13 +500,27 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Post",
                               compareData!["rughe"]["perc_post"] ?? 0.0,
                               Colors.blue),
-                          _buildBar(
-                              "Differenza",
-                              (compareData!["rughe"]["perc_diff"] ?? 0.0)
-                                  .abs(),
-                              (compareData!["rughe"]["perc_diff"] ?? 0.0) <= 0
-                                  ? Colors.green
-                                  : Colors.red),
+                          Builder(
+                            builder: (_) {
+                              final double pre =
+                                  (compareData!["rughe"]["perc_pre"] ?? 0.0)
+                                      .toDouble();
+                              final double post =
+                                  (compareData!["rughe"]["perc_post"] ?? 0.0)
+                                      .toDouble();
+
+                              double diffPerc = 0.0;
+                              if (pre > 0) {
+                                diffPerc = ((post - pre) / pre) * 100;
+                              }
+
+                              return _buildBar(
+                                "Differenza",
+                                diffPerc.abs(),
+                                diffPerc <= 0 ? Colors.green : Colors.red,
+                              );
+                            },
+                          ),
                           Text(
                               "Area PRE: ${(compareData!["rughe"]["area_pre"] ?? 0).toStringAsFixed(2)} cm²"),
                           Text(
@@ -523,14 +550,27 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                               "Post",
                               compareData!["melasma"]["perc_post"] ?? 0.0,
                               Colors.blue),
-                          _buildBar(
-                              "Differenza",
-                              (compareData!["melasma"]["perc_diff"] ?? 0.0)
-                                  .abs(),
-                              (compareData!["melasma"]["perc_diff"] ?? 0.0) <=
-                                      0
-                                  ? Colors.green
-                                  : Colors.red),
+                          Builder(
+                            builder: (_) {
+                              final double pre =
+                                  (compareData!["melasma"]["perc_pre"] ?? 0.0)
+                                      .toDouble();
+                              final double post =
+                                  (compareData!["melasma"]["perc_post"] ?? 0.0)
+                                      .toDouble();
+
+                              double diffPerc = 0.0;
+                              if (pre > 0) {
+                                diffPerc = ((post - pre) / pre) * 100;
+                              }
+
+                              return _buildBar(
+                                "Differenza",
+                                diffPerc.abs(),
+                                diffPerc <= 0 ? Colors.green : Colors.red,
+                              );
+                            },
+                          ),
                           Text(
                               "Area PRE: ${(compareData!["melasma"]["area_pre"] ?? 0).toStringAsFixed(2)} cm²"),
                           Text(
