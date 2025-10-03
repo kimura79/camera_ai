@@ -273,12 +273,10 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
-      // Converte a JPEG
       final decoded = img.decodeImage(pngBytes);
       if (decoded == null) throw Exception("Decode fallita");
       final jpegBytes = img.encodeJpg(decoded, quality: 90);
 
-      // Permessi
       final PermissionState ps = await PhotoManager.requestPermissionExtend();
       if (!ps.hasAccess) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -287,7 +285,6 @@ class _PrePostWidgetState extends State<PrePostWidget> {
         return;
       }
 
-      // Salvataggio in Galleria
       final filename = "prepost_${DateTime.now().millisecondsSinceEpoch}.jpg";
       final asset = await PhotoManager.editor.saveImage(
         Uint8List.fromList(jpegBytes),
@@ -367,7 +364,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                         } else if (preImage != null) {
                           _showFullscreenImage(preImage!);
                         } else {
-                          _pickPreImage(); // 👈 FIX: ora puoi caricare foto PRE
+                          _pickPreImage();
                         }
                       },
                       child: Container(
@@ -418,10 +415,32 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
               const SizedBox(height: 20),
 
-        // === Risultati comparazione ===
-if (compareData != null) ...[
-  if (compareData!["macchie"] != null)
-    Card(
+              // === Risultati comparazione ===
+              if (compareData != null) ...[
+                // --- MACCHIE ---
+                if (compareData!["macchie"] != null) _buildMacchieCard(),
+                // --- PORI ---
+                if (compareData!["pori"] != null) _buildPoriCard(),
+                // --- RUGHE ---
+                if (compareData!["rughe"] != null) _buildRugheCard(),
+                // --- MELASMA ---
+                if (compareData!["melasma"] != null) _buildMelasmaCard(),
+              ]
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _exportAndSaveToGallery,
+        icon: const Icon(Icons.download),
+        label: const Text("Download"),
+      ),
+    );
+  }
+
+  // === CARDS COMPARAZIONE ===
+  Widget _buildMacchieCard() {
+    return Card(
       margin: const EdgeInsets.all(12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -430,37 +449,33 @@ if (compareData != null) ...[
           children: [
             const Text("📊 Area Macchie",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Area Pre",
-                compareData!["macchie"]["perc_pre"] ?? 0.0, Colors.green),
-            _buildBar("Area Post",
-                compareData!["macchie"]["perc_post"] ?? 0.0, Colors.blue),
+            _buildBar("Area Pre", compareData!["macchie"]["perc_pre"] ?? 0.0,
+                Colors.green),
+            _buildBar("Area Post", compareData!["macchie"]["perc_post"] ?? 0.0,
+                Colors.blue),
             Builder(
               builder: (_) {
                 final double pre =
                     (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
                 final double post =
                     (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
-
                 double diffPerc = 0.0;
-                if (pre > 0) {
-                  diffPerc = ((post - pre) / pre) * 100;
-                }
-
-                return _buildBar(
-                  "Differenza Area",
-                  diffPerc.abs(),
-                  diffPerc <= 0 ? Colors.green : Colors.red,
-                );
+                if (pre > 0) diffPerc = ((post - pre) / pre) * 100;
+                return _buildBar("Differenza Area", diffPerc.abs(),
+                    diffPerc <= 0 ? Colors.green : Colors.red);
               },
             ),
             Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-            Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+            Text(
+                "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
           ],
         ),
       ),
-    ),
-  if (compareData!["pori"] != null)
-    Card(
+    );
+  }
+
+  Widget _buildPoriCard() {
+    return Card(
       margin: const EdgeInsets.all(12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -473,12 +488,10 @@ if (compareData != null) ...[
                 compareData!["pori"]["perc_pre_dilatati"] ?? 0.0, Colors.green),
             Text(
                 "Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_pre"]["totali"]}"),
-            const SizedBox(height: 8),
             _buildBar("Area Post",
                 compareData!["pori"]["perc_post_dilatati"] ?? 0.0, Colors.blue),
             Text(
                 "Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_post"]["totali"]}"),
-            const SizedBox(height: 8),
             Builder(
               builder: (_) {
                 final double pre =
@@ -487,25 +500,20 @@ if (compareData != null) ...[
                 final double post =
                     (compareData!["pori"]["perc_post_dilatati"] ?? 0.0)
                         .toDouble();
-
                 double diffPerc = 0.0;
-                if (pre > 0) {
-                  diffPerc = ((post - pre) / pre) * 100;
-                }
-
-                return _buildBar(
-                  "Differenza Area",
-                  diffPerc.abs(),
-                  diffPerc <= 0 ? Colors.green : Colors.red,
-                );
+                if (pre > 0) diffPerc = ((post - pre) / pre) * 100;
+                return _buildBar("Differenza Area", diffPerc.abs(),
+                    diffPerc <= 0 ? Colors.green : Colors.red);
               },
             ),
           ],
         ),
       ),
-    ),
-  if (compareData!["rughe"] != null)
-    Card(
+    );
+  }
+
+  Widget _buildRugheCard() {
+    return Card(
       margin: const EdgeInsets.all(12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -514,28 +522,23 @@ if (compareData != null) ...[
           children: [
             const Text("📊 Area Rughe",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Area Pre",
-                compareData!["rughe"]["perc_pre"] ?? 0.0, Colors.green),
-            _buildBar("Area Post",
-                compareData!["rughe"]["perc_post"] ?? 0.0, Colors.blue),
+            _buildBar("Area Pre", compareData!["rughe"]["perc_pre"] ?? 0.0,
+                Colors.green),
+            _buildBar("Area Post", compareData!["rughe"]["perc_post"] ?? 0.0,
+                Colors.blue),
             Builder(
               builder: (_) {
                 final double pre =
                     (compareData!["rughe"]["perc_pre"] ?? 0.0).toDouble();
                 final double post =
                     (compareData!["rughe"]["perc_post"] ?? 0.0).toDouble();
-
                 double diffPerc = 0.0;
                 if (pre > 0) {
                   diffPerc = ((post - pre) / pre) * 100;
-                  diffPerc -= 5; // 🔹 sottrai 5% rumore
+                  diffPerc -= 5;
                 }
-
-                return _buildBar(
-                  "Differenza Area",
-                  diffPerc.abs(),
-                  diffPerc <= 0 ? Colors.green : Colors.red,
-                );
+                return _buildBar("Differenza Area", diffPerc.abs(),
+                    diffPerc <= 0 ? Colors.green : Colors.red);
               },
             ),
             Text(
@@ -547,9 +550,11 @@ if (compareData != null) ...[
           ],
         ),
       ),
-    ),
-  if (compareData!["melasma"] != null)
-    Card(
+    );
+  }
+
+  Widget _buildMelasmaCard() {
+    return Card(
       margin: const EdgeInsets.all(12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -568,17 +573,10 @@ if (compareData != null) ...[
                     (compareData!["melasma"]["perc_pre"] ?? 0.0).toDouble();
                 final double post =
                     (compareData!["melasma"]["perc_post"] ?? 0.0).toDouble();
-
                 double diffPerc = 0.0;
-                if (pre > 0) {
-                  diffPerc = ((post - pre) / pre) * 100;
-                }
-
-                return _buildBar(
-                  "Differenza Area",
-                  diffPerc.abs(),
-                  diffPerc <= 0 ? Colors.green : Colors.red,
-                );
+                if (pre > 0) diffPerc = ((post - pre) / pre) * 100;
+                return _buildBar("Differenza Area", diffPerc.abs(),
+                    diffPerc <= 0 ? Colors.green : Colors.red);
               },
             ),
             Text(
@@ -589,23 +587,6 @@ if (compareData != null) ...[
                 "Diff area: ${(compareData!["melasma"]["area_diff"] ?? 0).toStringAsFixed(2)} cm²"),
           ],
         ),
-      ),
-    ),
-]
-
-                        ],
-                      ),
-                    ),
-                  ),
-              ]
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _exportAndSaveToGallery,
-        icon: const Icon(Icons.download),
-        label: const Text("Download"),
       ),
     );
   }
