@@ -366,6 +366,8 @@ class _PrePostWidgetState extends State<PrePostWidget> {
                           _showSwipeViewer(preImage!, postImage!);
                         } else if (preImage != null) {
                           _showFullscreenImage(preImage!);
+                        } else {
+                          _pickPreImage(); // 👈 FIX: ora puoi caricare foto PRE
                         }
                       },
                       child: Container(
