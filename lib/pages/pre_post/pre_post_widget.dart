@@ -418,7 +418,7 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               ),
               const SizedBox(height: 20),
 
-              // === Risultati comparazione ===
+        // === Risultati comparazione ===
 if (compareData != null) ...[
   if (compareData!["macchie"] != null)
     Card(
@@ -428,12 +428,12 @@ if (compareData != null) ...[
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("📊 Percentuali Macchie",
+            const Text("📊 Area Macchie",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Pre", compareData!["macchie"]["perc_pre"] ?? 0.0,
-                Colors.green),
-            _buildBar("Post", compareData!["macchie"]["perc_post"] ?? 0.0,
-                Colors.blue),
+            _buildBar("Area Pre",
+                compareData!["macchie"]["perc_pre"] ?? 0.0, Colors.green),
+            _buildBar("Area Post",
+                compareData!["macchie"]["perc_post"] ?? 0.0, Colors.blue),
             Builder(
               builder: (_) {
                 final double pre =
@@ -447,15 +447,14 @@ if (compareData != null) ...[
                 }
 
                 return _buildBar(
-                  "Differenza",
+                  "Differenza Area",
                   diffPerc.abs(),
                   diffPerc <= 0 ? Colors.green : Colors.red,
                 );
               },
             ),
             Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-            Text(
-                "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
+            Text("Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
           ],
         ),
       ),
@@ -468,14 +467,14 @@ if (compareData != null) ...[
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("📊 Pori dilatati (rossi)",
+            const Text("📊 Area Pori dilatati (rossi)",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Pre",
+            _buildBar("Area Pre",
                 compareData!["pori"]["perc_pre_dilatati"] ?? 0.0, Colors.green),
             Text(
                 "Normali: ${compareData!["pori"]["num_pori_pre"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_pre"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_pre"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_pre"]["totali"]}"),
             const SizedBox(height: 8),
-            _buildBar("Post",
+            _buildBar("Area Post",
                 compareData!["pori"]["perc_post_dilatati"] ?? 0.0, Colors.blue),
             Text(
                 "Normali: ${compareData!["pori"]["num_pori_post"]["normali"]}, Borderline: ${compareData!["pori"]["num_pori_post"]["borderline"]}, Dilatati: ${compareData!["pori"]["num_pori_post"]["dilatati"]}, Totali: ${compareData!["pori"]["num_pori_post"]["totali"]}"),
@@ -495,7 +494,7 @@ if (compareData != null) ...[
                 }
 
                 return _buildBar(
-                  "Differenza",
+                  "Differenza Area",
                   diffPerc.abs(),
                   diffPerc <= 0 ? Colors.green : Colors.red,
                 );
@@ -513,12 +512,12 @@ if (compareData != null) ...[
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("📊 Rughe",
+            const Text("📊 Area Rughe",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Pre", compareData!["rughe"]["perc_pre"] ?? 0.0,
-                Colors.green),
-            _buildBar("Post", compareData!["rughe"]["perc_post"] ?? 0.0,
-                Colors.blue),
+            _buildBar("Area Pre",
+                compareData!["rughe"]["perc_pre"] ?? 0.0, Colors.green),
+            _buildBar("Area Post",
+                compareData!["rughe"]["perc_post"] ?? 0.0, Colors.blue),
             Builder(
               builder: (_) {
                 final double pre =
@@ -533,7 +532,7 @@ if (compareData != null) ...[
                 }
 
                 return _buildBar(
-                  "Differenza",
+                  "Differenza Area",
                   diffPerc.abs(),
                   diffPerc <= 0 ? Colors.green : Colors.red,
                 );
@@ -557,12 +556,12 @@ if (compareData != null) ...[
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("📊 Melasma",
+            const Text("📊 Area Melasma",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Pre", compareData!["melasma"]["perc_pre"] ?? 0.0,
-                Colors.green),
-            _buildBar("Post", compareData!["melasma"]["perc_post"] ?? 0.0,
-                Colors.blue),
+            _buildBar("Area Pre",
+                compareData!["melasma"]["perc_pre"] ?? 0.0, Colors.green),
+            _buildBar("Area Post",
+                compareData!["melasma"]["perc_post"] ?? 0.0, Colors.blue),
             Builder(
               builder: (_) {
                 final double pre =
@@ -576,7 +575,7 @@ if (compareData != null) ...[
                 }
 
                 return _buildBar(
-                  "Differenza",
+                  "Differenza Area",
                   diffPerc.abs(),
                   diffPerc <= 0 ? Colors.green : Colors.red,
                 );
@@ -588,7 +587,13 @@ if (compareData != null) ...[
                 "Area POST: ${(compareData!["melasma"]["area_post"] ?? 0).toStringAsFixed(2)} cm²"),
             Text(
                 "Diff area: ${(compareData!["melasma"]["area_diff"] ?? 0).toStringAsFixed(2)} cm²"),
-                       ],
+          ],
+        ),
+      ),
+    ),
+]
+
+                        ],
                       ),
                     ),
                   ),
