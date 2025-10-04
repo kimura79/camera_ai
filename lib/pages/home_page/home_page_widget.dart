@@ -301,10 +301,10 @@ final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
   if (ipdPx != null && ipdPx.isFinite && ipdPx > 0) {
     shown = ipdPx;
 
-    // 🔹 Calcolo corretto e normalizzato della distanza in cm
-//  - IPD reale (mm) confrontato con scala target (0.117 mm/px)
-//  - distanza lineare coerente da 55 cm → 12 cm
-final distanzaCm = 55.0 * (_ipdMm / ipdPx) / _targetMmPerPx;
+    // 🔹 Calcolo diretto della distanza in cm (versione precedente stabile)
+final mmPerPxAttuale = _ipdMm / ipdPx;
+final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+final distanzaCm = (larghezzaRealeMm / 10.0);
 
     // ✅ Step 1: volto intero ≈55 ± 5 cm (solo info)
     if (distanzaCm >= 50 && distanzaCm <= 60) {
