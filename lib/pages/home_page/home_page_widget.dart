@@ -291,9 +291,6 @@ final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
   }
 
   void _updateScaleVolto(double? ipdPx) {
-  // Se distanza già bloccata a 12 cm, non aggiornare più
-  if (_distanceLocked) return;
-
   bool ok = false;
   double shown = 0;
   double distanzaCm = 0;
@@ -301,10 +298,10 @@ final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
   if (ipdPx != null && ipdPx.isFinite && ipdPx > 0) {
     shown = ipdPx;
 
-    // 🔹 Calcolo diretto della distanza in cm (versione precedente stabile)
-final mmPerPxAttuale = _ipdMm / ipdPx;
-final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-final distanzaCm = (larghezzaRealeMm / 10.0);
+    // 🔹 Calcolo diretto della distanza in cm
+    final mmPerPxAttuale = _ipdMm / ipdPx;
+    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+    distanzaCm = (larghezzaRealeMm / 10.0);
 
     // ✅ Step 1: volto intero ≈55 ± 5 cm (solo info)
     if (distanzaCm >= 50 && distanzaCm <= 60) {
@@ -312,21 +309,15 @@ final distanzaCm = (larghezzaRealeMm / 10.0);
       debugPrint("🟢 Step 1: volto intero (~55 cm)");
     }
 
-    // ✅ Step 2: blocco stabile tra 11 e 13 cm
+    // ✅ Step 2: distanza informativa 12 ± 1 cm (NO BLOCCO)
     if (distanzaCm >= 11 && distanzaCm <= 13) {
-      _lockedIpdPx = ipdPx;
-      _distanceLocked = true;
       ok = true;
-      debugPrint("🔒 Step 2: distanza bloccata a 12 cm");
+      debugPrint("🟢 Step 2: distanza 12 cm (solo info, no blocco)");
     }
   }
 
-  // 🔓 Sblocca solo se ti allontani DAVVERO oltre 20 cm e hai landmark validi
-  if (_distanceLocked && ipdPx != null && ipdPx > 0 && distanzaCm > 20) {
-    _distanceLocked = false;
-    _lockedIpdPx = null;
-    debugPrint("🔓 Distanza sbloccata oltre 20 cm");
-  }
+  // ❌ Nessun blocco e nessuno sblocco nella modalità volto
+  // 🔒 Blocco solo nella modalità particolare (gestito altrove)
 
   if (!mounted) return;
   setState(() {
