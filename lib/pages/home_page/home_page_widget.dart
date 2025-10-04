@@ -11,7 +11,6 @@ import 'package:sensors_plus/sensors_plus.dart';
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
-  // 🔹 Necessario per build Codemagic / FlutterFlow
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
 
@@ -80,7 +79,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final img.Image? decoded = img.decodeImage(bytes);
       if (decoded == null) throw Exception("Immagine non valida");
 
-      // 🔹 Crop centrale 1:1 e resize a 1024x1024
+      // Crop centrale 1:1 e resize 1024×1024
       final int side = math.min(decoded.width, decoded.height);
       final int x = ((decoded.width - side) / 2).round();
       final int y = ((decoded.height - side) / 2).round();
@@ -144,13 +143,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
       builder: (context, constraints) {
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
-        final double shortSide = math.min(screenW, screenH);
-        final double squareSize = shortSide * 0.8; // quadrato 1:1
+
+        // quadrato che tocca i bordi laterali (1:1)
+        final double squareSize = screenW;
 
         return Stack(
           fit: StackFit.expand,
           children: [
-            // 🔹 Anteprima fotocamera
             Positioned.fill(
               child: FittedBox(
                 fit: BoxFit.cover,
@@ -162,7 +161,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               ),
             ),
 
-            // 🔳 Quadrato fisso con ovale solo in modalità VOLTO
+            // Quadrato fisso (tocca bordi laterali) alzato del 30%
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
@@ -171,17 +170,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 decoration:
                     BoxDecoration(border: Border.all(color: Colors.white, width: 4)),
                 child: _mode == CaptureMode.volto
-                    ? CustomPaint(
-                        painter: _OvalPainter(squareSize),
-                      )
+                    ? CustomPaint(painter: _OvalPainter(squareSize))
                     : null,
               ),
             ),
 
-            // 🔹 Livella verticale
             _buildLivellaVerticaleOverlay(),
 
-            // 🔹 Pulsanti modalità
             Positioned(
               bottom: 160,
               left: 0,
@@ -189,7 +184,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
               child: Center(child: _buildModeSelector()),
             ),
 
-            // 🔹 Barra inferiore
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -197,7 +191,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Anteprima ultima foto
                     GestureDetector(
                       onTap: (_lastShotPath != null)
                           ? () async {
@@ -229,7 +222,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                       ),
                     ),
 
-                    // Pulsante scatto
                     GestureDetector(
                       onTap: _shooting ? null : _takeAndSavePicture,
                       child: Container(
@@ -253,7 +245,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
                       ),
                     ),
 
-                    // Reverse camera
                     GestureDetector(
                       onTap: _switchCamera,
                       child: Container(
@@ -324,7 +315,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 }
 
-// 🔹 Ovale guida in scala reale (0.117 mm/px) → 1024 px ~ 12 cm → area ~113 cm²
 class _OvalPainter extends CustomPainter {
   final double squareSize;
   _OvalPainter(this.squareSize);
@@ -336,13 +326,11 @@ class _OvalPainter extends CustomPainter {
       ..color = Colors.white.withOpacity(0.9)
       ..strokeWidth = 3;
 
-    // Ovale verticale inscritto
-    final double width = squareSize; // tocca bordi verticali
-    final double height = squareSize; // tocca bordi orizzontali
+    // ovale verticale inscritto
     final Rect rect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),
-      width: width * 0.83, // ≈10 cm in scala 12 cm → area ~113 cm²
-      height: height,
+      width: squareSize * 0.83,
+      height: squareSize,
     );
     canvas.drawOval(rect, p);
   }
@@ -351,7 +339,6 @@ class _OvalPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// 🔹 Livella verticale
 Widget _buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.0,
   double topOffsetPx = 65.0,
