@@ -158,7 +158,7 @@ bool _distanceLocked = false;
   // Calcolo distanza stimata in cm per PARTICOLARE
   final mmPerPxAttuale = _ipdMm / _lastIpdPx;
   final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-  final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0; // stesso calcolo badge
+  final distanzaCm = (larghezzaRealeMm / 10.0);
 
   // Verde solo se 11–13 cm
   return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
@@ -287,19 +287,26 @@ bool _distanceLocked = false;
     shown = ipdPx;
     ok = (ipdPx >= minT && ipdPx <= maxT);
 
-    // Calcola distanza stimata in cm
-    final mmPerPxAttuale = _ipdMm / ipdPx;
-    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+    // Calcola distanza stimata in cm (corretto)
+final mmPerPxAttuale = _ipdMm / ipdPx;
+final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+final distanzaCm = (larghezzaRealeMm / 10.0);
 
-    // ✅ Step 1 → volto intero verde a 55 ± 5 cm
-    // ✅ Step 2 → blocco a 12 ± 1 cm
-    if (distanzaCm >= 11 && distanzaCm <= 13) {
-      _lockedIpdPx = ipdPx;
-      _distanceLocked = true;
-      ok = true;
-      debugPrint("🔒 Distanza 12 cm bloccata");
-    }
+// 🔓 Sblocca automaticamente se ci si allontana oltre 20 cm
+if (_distanceLocked && distanzaCm > 20) {
+  _distanceLocked = false;
+  _lockedIpdPx = null;
+  debugPrint("🔓 Distanza sbloccata");
+}
+
+// ✅ Step 1 → volto intero verde a 55 ± 5 cm
+// ✅ Step 2 → blocco a 12 ± 1 cm
+if (distanzaCm >= 11 && distanzaCm <= 13) {
+  _lockedIpdPx = ipdPx;
+  _distanceLocked = true;
+  ok = true;
+  debugPrint("🔒 Distanza 12 cm bloccata");
+}
   }
 
   if (!mounted) return;
@@ -519,7 +526,7 @@ Widget _buildScaleChip() {
         // Calcola distanza stimata
         final mmPerPxAttuale = _ipdMm / v;
         final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-        final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+        final distanzaCm = (larghezzaRealeMm / 10.0);
 
         // STEP 1 → volto intero (≈55 cm)
         // STEP 2 → avvicinamento (≈12 cm)
