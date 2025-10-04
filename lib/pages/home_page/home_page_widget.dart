@@ -1,121 +1,16 @@
-// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
-
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:custom_camera_component/pages/analysis_preview.dart';
 import 'package:image/image.dart' as img;
-import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:path/path.dart' as path;
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-
-import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/index.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
-
-// ✅ NUOVA PAGINA: risultati analisi con overlay macchie + rughe
-class AnalysisResultsPage extends StatelessWidget {
-  final String baseImagePath;
-  final String macchieOverlayPath;
-  final String rugheOverlayPath;
-
-  const AnalysisResultsPage({
-    super.key,
-    required this.baseImagePath,
-    required this.macchieOverlayPath,
-    required this.rugheOverlayPath,
-  });
-
-  Widget _buildResultItem({
-    required String title,
-    required String overlayPath,
-    required String scaleText,
-    required Color color,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.montserrat(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Image.file(
-          File(overlayPath),
-          width: 300,
-          height: 300,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color, width: 2),
-          ),
-          child: Text(
-            scaleText,
-            style: TextStyle(
-              fontSize: 14,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text("Risultati Analisi"),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            _buildResultItem(
-              title: "Macchie Cutanee",
-              overlayPath: macchieOverlayPath,
-              scaleText: "Scala di giudizio: Lieve → Grave",
-              color: Colors.orangeAccent,
-            ),
-            _buildResultItem(
-              title: "Rughe",
-              overlayPath: rugheOverlayPath,
-              scaleText: "Scala di giudizio: Superficiale → Profonda",
-              color: Colors.cyanAccent,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
-
-  static String routeName = 'HomePage';
-  static String routePath = '/homePage';
 
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
@@ -125,76 +20,16 @@ enum CaptureMode { volto, particolare }
 
 class _HomePageWidgetState extends State<HomePageWidget>
     with WidgetsBindingObserver {
-  late HomePageModel _model;
-
-  final scaffoldKey = GlobalKey<ScaffoldState>();
-
   List<CameraDescription> _cameras = const [];
   CameraController? _controller;
-  int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
-
   String? _lastShotPath;
-
   CaptureMode _mode = CaptureMode.volto;
-
-  final double _targetMmPerPx = 0.117;
-
-  double _ipdMm = 63.0;
-  double get _targetPxVolto => _ipdMm / _targetMmPerPx;
-  double _lastIpdPx = 0.0;
-  bool _scaleOkVolto = false;
-// 🔒 Blocca distanza una volta raggiunti 12 cm
-double? _lockedIpdPx;
-bool _distanceLocked = false;
-
-  static const double _targetMmPart = 120.0;
-  double get _targetPxPart => _targetMmPart / _targetMmPerPx;
-
-  bool get _scaleOkPart {
-  if (_lastIpdPx <= 0) return false;
-
-  // Calcola distanza stimata in cm
-  final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-  // Calibrazione corretta: 63 mm di IPD corrispondono a circa 55 cm di distanza iniziale
-// quindi normalizziamo per garantire scala proporzionale fino a 12 cm reali
-final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
-
-  // 🔒 Blocca distanza a 12 ± 1 cm
-  if (!_distanceLocked && distanzaCm >= 11 && distanzaCm <= 13) {
-    _lockedIpdPx = _lastIpdPx;
-    _distanceLocked = true;
-    debugPrint("🔒 Distanza particolare 12 cm bloccata");
-  }
-
-  // 🔓 Sblocca se ti allontani oltre 20 cm
-  if (_distanceLocked && distanzaCm > 20) {
-    _distanceLocked = false;
-    _lockedIpdPx = null;
-    debugPrint("🔓 Distanza particolare sbloccata");
-  }
-
-  // Se distanza bloccata, considera sempre valida (verde)
-  if (_distanceLocked) return true;
-
-  // Altrimenti calcola normalmente
-  return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
-}
-
-  final FaceDetector _faceDetector = FaceDetector(
-    options: FaceDetectorOptions(
-      enableLandmarks: true,
-      performanceMode: FaceDetectorMode.accurate,
-    ),
-  );
-  DateTime _lastProc = DateTime.fromMillisecondsSinceEpoch(0);
-  bool _streamRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _model = createModel(context, () => HomePageModel());
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
   }
@@ -206,376 +41,231 @@ final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
+      final back = _cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => _cameras.first,
       );
-      _cameraIndex = backIndex >= 0 ? backIndex : 0;
-      await _startController(_cameras[_cameraIndex]);
-    } catch (e) {
-      debugPrint('Camera init error: $e');
+      _controller = CameraController(back, ResolutionPreset.max, enableAudio: false);
+      await _controller!.initialize();
       setState(() => _initializing = false);
-    }
-  }
-
-  Future<void> _startController(CameraDescription desc) async {
-    final ctrl = CameraController(
-      desc,
-      ResolutionPreset.max,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
-    try {
-      await ctrl.initialize();
-      await ctrl.setFlashMode(FlashMode.off);
-      await ctrl.setZoomLevel(1.0);
-      await ctrl.startImageStream(_processCameraImage);
-      _streamRunning = true;
-
-      setState(() {
-        _controller = ctrl;
-        _initializing = false;
-      });
     } catch (e) {
-      debugPrint('Controller start error: $e');
-      await ctrl.dispose();
+      debugPrint("Errore init camera: $e");
       setState(() => _initializing = false);
     }
   }
 
   Future<void> _switchCamera() async {
     if (_cameras.length < 2) return;
-    setState(() => _initializing = true);
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
-    final old = _controller;
-    _controller = null;
-    try {
-      if (_streamRunning) {
-        await old?.stopImageStream();
-        _streamRunning = false;
-      }
-    } catch (_) {}
-    await old?.dispose();
-    await _startController(_cameras[_cameraIndex]);
+    final newIndex = (_cameras.indexOf(_controller!.description) + 1) % _cameras.length;
+    final newDesc = _cameras[newIndex];
+    await _controller?.dispose();
+    _controller = CameraController(newDesc, ResolutionPreset.max, enableAudio: false);
+    await _controller!.initialize();
+    setState(() {});
   }
 
-  Future<void> _processCameraImage(CameraImage image) async {
-    final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
-    _lastProc = now;
-
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized) return;
-
-    try {
-      final rotation = _rotationFromSensor(ctrl.description.sensorOrientation);
-      final inputImage = _inputImageFromCameraImage(image, rotation);
-
-      final faces = await _faceDetector.processImage(inputImage);
-      if (faces.isEmpty) {
-        _updateScaleVolto(null);
-        return;
-      }
-      final f = faces.first;
-      final left = f.landmarks[FaceLandmarkType.leftEye];
-      final right = f.landmarks[FaceLandmarkType.rightEye];
-      if (left == null || right == null) {
-        _updateScaleVolto(null);
-        return;
-      }
-      final dx = (left.position.x - right.position.x);
-      final dy = (left.position.y - right.position.y);
-      final distPx = math.sqrt(dx * dx + dy * dy);
-
-      _updateScaleVolto(distPx);
-    } catch (_) {}
-  }
-
-  void _updateScaleVolto(double? ipdPx) {
-  bool ok = false;
-  double shown = 0;
-  double distanzaCm = 0;
-
-  if (ipdPx != null && ipdPx.isFinite && ipdPx > 0) {
-    shown = ipdPx;
-
-    // 🔹 Calcolo diretto della distanza in cm
-    final mmPerPxAttuale = _ipdMm / ipdPx;
-    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    distanzaCm = (larghezzaRealeMm / 10.0);
-
-    // ✅ Step 1: volto intero ≈55 ± 5 cm (solo info)
-    if (distanzaCm >= 50 && distanzaCm <= 60) {
-      ok = true;
-      debugPrint("🟢 Step 1: volto intero (~55 cm)");
-    }
-
-    // ✅ Step 2: distanza informativa 12 ± 1 cm (NO BLOCCO)
-    if (distanzaCm >= 11 && distanzaCm <= 13) {
-      ok = true;
-      debugPrint("🟢 Step 2: distanza 12 cm (solo info, no blocco)");
-    }
-  }
-
-  // ❌ Nessun blocco e nessuno sblocco nella modalità volto
-  // 🔒 Blocco solo nella modalità particolare (gestito altrove)
-
-  if (!mounted) return;
-  setState(() {
-    _lastIpdPx = shown;
-    _scaleOkVolto = ok;
-  });
-}
-
-  InputImageRotation _rotationFromSensor(int sensorOrientation) {
-    switch (sensorOrientation) {
-      case 90:
-        return InputImageRotation.rotation90deg;
-      case 180:
-        return InputImageRotation.rotation180deg;
-      case 270:
-        return InputImageRotation.rotation270deg;
-      case 0:
-      default:
-        return InputImageRotation.rotation0deg;
-    }
-  }
-
-  InputImage _inputImageFromCameraImage(
-    CameraImage image,
-    InputImageRotation rotation,
-  ) {
-    final b = BytesBuilder(copy: false);
-    for (final Plane plane in image.planes) {
-      b.add(plane.bytes);
-    }
-    final Uint8List bytes = b.toBytes();
-
-    final Size size = Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
-
-    final metadata = InputImageMetadata(
-      size: size,
-      rotation: rotation,
-      format: InputImageFormat.yuv420,
-      bytesPerRow: image.planes.first.bytesPerRow,
-    );
-
-    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
-  }
-
-  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
-
     setState(() => _shooting = true);
     try {
-      if (_streamRunning) {
-        await ctrl.stopImageStream();
-        _streamRunning = false;
-      }
-
-      final bool isFront =
-          ctrl.description.lensDirection == CameraLensDirection.front;
-
       final XFile shot = await ctrl.takePicture();
-      final Uint8List origBytes = await File(shot.path).readAsBytes();
-      img.Image? original = img.decodeImage(origBytes);
-      if (original == null) throw Exception('Decodifica immagine fallita');
+      final bytes = await File(shot.path).readAsBytes();
+      final img.Image? decoded = img.decodeImage(bytes);
+      if (decoded == null) throw Exception("Immagine non valida");
 
-      if (isFront) {
-        original = img.flipHorizontal(original);
-      }
+      // 🔹 Ritaglio 1:1 centrale e resize 1024×1024
+      final int side = math.min(decoded.width, decoded.height);
+      final int x = ((decoded.width - side) / 2).round();
+      final int y = ((decoded.height - side) / 2).round();
+      final img.Image cropped = img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+      final img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
 
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble();
-      final double previewH = p.width.toDouble();
+      final Uint8List png = Uint8List.fromList(img.encodePng(resized));
+      final String name = "foto_${DateTime.now().millisecondsSinceEpoch}.png";
 
-      final Size screen = MediaQuery.of(context).size;
-      final double screenW = screen.width;
-      final double screenH = screen.height;
+      final PermissionState p = await PhotoManager.requestPermissionExtend();
+      if (!p.hasAccess) throw Exception("Permesso foto negato");
+      await PhotoManager.editor.saveImage(png, filename: name);
 
-      final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
-      final double shortSideScreen = math.min(screenW, screenH);
-
-      double squareSizeScreen;
-      if (_lastIpdPx > 0) {
-        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-        squareSizeScreen =
-            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
-      } else {
-        squareSizeScreen = shortSideScreen * 0.70;
-      }
-
-      final double centerXScreen = screenW / 2.0;
-      final double centerYScreen =
-          screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
-
-      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
-
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
-      final double sidePreview = squareSizeScreen / scale;
-
-      final double ratioX = original.width / previewW;
-      final double ratioY = original.height / previewH;
-
-      int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview * ratioY).round();
-      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
-
-      cropSide =
-          cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width - cropSide);
-      cropY = cropY.clamp(0, original.height - cropSide);
-
-      img.Image cropped = img.copyCrop(
-        original,
-        x: cropX,
-        y: cropY,
-        width: cropSide,
-        height: cropSide,
-      );
-
-      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
-
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
-      if (!pState.hasAccess) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
-        }
-        return;
-      }
-
-      final String baseName =
-          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
-
-      final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        filename: '$baseName.png',
-      );
-      if (asset == null) throw Exception('Salvataggio PNG fallito');
-
-      final String newPath = (await _tempThumbPath('$baseName.png'));
-      await File(newPath).writeAsBytes(pngBytes);
-      _lastShotPath = newPath;
-
-      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
+      final dir = await Directory.systemTemp.createTemp('epi_temp');
+      final pathLocal = path.join(dir.path, name);
+      await File(pathLocal).writeAsBytes(png);
+      _lastShotPath = pathLocal;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
+          const SnackBar(content: Text("✅ Foto salvata 1024×1024")),
         );
-        setState(() {});
-
-        Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (_) => AnalysisPreview(
-      imagePath: newPath,
-      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-    ),
-  ),
-);
       }
     } catch (e) {
-      debugPrint('Take/save error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore salvataggio: $e')),
-        );
-      }
+      debugPrint("Errore scatto: $e");
     } finally {
-      try {
-        if (!ctrl.value.isStreamingImages) {
-          await ctrl.startImageStream(_processCameraImage);
-          _streamRunning = true;
-        }
-      } catch (_) {}
       if (mounted) setState(() => _shooting = false);
     }
   }
 
-  Future<String> _tempThumbPath(String fileName) async {
-    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
-    return '${dir.path}/$fileName';
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    super.dispose();
   }
 
-  // ====== UI ======
-Widget _buildScaleChip() {
-  Color c;
-  String text;
-
-  if (_mode == CaptureMode.volto) {
-    // --- STEP DOPPIO E BLOCCO DISTANZA ---
-    if (_distanceLocked) {
-      c = Colors.green;
-      text = 'Distanza 12 cm bloccata – scatta ora';
-    } else {
-      final double v = _lastIpdPx;
-
-      if (v == 0) {
-        c = Colors.grey;
-        text = 'Allinea il volto per iniziare';
-      } else {
-        // Calcola distanza stimata
-        final mmPerPxAttuale = _ipdMm / v;
-        final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-        final distanzaCm = (larghezzaRealeMm / 10.0);
-
-        // STEP 1 → volto intero (≈55 cm)
-        // STEP 2 → avvicinamento (≈12 cm)
-        if ((distanzaCm - 55).abs() <= 5) {
-          c = Colors.green;
-          text = 'Step 1: distanza corretta (≈55 cm)';
-        } else if (distanzaCm < 55 && distanzaCm > 20) {
-          c = Colors.amber;
-          text = 'Avvicinati lentamente';
-        } else if (distanzaCm <= 13 && distanzaCm >= 11) {
-          c = Colors.green;
-          text = 'Step 2: distanza 12 cm raggiunta';
-          // Blocca la distanza una volta centrata
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_distanceLocked) {
-              setState(() => _distanceLocked = true);
-            }
-          });
-        } else {
-          c = Colors.red;
-          text = 'Regola la distanza';
-        }
-      }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    if (state == AppLifecycleState.inactive) {
+      ctrl.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initCamera();
     }
-  } else {
-    c = _scaleOkPart ? Colors.green : Colors.amber;
-    text = 'Avvicinati e scatta solo col verde';
   }
 
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-    decoration: BoxDecoration(
-      color: Colors.black54,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: c, width: 1.6),
-    ),
-    child: Text(text, style: const TextStyle(color: Colors.white)),
-  );
-}
+  Widget _buildCameraPreview() {
+    if (_initializing) return const Center(child: CircularProgressIndicator());
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized) {
+      return const Center(child: Text("Fotocamera non disponibile"));
+    }
+
+    final preview = CameraPreview(ctrl);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double screenW = constraints.maxWidth;
+        final double screenH = constraints.maxHeight;
+        final double shortSide = math.min(screenW, screenH);
+        final double squareSize = shortSide * 0.8;
+
+        final double aPx = 803 / 2;
+        final double bPx = 582 / 2;
+        final double scale = squareSize / 1024.0;
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // ✅ Anteprima fotocamera
+            Positioned.fill(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: ctrl.value.previewSize!.height,
+                  height: ctrl.value.previewSize!.width,
+                  child: preview,
+                ),
+              ),
+            ),
+            // 🔳 Quadrato fisso (con ovale solo in modalità VOLTO)
+            Align(
+              alignment: const Alignment(0, -0.3),
+              child: Container(
+                width: squareSize,
+                height: squareSize,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 4),
+                ),
+                child: _mode == CaptureMode.volto
+                    ? CustomPaint(painter: _OvalPainter(aPx * scale, bPx * scale))
+                    : null,
+              ),
+            ),
+            // 🔹 Livella verticale
+            _buildLivellaVerticaleOverlay(),
+            // 🔹 Pulsanti VOLTO / PARTICOLARE
+            Positioned(
+              bottom: 160,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildModeSelector()),
+            ),
+            // 🔹 Pulsanti inferiori
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 40),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Thumbnail ultima foto
+                    GestureDetector(
+                      onTap: (_lastShotPath != null)
+                          ? () async {
+                              final p = _lastShotPath!;
+                              await showDialog(
+                                context: context,
+                                barrierColor: Colors.black.withOpacity(0.9),
+                                builder: (_) => GestureDetector(
+                                  onTap: () => Navigator.of(context).pop(),
+                                  child: InteractiveViewer(
+                                    child: Center(child: Image.file(File(p))),
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: (_lastShotPath != null)
+                            ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
+                            : const Icon(Icons.image, color: Colors.white70),
+                      ),
+                    ),
+                    // Pulsante di scatto
+                    GestureDetector(
+                      onTap: _shooting ? null : _takeAndSavePicture,
+                      child: Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 6),
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: _shooting ? 58 : 64,
+                            height: _shooting ? 58 : 64,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Reverse camera
+                    GestureDetector(
+                      onTap: _switchCamera,
+                      child: Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child:
+                            const Icon(Icons.cameraswitch, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildModeSelector() {
     Widget chip(String text, CaptureMode value) {
@@ -584,7 +274,7 @@ Widget _buildScaleChip() {
         onTap: () => setState(() => _mode = value),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
           decoration: BoxDecoration(
             color: selected ? Colors.white : Colors.white10,
             borderRadius: BorderRadius.circular(20),
@@ -614,290 +304,44 @@ Widget _buildScaleChip() {
     );
   }
 
-  Widget _buildCameraPreview() {
-    final ctrl = _controller;
-    if (_initializing) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (ctrl == null || !ctrl.value.isInitialized) {
-      return const Center(child: Text('Fotocamera non disponibile'));
-    }
-
-    final bool isFront =
-        ctrl.description.lensDirection == CameraLensDirection.front;
-
-    final bool needsMirror = isFront && Platform.isAndroid;
-
-    final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-
-    final Widget inner = SizedBox(
-      width: p.height,
-      height: p.width,
-      child: CameraPreview(ctrl),
-    );
-
-    final Widget previewFull = FittedBox(
-      fit: BoxFit.cover,
-      child: inner,
-    );
-
-    final Widget preview = needsMirror
-        ? Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
-            child: previewFull,
-          )
-        : previewFull;
-
-    Widget overlay = LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
-        final double screenH = constraints.maxHeight;
-        final double shortSide = math.min(screenW, screenH);
-
-        double squareSize;
-        if (_lastIpdPx > 0) {
-          final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-          final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
-        } else {
-          squareSize = shortSide * 0.70; // dimensione stabile se non trova pupille
-        }
-
-        final Color frameColor = (_mode == CaptureMode.volto
-                ? _scaleOkVolto
-                : _scaleOkPart)
-            ? Colors.green
-            : Colors.yellow.withOpacity(0.95);
-
-        final double safeTop = MediaQuery.of(context).padding.top;
-
-        return Stack(
-          children: [
-            Align(
-              alignment: const Alignment(0, -0.3),
-              child: Container(
-                width: squareSize,
-                height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: 4),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-            ),
-            buildDistanzaCmOverlay(
-              ipdPx: _lastIpdPx,
-              ipdMm: _ipdMm,
-              targetMmPerPx: _targetMmPerPx,
-              alignY: -0.05,
-              mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-              isFrontCamera: isFront, // 👈 aggiunto qui
-            ),
-            if (_mode == CaptureMode.volto)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: _buildLivellaOrizzontale3Linee(
-                  width: math.max(squareSize * 0.82, 300.0),
-                  height: 62,
-                  okThresholdDeg: 1.0,
-                ),
-              ),
-            Positioned(
-              top: safeTop + 8,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildScaleChip()),
-            ),
-            Positioned(
-              bottom: 180,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildModeSelector()),
-            ),
-          ],
-        );
-      },
-    );
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: preview),
-        Positioned.fill(child: overlay),
-      ],
-    );
-  }
-
-  Widget _buildBottomBar() {
-    final canShoot = _controller != null &&
-        _controller!.value.isInitialized &&
-        !_shooting;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            GestureDetector(
-              onTap: (_lastShotPath != null)
-                  ? () async {
-                      final p = _lastShotPath!;
-                      await showDialog(
-                        context: context,
-                        barrierColor: Colors.black.withOpacity(0.9),
-                        builder: (_) => GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: InteractiveViewer(
-                            child: Center(child: Image.file(File(p))),
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: (_lastShotPath != null)
-                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
-                    : const Icon(Icons.image, color: Colors.white70),
-              ),
-            ),
-            GestureDetector(
-              onTap: canShoot ? _takeAndSavePicture : null,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: 86,
-                height: 86,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.10),
-                      ),
-                    ),
-                    Container(
-                      width: 78,
-                      height: 78,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 6),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 80),
-                      width: _shooting ? 58 : 64,
-                      height: _shooting ? 58 : 64,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            GestureDetector(
-              onTap: _switchCamera,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Icon(Icons.cameraswitch, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _controller;
-    if (ctrl == null) return;
-
-    if (state == AppLifecycleState.inactive) {
-      try {
-        if (_streamRunning) {
-          _controller?.stopImageStream();
-          _streamRunning = false;
-        }
-      } catch (_) {}
-      _controller?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _startController(_cameras[_cameraIndex]);
-    }
-  }
-
-  @override
-  void dispose() {
-    _model.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    try {
-      if (_streamRunning) {
-        _controller?.stopImageStream();
-      }
-    } catch (_) {}
-    _controller?.dispose();
-    _faceDetector.close();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    context.watch<FFAppState>();
     return Scaffold(
-      key: scaffoldKey,
       backgroundColor: Colors.black,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Stack(
-          children: [
-            Positioned.fill(child: _buildCameraPreview()),
-            buildLivellaVerticaleOverlay(
-              mode: _mode,
-              topOffsetPx: 65.0,
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomBar(),
-            ),
-          ],
-        ),
-      ),
+      body: SafeArea(child: _buildCameraPreview()),
     );
   }
 }
 
-Widget buildLivellaVerticaleOverlay({
-  CaptureMode? mode,
-  double okThresholdDeg = 1.0,
-  double topOffsetPx = 65.0,
-  Alignment alignment = Alignment.centerRight,
-  double size = 120,
-  double bubbleSize = 16,
-  double fullScaleDeg = 10.0,
-}) {
-  if (mode != null && mode != CaptureMode.volto) {
-    return const SizedBox.shrink();
+// 🔹 Painter ovale (solo guida in preview)
+class _OvalPainter extends CustomPainter {
+  final double a;
+  final double b;
+  _OvalPainter(this.a, this.b);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint p = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = Colors.white.withOpacity(0.9)
+      ..strokeWidth = 3;
+    final Rect rect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2),
+      width: a * 2,
+      height: b * 2,
+    );
+    canvas.drawOval(rect, p);
   }
 
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 🔹 Livella verticale
+Widget _buildLivellaVerticaleOverlay({
+  double okThresholdDeg = 1.0,
+  double topOffsetPx = 65.0,
+}) {
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
@@ -936,8 +380,8 @@ Widget buildLivellaVerticaleOverlay({
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(12),
@@ -953,8 +397,8 @@ Widget buildLivellaVerticaleOverlay({
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: badgeBg,
                       borderRadius: BorderRadius.circular(999),
@@ -973,72 +417,6 @@ Widget buildLivellaVerticaleOverlay({
               );
             },
           ),
-        ),
-      );
-    },
-  );
-}
-
-Widget _buildLivellaOrizzontale3Linee({
-  required double width,
-  required double height,
-  double okThresholdDeg = 1.0,
-}) {
-  Widget _segment(double w, double h, Color c) => Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: c,
-          borderRadius: BorderRadius.circular(h),
-        ),
-      );
-
-  return StreamBuilder<AccelerometerEvent>(
-    stream: accelerometerEventStream(),
-    builder: (context, snap) {
-      double rollDeg = 0.0;
-      if (snap.hasData) {
-        final ax = snap.data!.x;
-        final ay = snap.data!.y;
-        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
-      }
-
-      final bool isOk = rollDeg.abs() <= okThresholdDeg;
-      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
-      final Color bg = Colors.black54;
-
-      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double midRot = (rollDeg) * math.pi / 180;
-
-      return Container(
-        width: width,
-        height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isOk ? Colors.greenAccent : Colors.white24,
-            width: 1.2,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Transform.rotate(
-              angle: topRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-            Transform.rotate(
-              angle: midRot,
-              child: _segment(width - 20, 3, lineColor),
-            ),
-            Transform.rotate(
-              angle: botRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-          ],
         ),
       );
     },
