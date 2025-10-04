@@ -160,9 +160,27 @@ bool _distanceLocked = false;
   final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
   final distanzaCm = (larghezzaRealeMm / 10.0);
 
-  // Verde solo se 11–13 cm
+  // 🔒 Se distanza già bloccata, resta verde fisso
+  if (_distanceLocked) return true;
+
+  // ✅ Blocca distanza quando arrivo a 12 ± 1 cm
+  if (distanzaCm >= 11.0 && distanzaCm <= 13.0) {
+    _lockedIpdPx = _lastIpdPx;
+    _distanceLocked = true;
+    debugPrint("🔒 Distanza 12 cm bloccata in modalità particolare");
+    return true;
+  }
+
+  // 🔓 Se torno indietro oltre 20 cm, sblocca
+  if (_distanceLocked && distanzaCm > 20.0) {
+    _distanceLocked = false;
+    _lockedIpdPx = null;
+    debugPrint("🔓 Distanza sbloccata in modalità particolare");
+  }
+
+  // Verde solo se 11–13 cm (quando non ancora bloccato)
   return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
- }
+}
 
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
