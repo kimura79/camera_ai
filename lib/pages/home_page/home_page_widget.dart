@@ -273,9 +273,6 @@ bool _distanceLocked = false;
   }
 
   void _updateScaleVolto(double? ipdPx) {
-  // Se distanza già bloccata a 12 cm, non aggiornare più
-  if (_distanceLocked) return;
-
   final double tgt = _targetPxVolto;
   final double minT = tgt * 0.95;
   final double maxT = tgt * 1.05;
@@ -288,25 +285,30 @@ bool _distanceLocked = false;
     ok = (ipdPx >= minT && ipdPx <= maxT);
 
     // Calcola distanza stimata in cm (corretto)
-final mmPerPxAttuale = _ipdMm / ipdPx;
-final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-final distanzaCm = (larghezzaRealeMm / 10.0);
+    final mmPerPxAttuale = _ipdMm / ipdPx;
+    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+    final distanzaCm = (larghezzaRealeMm / 10.0);
 
-// 🔓 Sblocca automaticamente se ci si allontana oltre 20 cm
-if (_distanceLocked && distanzaCm > 20) {
-  _distanceLocked = false;
-  _lockedIpdPx = null;
-  debugPrint("🔓 Distanza sbloccata");
-}
+    // 🔓 Sblocca automaticamente se ci si allontana oltre 20 cm
+    if (_distanceLocked && distanzaCm > 20) {
+      _distanceLocked = false;
+      _lockedIpdPx = null;
+      debugPrint("🔓 Distanza sbloccata");
+    }
 
-// ✅ Step 1 → volto intero verde a 55 ± 5 cm
-// ✅ Step 2 → blocco a 12 ± 1 cm
-if (distanzaCm >= 11 && distanzaCm <= 13) {
-  _lockedIpdPx = ipdPx;
-  _distanceLocked = true;
-  ok = true;
-  debugPrint("🔒 Distanza 12 cm bloccata");
-}
+    // ✅ Step 1 → volto intero verde a 55 ± 5 cm (solo informativo)
+    if (distanzaCm >= 50 && distanzaCm <= 60 && !_distanceLocked) {
+      ok = true;
+      debugPrint("🟢 Step 1 volto corretto (≈55 cm)");
+    }
+
+    // ✅ Step 2 → blocco a 12 ± 1 cm
+    if (!_distanceLocked && distanzaCm >= 11 && distanzaCm <= 13) {
+      _lockedIpdPx = ipdPx;
+      _distanceLocked = true;
+      ok = true;
+      debugPrint("🔒 Step 2 bloccato a 12 cm");
+    }
   }
 
   if (!mounted) return;
