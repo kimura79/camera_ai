@@ -155,30 +155,29 @@ bool _distanceLocked = false;
   bool get _scaleOkPart {
   if (_lastIpdPx <= 0) return false;
 
-  // Calcolo distanza stimata in cm per PARTICOLARE
+  // Calcola distanza stimata in cm
   final mmPerPxAttuale = _ipdMm / _lastIpdPx;
   final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
   final distanzaCm = (larghezzaRealeMm / 10.0);
 
-  // 🔒 Se distanza già bloccata, resta verde fisso
-  if (_distanceLocked) return true;
-
-  // ✅ Blocca distanza quando arrivo a 12 ± 1 cm
-  if (distanzaCm >= 11.0 && distanzaCm <= 13.0) {
+  // 🔒 Blocca distanza a 12 ± 1 cm
+  if (!_distanceLocked && distanzaCm >= 11 && distanzaCm <= 13) {
     _lockedIpdPx = _lastIpdPx;
     _distanceLocked = true;
-    debugPrint("🔒 Distanza 12 cm bloccata in modalità particolare");
-    return true;
+    debugPrint("🔒 Distanza particolare 12 cm bloccata");
   }
 
-  // 🔓 Se torno indietro oltre 20 cm, sblocca
-  if (_distanceLocked && distanzaCm > 20.0) {
+  // 🔓 Sblocca se ti allontani oltre 20 cm
+  if (_distanceLocked && distanzaCm > 20) {
     _distanceLocked = false;
     _lockedIpdPx = null;
-    debugPrint("🔓 Distanza sbloccata in modalità particolare");
+    debugPrint("🔓 Distanza particolare sbloccata");
   }
 
-  // Verde solo se 11–13 cm (quando non ancora bloccato)
+  // Se distanza bloccata, considera sempre valida (verde)
+  if (_distanceLocked) return true;
+
+  // Altrimenti calcola normalmente
   return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
 }
 
