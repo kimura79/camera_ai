@@ -285,9 +285,9 @@ bool _distanceLocked = false;
     ok = (ipdPx >= minT && ipdPx <= maxT);
 
     // Calcola distanza stimata in cm (corretto)
-    final mmPerPxAttuale = _ipdMm / ipdPx;
-    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    final distanzaCm = (larghezzaRealeMm / 10.0);
+    // 🔹 Calcolo distanza stimata basato su scala target 0.117 mm/px
+final mmPerPxAttuale = _ipdMm / ipdPx;
+final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
 
     // 🔓 Sblocca automaticamente se ci si allontana oltre 20 cm
     if (_distanceLocked && distanzaCm > 20) {
