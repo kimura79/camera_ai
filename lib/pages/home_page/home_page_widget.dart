@@ -145,6 +145,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
   double get _targetPxVolto => _ipdMm / _targetMmPerPx;
   double _lastIpdPx = 0.0;
   bool _scaleOkVolto = false;
+// 🔒 Blocca distanza una volta raggiunti 12 cm
+double? _lockedIpdPx;
+bool _distanceLocked = false;
 
   static const double _targetMmPart = 120.0;
   double get _targetPxPart => _targetMmPart / _targetMmPerPx;
@@ -270,22 +273,41 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 
   void _updateScaleVolto(double? ipdPx) {
-    final double tgt = _targetPxVolto;
-    final double minT = tgt * 0.95;
-    final double maxT = tgt * 1.05;
+  // Se distanza già bloccata a 12 cm, non aggiornare più
+  if (_distanceLocked) return;
 
-    bool ok = false;
-    double shown = 0;
-    if (ipdPx != null && ipdPx.isFinite) {
-      shown = ipdPx;
-      ok = (ipdPx >= minT && ipdPx <= maxT);
+  final double tgt = _targetPxVolto;
+  final double minT = tgt * 0.95;
+  final double maxT = tgt * 1.05;
+
+  bool ok = false;
+  double shown = 0;
+
+  if (ipdPx != null && ipdPx.isFinite) {
+    shown = ipdPx;
+    ok = (ipdPx >= minT && ipdPx <= maxT);
+
+    // Calcola distanza stimata in cm
+    final mmPerPxAttuale = _ipdMm / ipdPx;
+    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
+
+    // ✅ Step 1 → volto intero verde a 55 ± 5 cm
+    // ✅ Step 2 → blocco a 12 ± 1 cm
+    if (distanzaCm >= 11 && distanzaCm <= 13) {
+      _lockedIpdPx = ipdPx;
+      _distanceLocked = true;
+      ok = true;
+      debugPrint("🔒 Distanza 12 cm bloccata");
     }
-    if (!mounted) return;
-    setState(() {
-      _lastIpdPx = shown;
-      _scaleOkVolto = ok;
-    });
   }
+
+  if (!mounted) return;
+  setState(() {
+    _lastIpdPx = shown;
+    _scaleOkVolto = ok;
+  });
+}
 
   InputImageRotation _rotationFromSensor(int sensorOrientation) {
     switch (sensorOrientation) {
@@ -478,39 +500,65 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 
   // ====== UI ======
-  Widget _buildScaleChip() {
-    Color c;
-    String text;
-    if (_mode == CaptureMode.volto) {
-      final double tgt = _targetPxVolto;
-      final double minT = tgt * 0.95;
-      final double maxT = tgt * 1.05;
-      final v = _lastIpdPx;
+Widget _buildScaleChip() {
+  Color c;
+  String text;
+
+  if (_mode == CaptureMode.volto) {
+    // --- STEP DOPPIO E BLOCCO DISTANZA ---
+    if (_distanceLocked) {
+      c = Colors.green;
+      text = 'Distanza 12 cm bloccata – scatta ora';
+    } else {
+      final double v = _lastIpdPx;
+
       if (v == 0) {
         c = Colors.grey;
-      } else if (v < minT * 0.9 || v > maxT * 1.1) {
-        c = Colors.red;
-      } else if (v < minT || v > maxT) {
-        c = Colors.amber;
+        text = 'Allinea il volto per iniziare';
       } else {
-        c = Colors.green;
-      }
-      text = 'Centra il viso – scatta solo col verde';
-    } else {
-      c = _scaleOkPart ? Colors.green : Colors.amber;
-      text = 'Avvicinati e scatta solo col verde';
-    }
+        // Calcola distanza stimata
+        final mmPerPxAttuale = _ipdMm / v;
+        final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+        final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c, width: 1.6),
-      ),
-      child: Text(text, style: const TextStyle(color: Colors.white)),
-    );
+        // STEP 1 → volto intero (≈55 cm)
+        // STEP 2 → avvicinamento (≈12 cm)
+        if ((distanzaCm - 55).abs() <= 5) {
+          c = Colors.green;
+          text = 'Step 1: distanza corretta (≈55 cm)';
+        } else if (distanzaCm < 55 && distanzaCm > 20) {
+          c = Colors.amber;
+          text = 'Avvicinati lentamente';
+        } else if (distanzaCm <= 13 && distanzaCm >= 11) {
+          c = Colors.green;
+          text = 'Step 2: distanza 12 cm raggiunta';
+          // Blocca la distanza una volta centrata
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!_distanceLocked) {
+              setState(() => _distanceLocked = true);
+            }
+          });
+        } else {
+          c = Colors.red;
+          text = 'Regola la distanza';
+        }
+      }
+    }
+  } else {
+    c = _scaleOkPart ? Colors.green : Colors.amber;
+    text = 'Avvicinati e scatta solo col verde';
   }
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: c, width: 1.6),
+    ),
+    child: Text(text, style: const TextStyle(color: Colors.white)),
+  );
+}
 
   Widget _buildModeSelector() {
     Widget chip(String text, CaptureMode value) {
