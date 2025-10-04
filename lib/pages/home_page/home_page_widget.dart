@@ -290,42 +290,44 @@ bool _distanceLocked = false;
   }
 
   void _updateScaleVolto(double? ipdPx) {
-  final double tgt = _targetPxVolto;
-  final double minT = tgt * 0.95;
-  final double maxT = tgt * 1.05;
+  // Se distanza già bloccata a 12 cm, non aggiornare più
+  if (_distanceLocked) return;
 
   bool ok = false;
   double shown = 0;
+  double distanzaCm = 0;
 
-  if (ipdPx != null && ipdPx.isFinite) {
+  if (ipdPx != null && ipdPx.isFinite && ipdPx > 0) {
     shown = ipdPx;
-    ok = (ipdPx >= minT && ipdPx <= maxT);
 
-    // Calcola distanza stimata in cm (corretto)
-    // 🔹 Calcolo distanza stimata basato su scala target 0.117 mm/px
-final mmPerPxAttuale = _ipdMm / ipdPx;
-final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
+    // 🔹 Calcolo corretto della distanza in cm:
+    // 1. mm/px attuale = IPD reale (mm) / distanza pupille (px)
+    // 2. larghezza reale della finestra (mm) = mm/px * 1024 px
+    // 3. distanza stimata in cm = larghezza_reale_mm / 10
+    final mmPerPxAttuale = _ipdMm / ipdPx;
+    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
+    distanzaCm = (larghezzaRealeMm / 10.0);
 
-    // 🔓 Sblocca automaticamente se ci si allontana oltre 20 cm
-    if (_distanceLocked && distanzaCm > 20) {
-      _distanceLocked = false;
-      _lockedIpdPx = null;
-      debugPrint("🔓 Distanza sbloccata");
-    }
-
-    // ✅ Step 1 → volto intero verde a 55 ± 5 cm (solo informativo)
-    if (distanzaCm >= 50 && distanzaCm <= 60 && !_distanceLocked) {
+    // ✅ Step 1: volto intero ≈55 ± 5 cm (solo info)
+    if (distanzaCm >= 50 && distanzaCm <= 60) {
       ok = true;
-      debugPrint("🟢 Step 1 volto corretto (≈55 cm)");
+      debugPrint("🟢 Step 1: volto intero (~55 cm)");
     }
 
-    // ✅ Step 2 → blocco a 12 ± 1 cm
-    if (!_distanceLocked && distanzaCm >= 11 && distanzaCm <= 13) {
+    // ✅ Step 2: blocco stabile tra 11 e 13 cm
+    if (distanzaCm >= 11 && distanzaCm <= 13) {
       _lockedIpdPx = ipdPx;
       _distanceLocked = true;
       ok = true;
-      debugPrint("🔒 Step 2 bloccato a 12 cm");
+      debugPrint("🔒 Step 2: distanza bloccata a 12 cm");
     }
+  }
+
+  // 🔓 Sblocca solo se ti allontani DAVVERO oltre 20 cm e hai landmark validi
+  if (_distanceLocked && ipdPx != null && ipdPx > 0 && distanzaCm > 20) {
+    _distanceLocked = false;
+    _lockedIpdPx = null;
+    debugPrint("🔓 Distanza sbloccata oltre 20 cm");
   }
 
   if (!mounted) return;
