@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -12,7 +11,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
-  // 🔹 Aggiunte per compatibilità FlutterFlow / Codemagic
+  // 🔹 Necessario per build Codemagic / FlutterFlow
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
 
@@ -49,7 +48,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => _cameras.first,
       );
-      _controller = CameraController(back, ResolutionPreset.max, enableAudio: false);
+      _controller =
+          CameraController(back, ResolutionPreset.max, enableAudio: false);
       await _controller!.initialize();
       setState(() => _initializing = false);
     } catch (e) {
@@ -60,10 +60,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   Future<void> _switchCamera() async {
     if (_cameras.length < 2) return;
-    final newIndex = (_cameras.indexOf(_controller!.description) + 1) % _cameras.length;
+    final newIndex =
+        (_cameras.indexOf(_controller!.description) + 1) % _cameras.length;
     final newDesc = _cameras[newIndex];
     await _controller?.dispose();
-    _controller = CameraController(newDesc, ResolutionPreset.max, enableAudio: false);
+    _controller =
+        CameraController(newDesc, ResolutionPreset.max, enableAudio: false);
     await _controller!.initialize();
     setState(() {});
   }
@@ -78,12 +80,14 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final img.Image? decoded = img.decodeImage(bytes);
       if (decoded == null) throw Exception("Immagine non valida");
 
-      // 🔹 Ritaglio 1:1 centrale e resize 1024×1024
+      // 🔹 Crop centrale 1:1 e resize a 1024x1024
       final int side = math.min(decoded.width, decoded.height);
       final int x = ((decoded.width - side) / 2).round();
       final int y = ((decoded.height - side) / 2).round();
-      final img.Image cropped = img.copyCrop(decoded, x: x, y: y, width: side, height: side);
-      final img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
+      final img.Image cropped =
+          img.copyCrop(decoded, x: x, y: y, width: side, height: side);
+      final img.Image resized =
+          img.copyResize(cropped, width: 1024, height: 1024);
 
       final Uint8List png = Uint8List.fromList(img.encodePng(resized));
       final String name = "foto_${DateTime.now().millisecondsSinceEpoch}.png";
@@ -141,16 +145,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double screenW = constraints.maxWidth;
         final double screenH = constraints.maxHeight;
         final double shortSide = math.min(screenW, screenH);
-        final double squareSize = shortSide * 0.8;
-
-        final double aPx = 803 / 2;
-        final double bPx = 582 / 2;
-        final double scale = squareSize / 1024.0;
+        final double squareSize = shortSide * 0.8; // quadrato 1:1
 
         return Stack(
           fit: StackFit.expand,
           children: [
-            // ✅ Anteprima fotocamera
+            // 🔹 Anteprima fotocamera
             Positioned.fill(
               child: FittedBox(
                 fit: BoxFit.cover,
@@ -161,30 +161,35 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 ),
               ),
             ),
-            // 🔳 Quadrato fisso (con ovale solo in modalità VOLTO)
+
+            // 🔳 Quadrato fisso con ovale solo in modalità VOLTO
             Align(
               alignment: const Alignment(0, -0.3),
               child: Container(
                 width: squareSize,
                 height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white, width: 4),
-                ),
+                decoration:
+                    BoxDecoration(border: Border.all(color: Colors.white, width: 4)),
                 child: _mode == CaptureMode.volto
-                    ? CustomPaint(painter: _OvalPainter(aPx * scale, bPx * scale))
+                    ? CustomPaint(
+                        painter: _OvalPainter(squareSize),
+                      )
                     : null,
               ),
             ),
+
             // 🔹 Livella verticale
             _buildLivellaVerticaleOverlay(),
-            // 🔹 Pulsanti VOLTO / PARTICOLARE
+
+            // 🔹 Pulsanti modalità
             Positioned(
               bottom: 160,
               left: 0,
               right: 0,
               child: Center(child: _buildModeSelector()),
             ),
-            // 🔹 Pulsanti inferiori
+
+            // 🔹 Barra inferiore
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -192,7 +197,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Thumbnail ultima foto
+                    // Anteprima ultima foto
                     GestureDetector(
                       onTap: (_lastShotPath != null)
                           ? () async {
@@ -223,7 +228,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
                             : const Icon(Icons.image, color: Colors.white70),
                       ),
                     ),
-                    // Pulsante di scatto
+
+                    // Pulsante scatto
                     GestureDetector(
                       onTap: _shooting ? null : _takeAndSavePicture,
                       child: Container(
@@ -246,6 +252,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                         ),
                       ),
                     ),
+
                     // Reverse camera
                     GestureDetector(
                       onTap: _switchCamera,
@@ -317,11 +324,10 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 }
 
-// 🔹 Ovale solo guida in preview
+// 🔹 Ovale guida in scala reale (0.117 mm/px) → 1024 px ~ 12 cm → area ~113 cm²
 class _OvalPainter extends CustomPainter {
-  final double a;
-  final double b;
-  _OvalPainter(this.a, this.b);
+  final double squareSize;
+  _OvalPainter(this.squareSize);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -329,10 +335,14 @@ class _OvalPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..color = Colors.white.withOpacity(0.9)
       ..strokeWidth = 3;
+
+    // Ovale verticale inscritto
+    final double width = squareSize; // tocca bordi verticali
+    final double height = squareSize; // tocca bordi orizzontali
     final Rect rect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),
-      width: a * 2,
-      height: b * 2,
+      width: width * 0.83, // ≈10 cm in scala 12 cm → area ~113 cm²
+      height: height,
     );
     canvas.drawOval(rect, p);
   }
@@ -349,7 +359,6 @@ Widget _buildLivellaVerticaleOverlay({
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
-
       return Positioned(
         top: safeTop + topOffsetPx,
         left: 0,
@@ -359,7 +368,6 @@ Widget _buildLivellaVerticaleOverlay({
             stream: accelerometerEventStream(),
             builder: (context, snap) {
               double angleDeg = 0.0;
-
               if (snap.hasData) {
                 final ax = snap.data!.x;
                 final ay = snap.data!.y;
@@ -371,7 +379,6 @@ Widget _buildLivellaVerticaleOverlay({
                   angleDeg = (math.acos(c) * 180.0 / math.pi);
                 }
               }
-
               final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
               final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
               final Color badgeBg =
