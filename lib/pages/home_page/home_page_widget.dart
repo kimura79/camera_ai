@@ -157,8 +157,9 @@ bool _distanceLocked = false;
 
   // Calcola distanza stimata in cm
   final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-  final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-  final distanzaCm = (larghezzaRealeMm / 10.0);
+  // Calibrazione corretta: 63 mm di IPD corrispondono a circa 55 cm di distanza iniziale
+// quindi normalizziamo per garantire scala proporzionale fino a 12 cm reali
+final distanzaCm = 55.0 * (mmPerPxAttuale / _targetMmPerPx);
 
   // 🔒 Blocca distanza a 12 ± 1 cm
   if (!_distanceLocked && distanzaCm >= 11 && distanzaCm <= 13) {
