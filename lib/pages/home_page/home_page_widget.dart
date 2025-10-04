@@ -12,6 +12,10 @@ import 'package:sensors_plus/sensors_plus.dart';
 class HomePageWidget extends StatefulWidget {
   const HomePageWidget({super.key});
 
+  // 🔹 Aggiunte per compatibilità FlutterFlow / Codemagic
+  static String routeName = 'HomePage';
+  static String routePath = '/homePage';
+
   @override
   State<HomePageWidget> createState() => _HomePageWidgetState();
 }
@@ -313,7 +317,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 }
 
-// 🔹 Painter ovale (solo guida in preview)
+// 🔹 Ovale solo guida in preview
 class _OvalPainter extends CustomPainter {
   final double a;
   final double b;
