@@ -249,7 +249,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
                   width: screenW,
                   height: screenW,
                   child: Opacity(
-                    opacity: 0.35,
+                    opacity: 0.55,
                     child: Image.file(
                       widget.guideImage!,
                       fit: BoxFit.cover,
