@@ -138,6 +138,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
+  bool _streamRunning = false;
 
   String? _lastShotPath;
 
