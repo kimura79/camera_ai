@@ -605,11 +605,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
         // ✅ Riquadro fisso: quadrato 1:1 che tocca i bordi laterali dello schermo
 final double squareSize = screenW;
 
-        final Color frameColor = (_mode == CaptureMode.volto
-                ? _scaleOkVolto
-                : _scaleOkPart)
-            ? Colors.green
-            : Colors.yellow.withOpacity(0.95);
+        // ✅ Riquadro sempre verde
+final Color frameColor = Colors.green;
 
         final double safeTop = MediaQuery.of(context).padding.top;
 
@@ -845,8 +842,8 @@ Widget buildLivellaVerticaleOverlay({
           child: StreamBuilder<AccelerometerEvent>(
             stream: accelerometerEventStream(),
             builder: (context, snap) {
+              // 🔹 Calcolo angolo, ma senza badge o testo
               double angleDeg = 0.0;
-
               if (snap.hasData) {
                 final ax = snap.data!.x;
                 final ay = snap.data!.y;
@@ -859,53 +856,8 @@ Widget buildLivellaVerticaleOverlay({
                 }
               }
 
-              final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
-              final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-              final Color badgeBg =
-                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
-              final Color badgeBor =
-                  isOk ? Colors.greenAccent : Colors.white24;
-              final String badgeTxt = isOk ? "OK" : "Inclina";
-
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "${angleDeg.toStringAsFixed(1)}°",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: bigColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: badgeBor, width: 1.2),
-                    ),
-                    child: Text(
-                      badgeTxt,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              );
+              // 🔹 Nessun badge o testo: overlay invisibile
+              return const SizedBox.shrink();
             },
           ),
         ),
@@ -913,4 +865,3 @@ Widget buildLivellaVerticaleOverlay({
     },
   );
 }
-
