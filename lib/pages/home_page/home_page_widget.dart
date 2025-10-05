@@ -655,7 +655,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               ipdMm: _ipdMm,
               targetMmPerPx: _targetMmPerPx,
               alignY: -0.05,
-              mode: _mode,
+              mode: _mode.name,
               isFrontCamera: isFront,
             ),
 
