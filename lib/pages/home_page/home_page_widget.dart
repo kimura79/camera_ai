@@ -485,38 +485,44 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
   // ====== UI ======
   Widget _buildScaleChip() {
-    Color c;
-    String text;
-    if (_mode == CaptureMode.volto) {
-      final double tgt = _targetPxVolto;
-      final double minT = tgt * 0.95;
-      final double maxT = tgt * 1.05;
-      final v = _lastIpdPx;
-      if (v == 0) {
-        c = Colors.grey;
-      } else if (v < minT * 0.9 || v > maxT * 1.1) {
-        c = Colors.red;
-      } else if (v < minT || v > maxT) {
-        c = Colors.amber;
-      } else {
-        c = Colors.green;
-      }
-      text = 'Centra il viso – scatta solo col verde';
+  Color c;
+  String text;
+
+  if (_mode == CaptureMode.volto) {
+    final double tgt = _targetPxVolto;
+    final double minT = tgt * 0.95;
+    final double maxT = tgt * 1.05;
+    final v = _lastIpdPx;
+
+    if (v == 0) {
+      c = Colors.grey;
+    } else if (v < minT * 0.9 || v > maxT * 1.1) {
+      c = Colors.red;
+    } else if (v < minT || v > maxT) {
+      c = Colors.amber;
     } else {
-      c = _scaleOkPart ? Colors.green : Colors.amber;
-      text = 'Avvicinati e scatta solo col verde';
+      c = Colors.green;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c, width: 1.6),
-      ),
-      child: Text(text, style: const TextStyle(color: Colors.white)),
-    );
+    text = 'Centra il viso – scatta solo col verde';
+  } else {
+    c = _scaleOkPart ? Colors.green : Colors.amber;
+    text = 'Avvicinati e scatta solo col verde';
   }
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: c, width: 1.6),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(color: Colors.white),
+    ),
+  );
+}
 
   Widget _buildModeSelector() {
     Widget chip(String text, CaptureMode value) {
