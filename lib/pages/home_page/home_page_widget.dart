@@ -659,16 +659,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
               isFrontCamera: isFront,
             ),
 
-            if (_mode == CaptureMode.volto)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: _buildLivellaOrizzontale3Linee(
-                  width: math.max(squareSize * 0.82, 300.0),
-                  height: 62,
-                  okThresholdDeg: 1.0,
-                ),
-              ),
-
             Positioned(
               top: safeTop + 8,
               left: 0,
@@ -939,68 +929,3 @@ Widget buildLivellaVerticaleOverlay({
   );
 }
 
-Widget _buildLivellaOrizzontale3Linee({
-  required double width,
-  required double height,
-  double okThresholdDeg = 1.0,
-}) {
-  Widget _segment(double w, double h, Color c) => Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: c,
-          borderRadius: BorderRadius.circular(h),
-        ),
-      );
-
-  return StreamBuilder<AccelerometerEvent>(
-    stream: accelerometerEventStream(),
-    builder: (context, snap) {
-      double rollDeg = 0.0;
-      if (snap.hasData) {
-        final ax = snap.data!.x;
-        final ay = snap.data!.y;
-        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
-      }
-
-      final bool isOk = rollDeg.abs() <= okThresholdDeg;
-      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
-      final Color bg = Colors.black54;
-
-      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double midRot = (rollDeg) * math.pi / 180;
-
-      return Container(
-        width: width,
-        height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isOk ? Colors.greenAccent : Colors.white24,
-            width: 1.2,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Transform.rotate(
-              angle: topRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-            Transform.rotate(
-              angle: midRot,
-              child: _segment(width - 20, 3, lineColor),
-            ),
-            Transform.rotate(
-              angle: botRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
