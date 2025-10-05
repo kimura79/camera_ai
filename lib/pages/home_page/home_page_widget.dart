@@ -255,21 +255,12 @@ class _HomePageWidgetState extends State<HomePageWidget>
       final double dispH = previewH * scale;
       final double dx = (screenW - dispW) / 2.0;
       final double dy = (screenH - dispH) / 2.0;
-      final double shortSideScreen = math.min(screenW, screenH);
+      // 🔹 Fissa il riquadro al lato corto dello schermo, come in preview
+      final double squareSizeScreen = screenW;
 
-      double squareSizeScreen;
-      if (_lastIpdPx > 0) {
-        final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-        final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-        squareSizeScreen =
-            (shortSideScreen / scalaFattore).clamp(32.0, shortSideScreen);
-      } else {
-        squareSizeScreen = shortSideScreen * 0.70;
-      }
-
+      // 🔹 Allinea il crop verticalmente come il riquadro (alzato del 30%)
       final double centerXScreen = screenW / 2.0;
-      final double centerYScreen =
-          screenH / 2.0 + (-0.4 * squareSizeScreen / 2.0);
+      final double centerYScreen = screenH / 2.0 - (0.3 * squareSizeScreen / 2.0);
 
       final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
       final double topScreen = centerYScreen - squareSizeScreen / 2.0;
