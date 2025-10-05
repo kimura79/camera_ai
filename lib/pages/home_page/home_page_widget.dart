@@ -602,14 +602,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
         final double screenH = constraints.maxHeight;
         final double shortSide = math.min(screenW, screenH);
 
-        double squareSize;
-        if (_lastIpdPx > 0) {
-          final double mmPerPxAttuale = _ipdMm / _lastIpdPx;
-          final double scalaFattore = mmPerPxAttuale / _targetMmPerPx;
-          squareSize = (shortSide / scalaFattore).clamp(300.0, shortSide);
-        } else {
-          squareSize = shortSide * 0.70;
-        }
+        // ✅ Riquadro fisso: quadrato 1:1 che tocca i bordi laterali dello schermo
+final double squareSize = screenW;
 
         final Color frameColor = (_mode == CaptureMode.volto
                 ? _scaleOkVolto
