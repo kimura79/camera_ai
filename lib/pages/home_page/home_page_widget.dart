@@ -644,15 +644,6 @@ final double squareSize = screenW;
               ),
             ),
 
-            buildDistanzaCmOverlay(
-              ipdPx: _lastIpdPx,
-              ipdMm: _ipdMm,
-              targetMmPerPx: _targetMmPerPx,
-              alignY: -0.05,
-              mode: _mode.name,
-              isFrontCamera: isFront,
-            ),
-
             Positioned(
               top: safeTop + 8,
               left: 0,
