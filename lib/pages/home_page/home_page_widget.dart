@@ -138,7 +138,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
   int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
-  bool _streamRunning = false;
 
   String? _lastShotPath;
 
@@ -199,7 +198,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
-      _streamRunning = true;
 
       setState(() {
         _controller = ctrl;
@@ -219,10 +217,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     final old = _controller;
     _controller = null;
     try {
-      if (_streamRunning) {
-        await old?.stopImageStream();
-        _streamRunning = false;
-      }
     } catch (_) {}
     await old?.dispose();
     await _startController(_cameras[_cameraIndex]);
@@ -235,10 +229,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     setState(() => _shooting = true);
     try {
-      if (_streamRunning) {
-        await ctrl.stopImageStream();
-        _streamRunning = false;
-      }
 
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
@@ -369,11 +359,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
         );
       }
     } finally {
-      try {
-        if (!ctrl.value.isStreamingImages) {
-          _streamRunning = true;
-        }
-      } catch (_) {}
       if (mounted) setState(() => _shooting = false);
     }
   }
@@ -542,13 +527,6 @@ final Color frameColor = Colors.green;
             ),
 
             Positioned(
-              top: safeTop + 8,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildScaleChip()),
-            ),
-
-            Positioned(
               bottom: 180,
               left: 0,
               right: 0,
@@ -665,10 +643,6 @@ final Color frameColor = Colors.green;
 
     if (state == AppLifecycleState.inactive) {
       try {
-        if (_streamRunning) {
-          _controller?.stopImageStream();
-          _streamRunning = false;
-        }
       } catch (_) {}
       _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
@@ -681,9 +655,6 @@ final Color frameColor = Colors.green;
     _model.dispose();
     WidgetsBinding.instance.removeObserver(this);
     try {
-      if (_streamRunning) {
-        _controller?.stopImageStream();
-      }
     } catch (_) {}
     _controller?.dispose();
     super.dispose();
