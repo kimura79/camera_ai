@@ -321,18 +321,42 @@ class _OvalPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint p = Paint()
+    // Pittura per contorno ovale
+    final Paint outline = Paint()
       ..style = PaintingStyle.stroke
-      ..color = Colors.white.withOpacity(0.9)
-      ..strokeWidth = 3;
+      ..color = Colors.white.withOpacity(0.95)
+      ..strokeWidth = 3.5;
 
-    // ovale verticale inscritto
+    // Pittura per asse centrale
+    final Paint axis = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = Colors.white.withOpacity(0.8)
+      ..strokeWidth = 2;
+
+    // 🔹 Ovale più stretto (simile a volto umano)
+    // larghezza ridotta al 70% invece di 83%
     final Rect rect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),
-      width: squareSize * 0.83,
+      width: squareSize * 0.70,
       height: squareSize,
     );
-    canvas.drawOval(rect, p);
+
+    // Disegna ovale
+    canvas.drawOval(rect, outline);
+
+    // 🔹 Linea verticale centrale
+    final double centerX = size.width / 2;
+    canvas.drawLine(
+      Offset(centerX, rect.top),
+      Offset(centerX, rect.bottom),
+      axis,
+    );
+
+    // 🔹 (Facoltativo) cerchietto centrale piccolo
+    final Paint centerDot = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(centerX, size.height / 2), 3, centerDot);
   }
 
   @override
