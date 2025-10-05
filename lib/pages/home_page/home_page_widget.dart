@@ -161,15 +161,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
   }
 
-  final FaceDetector _faceDetector = FaceDetector(
-    options: FaceDetectorOptions(
-      enableLandmarks: true,
-      performanceMode: FaceDetectorMode.accurate,
-    ),
-  );
-  DateTime _lastProc = DateTime.fromMillisecondsSinceEpoch(0);
-  bool _streamRunning = false;
-
   @override
   void initState() {
     super.initState();
@@ -207,7 +198,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
-      await ctrl.startImageStream(_processCameraImage);
       _streamRunning = true;
 
       setState(() {
@@ -235,95 +225,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     } catch (_) {}
     await old?.dispose();
     await _startController(_cameras[_cameraIndex]);
-  }
-
-  Future<void> _processCameraImage(CameraImage image) async {
-    final now = DateTime.now();
-    if (now.difference(_lastProc).inMilliseconds < 300) return;
-    _lastProc = now;
-
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized) return;
-
-    try {
-      final rotation = _rotationFromSensor(ctrl.description.sensorOrientation);
-      final inputImage = _inputImageFromCameraImage(image, rotation);
-
-      final faces = await _faceDetector.processImage(inputImage);
-      if (faces.isEmpty) {
-        _updateScaleVolto(null);
-        return;
-      }
-      final f = faces.first;
-      final left = f.landmarks[FaceLandmarkType.leftEye];
-      final right = f.landmarks[FaceLandmarkType.rightEye];
-      if (left == null || right == null) {
-        _updateScaleVolto(null);
-        return;
-      }
-      final dx = (left.position.x - right.position.x);
-      final dy = (left.position.y - right.position.y);
-      final distPx = math.sqrt(dx * dx + dy * dy);
-
-      _updateScaleVolto(distPx);
-    } catch (_) {}
-  }
-
-  void _updateScaleVolto(double? ipdPx) {
-    final double tgt = _targetPxVolto;
-    final double minT = tgt * 0.95;
-    final double maxT = tgt * 1.05;
-
-    bool ok = false;
-    double shown = 0;
-    if (ipdPx != null && ipdPx.isFinite) {
-      shown = ipdPx;
-      ok = (ipdPx >= minT && ipdPx <= maxT);
-    }
-    if (!mounted) return;
-    setState(() {
-      _lastIpdPx = shown;
-      _scaleOkVolto = ok;
-    });
-  }
-
-  InputImageRotation _rotationFromSensor(int sensorOrientation) {
-    switch (sensorOrientation) {
-      case 90:
-        return InputImageRotation.rotation90deg;
-      case 180:
-        return InputImageRotation.rotation180deg;
-      case 270:
-        return InputImageRotation.rotation270deg;
-      case 0:
-      default:
-        return InputImageRotation.rotation0deg;
-    }
-  }
-
-  InputImage _inputImageFromCameraImage(
-    CameraImage image,
-    InputImageRotation rotation,
-  ) {
-    final b = BytesBuilder(copy: false);
-    for (final Plane plane in image.planes) {
-      b.add(plane.bytes);
-    }
-    final Uint8List bytes = b.toBytes();
-
-    final Size size = Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
-
-    final metadata = InputImageMetadata(
-      size: size,
-      rotation: rotation,
-      format: InputImageFormat.yuv420,
-      bytesPerRow: image.planes.first.bytesPerRow,
-    );
-
-    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
   }
 
   // ====== Scatto + salvataggio ======
@@ -469,7 +370,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
     } finally {
       try {
         if (!ctrl.value.isStreamingImages) {
-          await ctrl.startImageStream(_processCameraImage);
           _streamRunning = true;
         }
       } catch (_) {}
@@ -785,7 +685,6 @@ final Color frameColor = Colors.green;
       }
     } catch (_) {}
     _controller?.dispose();
-    _faceDetector.close();
     super.dispose();
   }
 
