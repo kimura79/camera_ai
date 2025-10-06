@@ -141,35 +141,46 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       });
 
       // 🔹 Usa timestamp per cercare nel DB il filename corretto
-      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
-      try {
-        final url =
-            Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
-        final resp = await http.get(url);
+try {
+  final url = Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+  final resp = await http.get(url);
 
-        if (resp.statusCode == 200) {
-          final data = jsonDecode(resp.body);
-          final serverFilename = data["filename"];
+  if (resp.statusCode == 200) {
+    final data = jsonDecode(resp.body);
+    final serverFilename = data["filename"];
 
-          if (serverFilename != null) {
-            setState(() {
-              preFile = serverFilename;
-            });
-            debugPrint("✅ PRE associato a record DB: $serverFilename");
-          } else {
-            setState(() {
-              preFile = path.basename(file.path);
-            });
-            debugPrint("⚠️ PRE senza match DB, uso filename locale");
-          }
-        }
-      } catch (e) {
-        debugPrint("❌ Errore lookup PRE: $e");
-        setState(() {
-          preFile = path.basename(file.path);
-        });
-      }
+    if (serverFilename != null && serverFilename.toString().contains("photo_")) {
+      // ✅ Usa il nome reale del DB (es. photo_1759751234567.jpg)
+      setState(() {
+        preFile = serverFilename;
+        preImage = file;
+      });
+      debugPrint("✅ PRE associato al record DB: $serverFilename");
+    } else {
+      // ⚠️ Nessun match nel DB, fallback su nome locale
+      setState(() {
+        preFile = path.basename(file.path);
+        preImage = file;
+      });
+      debugPrint("⚠️ Nessun match nel DB, uso nome locale: ${path.basename(file.path)}");
+    }
+  } else {
+    // ⚠️ Server non ha risposto correttamente → fallback
+    setState(() {
+      preFile = path.basename(file.path);
+      preImage = file;
+    });
+    debugPrint("⚠️ Server non ha risposto, uso nome locale: ${path.basename(file.path)}");
+  }
+} catch (e) {
+  debugPrint("❌ Errore lookup PRE: $e");
+  setState(() {
+    preFile = path.basename(file.path);
+    preImage = file;
+  });
+}
     }
   }
 
