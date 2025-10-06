@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
+			// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -505,17 +505,43 @@ final Color frameColor = Colors.green;
                 ),
               ),
 
-            Align(
-              alignment: const Alignment(0, -0.3),
-              child: Container(
-                width: squareSize,
-                height: squareSize,
-                decoration: BoxDecoration(
-                  border: Border.all(color: frameColor, width: 4),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-            ),
+            // ✅ Mostra OVALE guida solo in modalità VOLTO
+if (_mode == CaptureMode.volto) ...[
+  Align(
+    alignment: const Alignment(0, -0.3),
+    child: ClipPath(
+      clipper: _OvalClipper(),
+      child: Container(
+        width: squareSize,
+        height: squareSize,
+        color: Colors.transparent,
+        foregroundDecoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.85),
+          backgroundBlendMode: BlendMode.srcOver,
+        ),
+      ),
+    ),
+  ),
+  Align(
+    alignment: const Alignment(0, -0.3),
+    child: CustomPaint(
+      size: Size(squareSize, squareSize),
+      painter: _OvaleGuidaPainter(),
+    ),
+  ),
+] else ...[
+  Align(
+    alignment: const Alignment(0, -0.3),
+    child: Container(
+      width: squareSize,
+      height: squareSize,
+      decoration: BoxDecoration(
+        border: Border.all(color: frameColor, width: 4),
+        borderRadius: BorderRadius.circular(6),
+      ),
+    ),
+  ),
+],
 
             Positioned(
               bottom: 180,
@@ -725,4 +751,57 @@ Widget buildLivellaVerticaleOverlay({
       );
     },
   );
+}
+/// 🔸 Clipper per ritagliare l’interno dell’ovale
+/// 🔸 Clipper corretto per ritagliare solo l’interno dell’ovale
+class _OvalClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final outerRect = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final oval = Path()
+      ..addOval(Rect.fromLTWH(
+        size.width * 0.1, // margine laterale
+        size.height * 0.05, // margine alto
+        size.width * 0.8,
+        size.height * 0.9,
+      ));
+    return Path.combine(PathOperation.difference, outerRect, oval);
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+/// 🔸 Painter per bordo ovale e asse verticale
+class _OvaleGuidaPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ovalRect = Rect.fromLTWH(
+      size.width * 0.1,
+      size.height * 0.05,
+      size.width * 0.8,
+      size.height * 0.9,
+    );
+
+    // Bordo ovale bianco
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    // Asse verticale centrale
+    final axis = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..strokeWidth = 2;
+
+    canvas.drawOval(ovalRect, border);
+    canvas.drawLine(
+      Offset(size.width / 2, ovalRect.top),
+      Offset(size.width / 2, ovalRect.bottom),
+      axis,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
