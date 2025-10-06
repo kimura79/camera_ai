@@ -760,9 +760,9 @@ class _OvalClipper extends CustomClipper<Path> {
     final outerRect = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     final oval = Path()
       ..addOval(Rect.fromLTWH(
-        size.width * 0.1, // margine laterale
+        size.width * 0.15, // margine laterale
         size.height * 0.05, // margine alto
-        size.width * 0.8,
+        size.width * 0.7,
         size.height * 0.9,
       ));
     return Path.combine(PathOperation.difference, outerRect, oval);
@@ -785,13 +785,13 @@ class _OvaleGuidaPainter extends CustomPainter {
 
     // Bordo ovale bianco
     final border = Paint()
-      ..color = Colors.white
+      ..color = Colors.green
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 
     // Asse verticale centrale
     final axis = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = Colors.green.withOpacity(0.8)
       ..strokeWidth = 2;
 
     canvas.drawOval(ovalRect, border);
