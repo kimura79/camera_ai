@@ -708,10 +708,6 @@ Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
   double okThresholdDeg = 1.0,
   double topOffsetPx = 65.0,
-  Alignment alignment = Alignment.centerRight,
-  double size = 120,
-  double bubbleSize = 16,
-  double fullScaleDeg = 10.0,
 }) {
   if (mode != null && mode != CaptureMode.volto) {
     return const SizedBox.shrink();
@@ -729,7 +725,6 @@ Widget buildLivellaVerticaleOverlay({
           child: StreamBuilder<AccelerometerEvent>(
             stream: accelerometerEventStream(),
             builder: (context, snap) {
-              // 🔹 Calcolo angolo, ma senza badge o testo
               double angleDeg = 0.0;
               if (snap.hasData) {
                 final ax = snap.data!.x;
@@ -739,12 +734,35 @@ Widget buildLivellaVerticaleOverlay({
                 if (g > 0) {
                   double c = (-az) / g;
                   c = c.clamp(-1.0, 1.0);
-                  angleDeg = (math.acos(c) * 180.0 / math.pi);
+                  angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
                 }
               }
 
-              // 🔹 Nessun badge o testo: overlay invisibile
-              return const SizedBox.shrink();
+              // Colore: verde se entro la soglia, altrimenti rosso
+              final bool ok = angleDeg.abs() <= okThresholdDeg;
+              final Color bigColor = ok ? Colors.greenAccent : Colors.redAccent;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "${angleDeg.toStringAsFixed(1)}°",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: bigColor,
+                      ),
+                    ),
+                  ),
+                ],
+              );
             },
           ),
         ),
@@ -752,7 +770,7 @@ Widget buildLivellaVerticaleOverlay({
     },
   );
 }
-/// 🔸 Clipper per ritagliare l’interno dell’ovale
+
 /// 🔸 Clipper corretto per ritagliare solo l’interno dell’ovale
 class _OvalClipper extends CustomClipper<Path> {
   @override
