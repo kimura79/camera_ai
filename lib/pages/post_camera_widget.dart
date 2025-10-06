@@ -502,4 +502,47 @@ Widget buildLivellaVerticaleOverlay({
       );
     },
   );
+/// 🟩 Bordi ovale verde neon
+class _OvalBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF00FF66).withOpacity(0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final double w = size.width * 0.75;
+    final double h = size.height * 0.95;
+    final Offset c = Offset(size.width / 2, size.height / 2);
+    final Rect rect = Rect.fromCenter(center: c, width: w, height: h);
+    canvas.drawOval(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 🕳️ Maschera nera fuori ovale
+class _OvalMaskPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black.withOpacity(0.85)
+      ..style = PaintingStyle.fill;
+
+    final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final double w = size.width * 0.75;
+    final double h = size.height * 0.95;
+    final Offset c = Offset(size.width / 2, size.height / 2);
+    final Rect oval = Rect.fromCenter(center: c, width: w, height: h);
+
+    path.addOval(oval);
+    path.fillType = PathFillType.evenOdd;
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
