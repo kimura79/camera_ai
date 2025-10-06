@@ -242,28 +242,29 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           children: [
             Positioned.fill(child: previewFull),
 
-            // 👇 Ghost PRE quadrato con volto grigio chiaro e linee verdi (no ovale)
+            // 👇 Ghost PRE quadrato con volto grigio chiaro + linee verdi (mediapipe)
 if (widget.guideImage != null)
-  Center(
-    child: SizedBox(
-      width: screenW,
-      height: screenW,
-      child: ColorFiltered(
-        colorFilter: const ColorFilter.mode(
-          Colors.black38, // leggero scurimento per contrastare linee
-          BlendMode.darken,
-        ),
-        child: Opacity(
-          opacity: 0.7, // volto ben visibile ma ghost trasparente
-          child: ClipRect( // 👉 garantisce visibilità solo nel quadrato
-            child: Image.file(
-              widget.guideImage!,
+  FutureBuilder(
+    future: _processGhostWithLines(widget.guideImage!),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const SizedBox();
+      }
+      if (!snapshot.hasData) return const SizedBox();
+      return Center(
+        child: SizedBox(
+          width: screenW,
+          height: screenW,
+          child: Opacity(
+            opacity: 0.55, // trasparenza globale ghost
+            child: Image.memory(
+              snapshot.data as Uint8List,
               fit: BoxFit.cover,
             ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   ),
 
             // 👇 Riquadro target
@@ -400,6 +401,39 @@ if (widget.guideImage != null)
     _controller?.dispose();
     super.dispose();
   }
+// ======================================================
+// 👁️‍🗨️ Crea ghost con volto grigio chiaro + linee verdi tipo Mediapipe
+// ======================================================
+Future<Uint8List> _processGhostWithLines(File file) async {
+  try {
+    final bytes = await file.readAsBytes();
+    final img.Image? decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+
+    // 1️⃣ Converti a grigio chiaro
+    final gray = img.grayscale(decoded);
+    final bright = img.adjustColor(gray, brightness: 0.25, contrast: 1.1);
+
+    // 2️⃣ Rileva bordi (simulazione linee Mediapipe)
+    final edges = img.sobel(bright);
+
+    // 3️⃣ Sovrapponi bordi verdi neon
+    for (int y = 0; y < edges.height; y++) {
+      for (int x = 0; x < edges.width; x++) {
+        final int v = img.getPixel(edges, x, y);
+        final int lum = img.getLuminance(v);
+        if (lum > 100) {
+          img.setPixelRgba(bright, x, y, 0, 255, 0, 255); // verde neon
+        }
+      }
+    }
+
+    return Uint8List.fromList(img.encodePng(bright));
+  } catch (e) {
+    debugPrint("Ghost processing error: $e");
+    return file.readAsBytes();
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -510,47 +544,4 @@ Widget buildLivellaVerticaleOverlay({
       );
     },
   );
-/// 🟩 Bordi ovale verde neon
-class _OvalBorderPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF00FF66).withOpacity(0.9)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    final double w = size.width * 0.75;
-    final double h = size.height * 0.95;
-    final Offset c = Offset(size.width / 2, size.height / 2);
-    final Rect rect = Rect.fromCenter(center: c, width: w, height: h);
-    canvas.drawOval(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// 🕳️ Maschera nera fuori ovale
-class _OvalMaskPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.85)
-      ..style = PaintingStyle.fill;
-
-    final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final double w = size.width * 0.75;
-    final double h = size.height * 0.95;
-    final Offset c = Offset(size.width / 2, size.height / 2);
-    final Rect oval = Rect.fromCenter(center: c, width: w, height: h);
-
-    path.addOval(oval);
-    path.fillType = PathFillType.evenOdd;
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
