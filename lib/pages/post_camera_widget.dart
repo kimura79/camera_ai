@@ -402,7 +402,7 @@ if (widget.guideImage != null)
     super.dispose();
   }
 // ======================================================
-// 👁️‍🗨️ Crea ghost con volto grigio chiaro + linee verdi tipo Mediapipe
+// 👁️‍🗨️ Crea ghost con volto grigio chiaro + linee verdi tipo Mediapipe (compatibile image 4.x)
 // ======================================================
 Future<Uint8List> _processGhostWithLines(File file) async {
   try {
@@ -417,13 +417,13 @@ Future<Uint8List> _processGhostWithLines(File file) async {
     // 2️⃣ Rileva bordi (simulazione linee Mediapipe)
     final edges = img.sobel(bright);
 
-    // 3️⃣ Sovrapponi bordi verdi neon
+    // 3️⃣ Sovrapponi bordi verdi neon (usando ColorInt32)
     for (int y = 0; y < edges.height; y++) {
       for (int x = 0; x < edges.width; x++) {
-        final int v = img.getPixel(edges, x, y);
-        final int lum = img.getLuminance(v);
+        final pixel = edges.getPixel(x, y);
+        final lum = img.getLuminanceRgb(pixel.r, pixel.g, pixel.b);
         if (lum > 100) {
-          img.setPixelRgba(bright, x, y, 0, 255, 0, 255); // verde neon
+          bright.setPixel(x, y, img.ColorInt32.rgb(0, 255, 0));
         }
       }
     }
@@ -434,6 +434,7 @@ Future<Uint8List> _processGhostWithLines(File file) async {
     return file.readAsBytes();
   }
 }
+
 
   @override
   Widget build(BuildContext context) {
