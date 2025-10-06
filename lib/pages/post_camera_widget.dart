@@ -410,20 +410,28 @@ Future<Uint8List> _processGhostWithLines(File file) async {
     final img.Image? decoded = img.decodeImage(bytes);
     if (decoded == null) return bytes;
 
-    // 1️⃣ Converti a grigio chiaro
+    // 1️⃣ Converti a grigio chiaro più trasparente
     final gray = img.grayscale(decoded);
-    final bright = img.adjustColor(gray, brightness: 0.25, contrast: 1.1);
+    final bright = img.adjustColor(gray, brightness: 0.45, contrast: 1.15);
 
     // 2️⃣ Rileva bordi (simulazione linee Mediapipe)
     final edges = img.sobel(bright);
 
-    // 3️⃣ Sovrapponi bordi verdi neon (usando ColorInt32)
+    // 3️⃣ Sovrapponi bordi verdi neon più marcati
     for (int y = 0; y < edges.height; y++) {
       for (int x = 0; x < edges.width; x++) {
         final pixel = edges.getPixel(x, y);
         final lum = img.getLuminanceRgb(pixel.r, pixel.g, pixel.b);
-        if (lum > 100) {
-          bright.setPixel(x, y, img.ColorInt32.rgb(0, 255, 0));
+        if (lum > 90) {
+          // linee più spesse → piccola area attorno
+          for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+              final xx = x + dx, yy = y + dy;
+              if (xx >= 0 && yy >= 0 && xx < bright.width && yy < bright.height) {
+                bright.setPixel(xx, yy, img.ColorInt32.rgb(0, 255, 100));
+              }
+            }
+          }
         }
       }
     }
@@ -434,6 +442,7 @@ Future<Uint8List> _processGhostWithLines(File file) async {
     return file.readAsBytes();
   }
 }
+
 
 
   @override
