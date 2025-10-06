@@ -439,40 +439,50 @@ class _PrePostWidgetState extends State<PrePostWidget> {
   }
 
   // === CARDS COMPARAZIONE ===
-  Widget _buildMacchieCard() {
-    return Card(
-      margin: const EdgeInsets.all(12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("📊 Area Macchie",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildBar("Area Pre", compareData!["macchie"]["perc_pre"] ?? 0.0,
-                Colors.green),
-            _buildBar("Area Post", compareData!["macchie"]["perc_post"] ?? 0.0,
-                Colors.blue),
-            Builder(
-              builder: (_) {
-                final double pre =
-                    (compareData!["macchie"]["perc_pre"] ?? 0.0).toDouble();
-                final double post =
-                    (compareData!["macchie"]["perc_post"] ?? 0.0).toDouble();
-                double diffPerc = 0.0;
-                if (pre > 0) diffPerc = ((post - pre) / pre) * 100;
-                return _buildBar("Differenza Area", diffPerc.abs(),
-                    diffPerc <= 0 ? Colors.green : Colors.red);
-              },
-            ),
-            Text("Numero PRE: ${compareData!["macchie"]["numero_macchie_pre"]}"),
-            Text(
-                "Numero POST: ${compareData!["macchie"]["numero_macchie_post"]}"),
-          ],
-        ),
+Widget _buildMacchieCard() {
+  final macchie = compareData!["macchie"];
+  final double areaPre = (macchie["perc_pre"] ?? 0.0).toDouble();
+  final double areaPostRosse = (macchie["perc_post"] ?? 0.0).toDouble();
+  final double diffPercent = areaPre > 0
+      ? ((areaPre - areaPostRosse) / areaPre) * 100
+      : 0.0;
+
+  return Card(
+    margin: const EdgeInsets.all(12),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("📊 Area Macchie",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+
+          // --- Area PRE (verde)
+          _buildBar("Area PRE", areaPre, Colors.green),
+
+          // --- Area POST (rosse comuni)
+          _buildBar("Area POST (rosse)", areaPostRosse, Colors.red),
+
+          // --- Differenza % (basata solo su macchie comuni rosse) ---
+          Builder(
+            builder: (_) {
+              return _buildBar(
+                "Differenza Area",
+                diffPercent.abs(),
+                diffPercent >= 0 ? Colors.green : Colors.red,
+              );
+            },
+          ),
+
+          const SizedBox(height: 8),
+          Text("Numero PRE: ${macchie["numero_macchie_pre"]}"),
+          Text("Numero POST (rosse comuni): ${compareData!["macchie_num_comuni"] ?? 0}"),
+          Text("Macchie rimosse (verdi): ${compareData!["macchie_num_rimosse"] ?? 0}"),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPoriCard() {
     return Card(
