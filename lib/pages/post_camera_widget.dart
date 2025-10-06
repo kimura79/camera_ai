@@ -242,21 +242,29 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           children: [
             Positioned.fill(child: previewFull),
 
-            // 👇 Ghost PRE quadrato
-            if (widget.guideImage != null)
-              Center(
-                child: SizedBox(
-                  width: screenW,
-                  height: screenW,
-                  child: Opacity(
-                    opacity: 0.55,
-                    child: Image.file(
-                      widget.guideImage!,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
+            // 👇 Ghost PRE quadrato con volto grigio chiaro e linee verdi (no ovale)
+if (widget.guideImage != null)
+  Center(
+    child: SizedBox(
+      width: screenW,
+      height: screenW,
+      child: ColorFiltered(
+        colorFilter: const ColorFilter.mode(
+          Colors.black38, // leggero scurimento per contrastare linee
+          BlendMode.darken,
+        ),
+        child: Opacity(
+          opacity: 0.7, // volto ben visibile ma ghost trasparente
+          child: ClipRect( // 👉 garantisce visibilità solo nel quadrato
+            child: Image.file(
+              widget.guideImage!,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
 
             // 👇 Riquadro target
             Center(
