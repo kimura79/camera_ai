@@ -462,9 +462,9 @@ Future<Uint8List> _processGhostWithLines(File file) async {
   }
 }
 
-// ====== Livella verticale stile Home ======
+// ====== Livella verticale stile Home (0° = perpendicolare) ======
 Widget buildLivellaVerticaleOverlay({
-  double okThresholdDeg = 1.0,
+  double okThresholdDeg = 1.5, // tolleranza in gradi
   double topOffsetPx = 65.0,
 }) {
   return Builder(
@@ -480,22 +480,25 @@ Widget buildLivellaVerticaleOverlay({
             stream: accelerometerEventStream(),
             builder: (context, snap) {
               double angleDeg = 0.0;
+
               if (snap.hasData) {
                 final ax = snap.data!.x;
                 final ay = snap.data!.y;
                 final az = snap.data!.z;
                 final g = math.sqrt(ax * ax + ay * ay + az * az);
                 if (g > 0) {
+                  // 🔹 Calcolo angolo come deviazione da perpendicolare (0° = dritto)
                   double c = (-az) / g;
                   c = c.clamp(-1.0, 1.0);
-                  angleDeg = (math.acos(c) * 180.0 / math.pi);
+                  angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
                 }
               }
 
-              final bool isOk = (angleDeg - 90.0).abs() <= okThresholdDeg;
+              final bool isOk = angleDeg.abs() <= okThresholdDeg;
               final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-              final Color badgeBg =
-                  isOk ? Colors.green.withOpacity(0.85) : Colors.black54;
+              final Color badgeBg = isOk
+                  ? Colors.green.withOpacity(0.85)
+                  : Colors.black54;
               final Color badgeBor =
                   isOk ? Colors.greenAccent : Colors.white24;
               final String badgeTxt = isOk ? "OK" : "Inclina";
@@ -511,7 +514,7 @@ Widget buildLivellaVerticaleOverlay({
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      "${angleDeg.toStringAsFixed(1)}°",
+                      "${angleDeg.abs().toStringAsFixed(1)}°",
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
