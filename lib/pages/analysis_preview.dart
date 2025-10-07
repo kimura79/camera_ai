@@ -379,54 +379,53 @@ Widget _buildAnalysisBlock({
               ? (_melasmaFilename ?? path.basename(widget.imagePath))
               : (_poriFilename ?? path.basename(widget.imagePath));
 
-return Column(
-  crossAxisAlignment: CrossAxisAlignment.center,
-  children: [
-    Text(
-      "🔬 Analisi: $title",
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-    ),
-    const SizedBox(height: 10),
-
-    // ✅ Mostra immagine a formato originale, senza ritagli o box quadrato
-    ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        overlayUrl,
-        fit: BoxFit.cover, // riempie mantenendo proporzioni
-        width: double.infinity,
-        height: null, // altezza automatica secondo l'immagine
-      ),
-    ),
-
-    const SizedBox(height: 10),
-
-    if (percentuale != null)
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
       Text(
-        "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
+        "🔬 Analisi: $title",
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 10),
+
+      // ✅ Mostra immagine a formato originale, senza ritagli o box quadrato
+      ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          overlayUrl,
+          fit: BoxFit.cover, // riempie mantenendo proporzioni
+          width: double.infinity,
+          height: null, // altezza automatica secondo l'immagine
         ),
       ),
-    if (numeroMacchie != null)
-      Text(
-        "Numero macchie: $numeroMacchie",
-        style: const TextStyle(fontSize: 16),
-      ),
-    if (numPoriTotali != null)
-      Text(
-        "Totale pori: $numPoriTotali",
-        style: const TextStyle(fontSize: 16),
-      ),
-    if (percPoriDilatati != null)
-      Text(
-        "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
-        style: const TextStyle(fontSize: 16),
-      ),
-    const SizedBox(height: 20),
-  ],
-);
+
+      const SizedBox(height: 10),
+
+      if (percentuale != null)
+        Text(
+          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      if (numeroMacchie != null)
+        Text(
+          "Numero macchie: $numeroMacchie",
+          style: const TextStyle(fontSize: 16),
+        ),
+      if (numPoriTotali != null)
+        Text(
+          "Totale pori: $numPoriTotali",
+          style: const TextStyle(fontSize: 16),
+        ),
+      if (percPoriDilatati != null)
+        Text(
+          "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
+          style: const TextStyle(fontSize: 16),
+        ),
+
+      const SizedBox(height: 20),
 
       // 🔹 Sezione giudizi
       const Text(
@@ -434,6 +433,7 @@ return Column(
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 12),
+
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(10, (index) {
@@ -474,6 +474,7 @@ return Column(
           );
         }),
       ),
+
       const SizedBox(height: 40),
     ],
   );
