@@ -425,20 +425,36 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         const SizedBox(height: 10),
 
-        // ✅ Overlay a piena risoluzione, nessun ridimensionamento o vincolo
-SingleChildScrollView(
-  scrollDirection: Axis.horizontal,
-  child: SingleChildScrollView(
-    scrollDirection: Axis.vertical,
-    child: InteractiveViewer(
-      minScale: 1.0,
-      maxScale: 8.0,
-      child: Image.network(
-        overlayUrl,
-        fit: BoxFit.none, // mostralo al 100% dei pixel reali
-        alignment: Alignment.topLeft, // nessuna centratura forzata
-      ),
-    ),
+        // ✅ Overlay mostrato con esatte proporzioni della foto originale
+Container(
+  color: Colors.black,
+  width: double.infinity,
+  alignment: Alignment.center,
+  child: FutureBuilder<Size>(
+    future: _getImageSizeFromFilePath(widget.imagePath),
+    builder: (context, snap) {
+      if (!snap.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final originalSize = snap.data!;
+      final aspect = originalSize.width / originalSize.height;
+
+      return AspectRatio(
+        aspectRatio: aspect, // stesso rapporto della foto originale
+        child: InteractiveViewer(
+          clipBehavior: Clip.none,
+          minScale: 1.0,
+          maxScale: 10.0,
+          child: Image.network(
+            overlayUrl,
+            fit: BoxFit.cover,      // copre tutto, proporzioni perfette
+            width: double.infinity,
+            alignment: Alignment.center,
+          ),
+        ),
+      );
+    },
   ),
 ),
 
