@@ -388,18 +388,18 @@ Widget _buildAnalysisBlock({
       ),
       const SizedBox(height: 10),
 
-      // ✅ Mostra overlay a piena larghezza, proporzioni corrette, senza riquadri
+      // ✅ Mostra overlay esattamente come la foto originale, piena risoluzione
 Container(
   width: double.infinity,
-  color: Colors.black, // opzionale per eliminare bande bianche laterali
-  child: FittedBox(
-    fit: BoxFit.contain, // mantiene proporzioni corrette, nessuna distorsione
-    clipBehavior: Clip.hardEdge,
+  color: Colors.black,
+  alignment: Alignment.center,
+  child: InteractiveViewer(
+    clipBehavior: Clip.none,
+    minScale: 1.0,
+    maxScale: 5.0,
     child: Image.network(
       overlayUrl,
-      width: MediaQuery.of(context).size.width,
-      // Altezza coerente con formato fotocamera 4:3 (regolabile)
-      height: MediaQuery.of(context).size.width * 3 / 4,
+      fit: BoxFit.none, // 🔹 nessun adattamento o ridimensionamento
       alignment: Alignment.center,
     ),
   ),
