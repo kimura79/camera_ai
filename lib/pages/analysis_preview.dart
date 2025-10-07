@@ -460,141 +460,147 @@ Future<void> _resumeJob(String tipo, String jobId) async {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final double side = MediaQuery.of(context).size.width * 0.9;
-
-    return WillPopScope(
-      onWillPop: () async {
-        await _cancelAllJobs();
-        await _clearPendingJobs();
-        return true;
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.mode == "particolare"
-                ? "Anteprima (Particolare)"
-                : widget.mode == "prepost"
-                    ? "Anteprima (Pre/Post)"
-                    : "Anteprima (Volto intero)",
-          ),
-          backgroundColor: Colors.blue,
+ @override
+Widget build(BuildContext context) {
+  return WillPopScope(
+    onWillPop: () async {
+      await _cancelAllJobs();
+      await _clearPendingJobs();
+      return true;
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.mode == "particolare"
+              ? "Anteprima (Particolare)"
+              : widget.mode == "prepost"
+                  ? "Anteprima (Pre/Post)"
+                  : "Anteprima (Volto intero)",
         ),
-        body: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: side,
-                    height: side,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.green, width: 3),
-                    ),
-                    child: Image.file(File(widget.imagePath),
-                        fit: BoxFit.contain),
+        backgroundColor: Colors.blue,
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // ✅ Immagine fullscreen (sotto AppBar, sopra i pulsanti)
+                AspectRatio(
+                  aspectRatio: MediaQuery.of(context).size.width /
+                      MediaQuery.of(context).size.height,
+                  child: Image.file(
+                    File(widget.imagePath),
+                    fit: BoxFit.cover, // riempie tutto come nella fotocamera
+                    width: double.infinity,
+                    height: double.infinity,
                   ),
-                  const SizedBox(height: 24),
-                  if (_checkingServer)
-                    const CircularProgressIndicator()
-                  else if (!_serverReady)
-                    Column(
-                      children: [
-                        const Text("❌ Server non raggiungibile"),
-                        ElevatedButton(
-                          onPressed: _checkServer,
-                          child: const Text("Riprova"),
-                        ),
-                      ],
-                    ),
-                  Row(
+                ),
+                const SizedBox(height: 16),
+
+                if (_checkingServer)
+                  const CircularProgressIndicator()
+                else if (!_serverReady)
+                  Column(
                     children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_loading || !_serverReady)
-                              ? null
-                              : () => _callAnalysisAsync("rughe"),
-                          child: const Text("Rughe"),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_loading || !_serverReady)
-                              ? null
-                              : () => _callAnalysisAsync("macchie"),
-                          child: const Text("Macchie"),
-                        ),
+                      const Text("❌ Server non raggiungibile"),
+                      ElevatedButton(
+                        onPressed: _checkServer,
+                        child: const Text("Riprova"),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_loading || !_serverReady)
-                              ? null
-                              : () => _callAnalysisAsync("melasma"),
-                          child: const Text("Melasma"),
-                        ),
+
+                // 🔹 Pulsanti analisi
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("rughe"),
+                        child: const Text("Rughe"),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_loading || !_serverReady)
-                              ? null
-                              : () => _callAnalysisAsync("pori"),
-                          child: const Text("Pori"),
-                        ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("macchie"),
+                        child: const Text("Macchie"),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _buildAnalysisBlock(
-                    title: "Rughe",
-                    overlayUrl: _rugheOverlayUrl,
-                    percentuale: _rughePercentuale,
-                    analysisType: "rughe",
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Macchie",
-                    overlayUrl: _macchieOverlayUrl,
-                    percentuale: _macchiePercentuale,
-                    analysisType: "macchie",
-                    numeroMacchie: _numeroMacchie,
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Melasma",
-                    overlayUrl: _melasmaOverlayUrl,
-                    percentuale: _melasmaPercentuale,
-                    analysisType: "melasma",
-                  ),
-                  _buildAnalysisBlock(
-                    title: "Pori",
-                    overlayUrl: _poriOverlayUrl,
-                    percentuale: _poriPercentuale,
-                    analysisType: "pori",
-                    numPoriTotali: _numPoriTotali,
-                    percPoriDilatati: _percPoriDilatati,
-                  ),
-                ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("melasma"),
+                        child: const Text("Melasma"),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_loading || !_serverReady)
+                            ? null
+                            : () => _callAnalysisAsync("pori"),
+                        child: const Text("Pori"),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // 🔹 Blocchi risultati
+                _buildAnalysisBlock(
+                  title: "Rughe",
+                  overlayUrl: _rugheOverlayUrl,
+                  percentuale: _rughePercentuale,
+                  analysisType: "rughe",
+                ),
+                _buildAnalysisBlock(
+                  title: "Macchie",
+                  overlayUrl: _macchieOverlayUrl,
+                  percentuale: _macchiePercentuale,
+                  analysisType: "macchie",
+                  numeroMacchie: _numeroMacchie,
+                ),
+                _buildAnalysisBlock(
+                  title: "Melasma",
+                  overlayUrl: _melasmaOverlayUrl,
+                  percentuale: _melasmaPercentuale,
+                  analysisType: "melasma",
+                ),
+                _buildAnalysisBlock(
+                  title: "Pori",
+                  overlayUrl: _poriOverlayUrl,
+                  percentuale: _poriPercentuale,
+                  analysisType: "pori",
+                  numPoriTotali: _numPoriTotali,
+                  percPoriDilatati: _percPoriDilatati,
+                ),
+              ],
+            ),
+          ),
+
+          // 🔹 Overlay caricamento
+          if (_loading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
               ),
             ),
-            if (_loading)
-              Container(
-                color: Colors.black54,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
+
