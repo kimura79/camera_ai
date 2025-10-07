@@ -425,50 +425,22 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         const SizedBox(height: 10),
 
-        // ✅ Overlay proporzioni reali e piena larghezza
-        Container(
-          color: Colors.black,
-          width: double.infinity,
-          alignment: Alignment.center,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final maxW = constraints.maxWidth;
-              return FutureBuilder<Size>(
-                future: _getImageSizeFromUrl(overlayUrl),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-
-                  final imageSize = snapshot.data!;
-                  final aspect = imageSize.width / imageSize.height;
-                  final displayW = maxW;
-                  final displayH = displayW / aspect;
-
-                  return InteractiveViewer(
-                    clipBehavior: Clip.none,
-                    minScale: 1.0,
-                    maxScale: 8.0,
-                    child: SizedBox(
-                      width: displayW,
-                      height: displayH,
-                      child: Image.network(
-                        overlayUrl,
-                        width: displayW,
-                        height: displayH,
-                        fit: BoxFit.fill,
-                        alignment: Alignment.center,
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
+        // ✅ Overlay a piena risoluzione, nessun ridimensionamento o vincolo
+SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: SingleChildScrollView(
+    scrollDirection: Axis.vertical,
+    child: InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 8.0,
+      child: Image.network(
+        overlayUrl,
+        fit: BoxFit.none, // mostralo al 100% dei pixel reali
+        alignment: Alignment.topLeft, // nessuna centratura forzata
+      ),
+    ),
+  ),
+),
 
         const SizedBox(height: 10),
 
