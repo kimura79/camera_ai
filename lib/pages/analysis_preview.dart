@@ -388,18 +388,18 @@ Widget _buildAnalysisBlock({
       ),
       const SizedBox(height: 10),
 
-      // ✅ Mostra immagine a formato originale (non quadrata, proporzioni reali)
-Container(
+      // ✅ Mostra overlay a pieno schermo, senza bordi o riquadri
+SizedBox(
   width: double.infinity,
-  decoration: BoxDecoration(
-    border: Border.all(color: Colors.blue, width: 3),
-    borderRadius: BorderRadius.circular(8),
-  ),
+  height: MediaQuery.of(context).size.height -
+      kToolbarHeight -
+      100, // occupa tutto lo schermo sotto l'appbar (puoi regolare il -100 se serve)
   child: Image.network(
     overlayUrl,
-    fit: BoxFit.fitWidth, // si adatta in larghezza, mantiene altezza naturale
+    fit: BoxFit.cover, // riempie completamente lo schermo come la preview
     width: double.infinity,
-    alignment: Alignment.topCenter,
+    height: double.infinity,
+    alignment: Alignment.center,
   ),
 ),
 
