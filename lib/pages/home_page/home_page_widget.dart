@@ -1,4 +1,4 @@
-			// 🔹 home_page_widget.dart — Fullscreen cover + volto in scala 0,117; crop 1024x1024; riquadro alzato del 30%
+// 🔹 home_page_widget.dart — Fotocamera fullscreen (no crop) + livella verticale in alto
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -20,7 +20,7 @@ import '/index.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
 
-// ✅ NUOVA PAGINA: risultati analisi con overlay macchie + rughe
+// ✅ Pagina risultati analisi
 class AnalysisResultsPage extends StatelessWidget {
   final String baseImagePath;
   final String macchieOverlayPath;
@@ -111,12 +111,9 @@ class AnalysisResultsPage extends StatelessWidget {
 }
 
 class HomePageWidget extends StatefulWidget {
-  final File? guideImage; // 👈 aggiunto
+  final File? guideImage;
 
-  const HomePageWidget({
-    super.key,
-    this.guideImage, // 👈 aggiunto
-  });
+  const HomePageWidget({super.key, this.guideImage});
 
   static String routeName = 'HomePage';
   static String routePath = '/homePage';
@@ -130,7 +127,6 @@ enum CaptureMode { volto, particolare }
 class _HomePageWidgetState extends State<HomePageWidget>
     with WidgetsBindingObserver {
   late HomePageModel _model;
-
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<CameraDescription> _cameras = const [];
@@ -138,28 +134,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
   int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
-
   String? _lastShotPath;
-
   CaptureMode _mode = CaptureMode.volto;
-
-  final double _targetMmPerPx = 0.117;
-
-  double _ipdMm = 63.0;
-  double get _targetPxVolto => _ipdMm / _targetMmPerPx;
-  double _lastIpdPx = 0.0;
-  bool _scaleOkVolto = false;
-
-  static const double _targetMmPart = 120.0;
-  double get _targetPxPart => _targetMmPart / _targetMmPerPx;
-
-  bool get _scaleOkPart {
-    if (_lastIpdPx <= 0) return false;
-    final mmPerPxAttuale = _ipdMm / _lastIpdPx;
-    final larghezzaRealeMm = mmPerPxAttuale * 1024.0;
-    final distanzaCm = (larghezzaRealeMm / 10.0) * 2.0;
-    return (distanzaCm >= 11.0 && distanzaCm <= 13.0);
-  }
 
   @override
   void initState() {
@@ -176,9 +152,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-      );
+      final backIndex =
+          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -190,7 +165,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.max,
+      ResolutionPreset.max, // usa risoluzione massima
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -198,7 +173,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
-
       setState(() {
         _controller = ctrl;
         _initializing = false;
@@ -216,138 +190,81 @@ class _HomePageWidgetState extends State<HomePageWidget>
     _cameraIndex = (_cameraIndex + 1) % _cameras.length;
     final old = _controller;
     _controller = null;
-    try {
-    } catch (_) {}
     await old?.dispose();
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Scatto + salvataggio ======
+  // ====== Scatto e salvataggio (FULLSCREEN) ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
 
     setState(() => _shooting = true);
     try {
-
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
       final XFile shot = await ctrl.takePicture();
+
+      // Leggi e decodifica
       final Uint8List origBytes = await File(shot.path).readAsBytes();
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
+      // ✅ Mantieni immagine a piena risoluzione, solo flip se frontale
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble();
-      final double previewH = p.width.toDouble();
-
-      final Size screen = MediaQuery.of(context).size;
-      final double screenW = screen.width;
-      final double screenH = screen.height;
-
-      final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
-      // 🔹 Fissa il riquadro al lato corto dello schermo, come in preview
-      final double squareSizeScreen = screenW;
-
-      // 🔹 Allinea il crop verticalmente come il riquadro (alzato del 30%)
-      final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = screenH / 2.0 - (0.3 * squareSizeScreen / 2.0);
-
-      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
-
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
-      final double sidePreview = squareSizeScreen / scale;
-
-      final double ratioX = original.width / previewW;
-      final double ratioY = original.height / previewH;
-
-      int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview * ratioY).round();
-      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
-
-      cropSide =
-          cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width - cropSide);
-      cropY = cropY.clamp(0, original.height - cropSide);
-
-      img.Image cropped = img.copyCrop(
-        original,
-        x: cropX,
-        y: cropY,
-        width: cropSide,
-        height: cropSide,
-      );
-
-      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(original));
 
       final PermissionState pState =
           await PhotoManager.requestPermissionExtend();
       if (!pState.hasAccess) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Permesso Foto negato')));
         }
         return;
       }
 
       final String baseName =
-          '${_mode == CaptureMode.particolare ? 'particolare' : 'volto'}_1024_${DateTime.now().millisecondsSinceEpoch}';
+          'volto_full_${DateTime.now().millisecondsSinceEpoch}.png';
 
-      final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        filename: '$baseName.png',
-      );
+      final AssetEntity? asset =
+          await PhotoManager.editor.saveImage(pngBytes, filename: baseName);
       if (asset == null) throw Exception('Salvataggio PNG fallito');
 
-      final String newPath = (await _tempThumbPath('$baseName.png'));
+      final String newPath = (await _tempThumbPath(baseName));
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
-      debugPrint('✅ PNG salvato — bytes: ${pngBytes.length}');
+      debugPrint('✅ Foto salvata — risoluzione: ${original.width}x${original.height}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Foto 1024×1024 salvata (PNG lossless)')),
+          const SnackBar(content: Text('✅ Foto salvata a piena risoluzione')),
         );
-        setState(() {});
 
         Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (_) => AnalysisPreview(
-      imagePath: newPath,
-      mode: _mode == CaptureMode.particolare ? "particolare" : "fullface",
-    ),
-  ),
-).then((analyzed) {
-  if (analyzed != null) {
-    Navigator.pop(context); // chiude AnalysisPreview
-    Navigator.pop(context, analyzed); // chiude HomePageWidget e torna a PrePostWidget
-  }
-});
+          MaterialPageRoute(
+            builder: (_) => AnalysisPreview(
+              imagePath: newPath,
+              mode: "fullface",
+            ),
+          ),
+        ).then((analyzed) {
+          if (analyzed != null) {
+            Navigator.pop(context);
+            Navigator.pop(context, analyzed);
+          }
+        });
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore salvataggio: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Errore salvataggio: $e')));
       }
     } finally {
       if (mounted) setState(() => _shooting = false);
@@ -355,88 +272,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
   }
 
   Future<String> _tempThumbPath(String fileName) async {
-    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
+    final dir = await Directory.systemTemp.createTemp('epi_full');
     return '${dir.path}/$fileName';
   }
 
-  // ====== UI ======
-  Widget _buildScaleChip() {
-  Color c;
-  String text;
-
-  if (_mode == CaptureMode.volto) {
-    final double tgt = _targetPxVolto;
-    final double minT = tgt * 0.95;
-    final double maxT = tgt * 1.05;
-    final v = _lastIpdPx;
-
-    if (v == 0) {
-      c = Colors.grey;
-    } else if (v < minT * 0.9 || v > maxT * 1.1) {
-      c = Colors.red;
-    } else if (v < minT || v > maxT) {
-      c = Colors.amber;
-    } else {
-      c = Colors.green;
-    }
-
-    text = 'Centra il viso – scatta solo col verde';
-  } else {
-    c = _scaleOkPart ? Colors.green : Colors.amber;
-    text = 'Avvicinati e scatta solo col verde';
-  }
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-    decoration: BoxDecoration(
-      color: Colors.black54,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: c, width: 1.6),
-    ),
-    child: Text(
-      text,
-      style: const TextStyle(color: Colors.white),
-    ),
-  );
-}
-
-  Widget _buildModeSelector() {
-    Widget chip(String text, CaptureMode value) {
-      final bool selected = _mode == value;
-      return GestureDetector(
-        onTap: () => setState(() => _mode = value),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.white10,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? Colors.white : Colors.white24,
-              width: 1.2,
-            ),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: selected ? Colors.black : Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        chip('VOLTO', CaptureMode.volto),
-        const SizedBox(width: 10),
-        chip('PARTICOLARE', CaptureMode.particolare),
-      ],
-    );
-  }
-
+  // ====== Anteprima camera fullscreen ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -448,9 +288,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
     final bool isFront =
         ctrl.description.lensDirection == CameraLensDirection.front;
-
     final bool needsMirror = isFront && Platform.isAndroid;
-
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
 
     final Widget inner = SizedBox(
@@ -459,106 +297,21 @@ class _HomePageWidgetState extends State<HomePageWidget>
       child: CameraPreview(ctrl),
     );
 
-    final Widget previewFull = FittedBox(
-      fit: BoxFit.cover,
-      child: inner,
-    );
+    final Widget previewFull = FittedBox(fit: BoxFit.cover, child: inner);
 
-    final Widget preview = needsMirror
+    return needsMirror
         ? Transform(
             alignment: Alignment.center,
             transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
             child: previewFull,
           )
         : previewFull;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
-        final double screenH = constraints.maxHeight;
-        final double shortSide = math.min(screenW, screenH);
-
-        // ✅ Riquadro fisso: quadrato 1:1 che tocca i bordi laterali dello schermo
-final double squareSize = screenW;
-
-        // ✅ Riquadro sempre verde
-final Color frameColor = Colors.green;
-
-        final double safeTop = MediaQuery.of(context).padding.top;
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: preview),
-
-            // 👇 Overlay PRE dentro il riquadro (trasparente)
-            if (widget.guideImage != null)
-              Align(
-                alignment: const Alignment(0, -0.3),
-                child: SizedBox(
-                  width: squareSize,
-                  height: squareSize,
-                  child: Opacity(
-                    opacity: 0.4,
-                    child: Image.file(widget.guideImage!, fit: BoxFit.cover),
-                  ),
-                ),
-              ),
-
-            // ✅ Mostra OVALE guida solo in modalità VOLTO
-if (_mode == CaptureMode.volto) ...[
-  Align(
-    alignment: const Alignment(0, -0.3),
-    child: ClipPath(
-      clipper: _OvalClipper(),
-      child: Container(
-        width: squareSize,
-        height: squareSize,
-        color: Colors.transparent,
-        foregroundDecoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.85),
-          backgroundBlendMode: BlendMode.srcOver,
-        ),
-      ),
-    ),
-  ),
-  Align(
-    alignment: const Alignment(0, -0.3),
-    child: CustomPaint(
-      size: Size(squareSize, squareSize),
-      painter: _OvaleGuidaPainter(),
-    ),
-  ),
-] else ...[
-  Align(
-    alignment: const Alignment(0, -0.3),
-    child: Container(
-      width: squareSize,
-      height: squareSize,
-      decoration: BoxDecoration(
-        border: Border.all(color: frameColor, width: 4),
-        borderRadius: BorderRadius.circular(6),
-      ),
-    ),
-  ),
-],
-
-            Positioned(
-              bottom: 180,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildModeSelector()),
-            ),
-          ],
-        );
-      },
-    );
   }
 
+  // ====== Barra inferiore ======
   Widget _buildBottomBar() {
-    final canShoot = _controller != null &&
-        _controller!.value.isInitialized &&
-        !_shooting;
+    final canShoot =
+        _controller != null && _controller!.value.isInitialized && !_shooting;
     return SafeArea(
       top: false,
       child: Padding(
@@ -566,6 +319,7 @@ if (_mode == CaptureMode.volto) ...[
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Thumbnail ultima foto
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -575,9 +329,8 @@ if (_mode == CaptureMode.volto) ...[
                         barrierColor: Colors.black.withOpacity(0.9),
                         builder: (_) => GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
-                          child: InteractiveViewer(
-                            child: Center(child: Image.file(File(p))),
-                          ),
+                          child:
+                              InteractiveViewer(child: Center(child: Image.file(File(p)))),
                         ),
                       );
                     }
@@ -596,6 +349,8 @@ if (_mode == CaptureMode.volto) ...[
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
+
+            // Pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -634,6 +389,8 @@ if (_mode == CaptureMode.volto) ...[
                 ),
               ),
             ),
+
+            // Switch camera
             GestureDetector(
               onTap: _switchCamera,
               child: Container(
@@ -657,10 +414,7 @@ if (_mode == CaptureMode.volto) ...[
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final ctrl = _controller;
     if (ctrl == null) return;
-
     if (state == AppLifecycleState.inactive) {
-      try {
-      } catch (_) {}
       _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _startController(_cameras[_cameraIndex]);
@@ -671,8 +425,6 @@ if (_mode == CaptureMode.volto) ...[
   void dispose() {
     _model.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    try {
-    } catch (_) {}
     _controller?.dispose();
     super.dispose();
   }
@@ -689,10 +441,10 @@ if (_mode == CaptureMode.volto) ...[
         child: Stack(
           children: [
             Positioned.fill(child: _buildCameraPreview()),
-            buildLivellaVerticaleOverlay(
-              mode: _mode,
-              topOffsetPx: 65.0,
-            ),
+
+            // ✅ Solo livella verticale in alto
+            buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 65.0),
+
             Align(
               alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
@@ -716,7 +468,6 @@ Widget buildLivellaVerticaleOverlay({
   return Builder(
     builder: (context) {
       final double safeTop = MediaQuery.of(context).padding.top;
-
       return Positioned(
         top: safeTop + topOffsetPx,
         left: 0,
@@ -738,9 +489,9 @@ Widget buildLivellaVerticaleOverlay({
                 }
               }
 
-              // Colore: verde se entro la soglia, altrimenti rosso
               final bool ok = angleDeg.abs() <= okThresholdDeg;
-              final Color bigColor = ok ? Colors.greenAccent : Colors.redAccent;
+              final Color bigColor =
+                  ok ? Colors.greenAccent : Colors.redAccent;
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -769,57 +520,4 @@ Widget buildLivellaVerticaleOverlay({
       );
     },
   );
-}
-
-/// 🔸 Clipper corretto per ritagliare solo l’interno dell’ovale
-class _OvalClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final outerRect = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final oval = Path()
-      ..addOval(Rect.fromLTWH(
-        size.width * 0.15, // margine laterale
-        size.height * 0.05, // margine alto
-        size.width * 0.7,
-        size.height * 0.9,
-      ));
-    return Path.combine(PathOperation.difference, outerRect, oval);
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-/// 🔸 Painter per bordo ovale e asse verticale
-class _OvaleGuidaPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final ovalRect = Rect.fromLTWH(
-      size.width * 0.1,
-      size.height * 0.05,
-      size.width * 0.8,
-      size.height * 0.9,
-    );
-
-    // Bordo ovale bianco
-    final border = Paint()
-      ..color = Colors.green
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    // Asse verticale centrale
-    final axis = Paint()
-      ..color = Colors.green.withOpacity(0.8)
-      ..strokeWidth = 2;
-
-    canvas.drawOval(ovalRect, border);
-    canvas.drawLine(
-      Offset(size.width / 2, ovalRect.top),
-      Offset(size.width / 2, ovalRect.bottom),
-      axis,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
