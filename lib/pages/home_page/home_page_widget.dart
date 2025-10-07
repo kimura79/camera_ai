@@ -1,4 +1,4 @@
-// 🔹 home_page_widget.dart — Fotocamera fullscreen (no crop) + livella verticale in alto
+// 🔹 home_page_widget.dart — Fotocamera fullscreen (foto identica alla preview) + livella verticale
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -165,7 +165,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.max, // usa risoluzione massima
+      ResolutionPreset.max, // usa la massima risoluzione disponibile
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -194,7 +194,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // ====== Scatto e salvataggio (FULLSCREEN) ======
+  // ====== Scatto e salvataggio (foto identica alla preview fullscreen) ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -206,24 +206,55 @@ class _HomePageWidgetState extends State<HomePageWidget>
 
       final XFile shot = await ctrl.takePicture();
 
-      // Leggi e decodifica
+      // Decodifica immagine originale
       final Uint8List origBytes = await File(shot.path).readAsBytes();
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // ✅ Mantieni immagine a piena risoluzione, solo flip se frontale
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
+      // 🔹 CROP per far combaciare la foto con la preview fullscreen
+      final Size screen = MediaQuery.of(context).size;
+      final double screenAspect = screen.width / screen.height;
+      final double photoAspect = original.width / original.height;
+
+      if ((photoAspect - screenAspect).abs() > 0.01) {
+        int newWidth, newHeight, offsetX, offsetY;
+
+        if (photoAspect > screenAspect) {
+          // Foto più larga → ritaglia ai lati
+          newWidth = (original.height * screenAspect).round();
+          newHeight = original.height;
+          offsetX = ((original.width - newWidth) / 2).round();
+          offsetY = 0;
+        } else {
+          // Foto più stretta → ritaglia sopra/sotto
+          newWidth = original.width;
+          newHeight = (original.width / screenAspect).round();
+          offsetX = 0;
+          offsetY = ((original.height - newHeight) / 2).round();
+        }
+
+        original = img.copyCrop(
+          original,
+          x: offsetX,
+          y: offsetY,
+          width: newWidth,
+          height: newHeight,
+        );
+      }
+
+      // 🔹 Salva PNG lossless
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(original));
 
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
       if (!pState.hasAccess) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Permesso Foto negato')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
         }
         return;
       }
@@ -239,11 +270,13 @@ class _HomePageWidgetState extends State<HomePageWidget>
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
 
-      debugPrint('✅ Foto salvata — risoluzione: ${original.width}x${original.height}');
+      debugPrint(
+          '✅ Foto salvata — risoluzione: ${original.width}x${original.height} (match preview)');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto salvata a piena risoluzione')),
+          const SnackBar(
+              content: Text('✅ Foto salvata identica alla preview fullscreen')),
         );
 
         Navigator.of(context).push(
@@ -263,8 +296,9 @@ class _HomePageWidgetState extends State<HomePageWidget>
     } catch (e) {
       debugPrint('Take/save error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Errore salvataggio: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore salvataggio: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _shooting = false);
@@ -442,7 +476,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
           children: [
             Positioned.fill(child: _buildCameraPreview()),
 
-            // ✅ Solo livella verticale in alto
+            // ✅ Solo livella verticale
             buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 65.0),
 
             Align(
