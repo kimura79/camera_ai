@@ -388,16 +388,20 @@ Widget _buildAnalysisBlock({
       ),
       const SizedBox(height: 10),
 
-      // ✅ Mostra immagine a formato originale, senza ritagli o box quadrato
-      ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          overlayUrl,
-          fit: BoxFit.cover, // riempie mantenendo proporzioni
-          width: double.infinity,
-          height: null, // altezza automatica secondo l'immagine
-        ),
-      ),
+      // ✅ Mostra immagine a formato originale (non quadrata, proporzioni reali)
+Container(
+  width: double.infinity,
+  decoration: BoxDecoration(
+    border: Border.all(color: Colors.blue, width: 3),
+    borderRadius: BorderRadius.circular(8),
+  ),
+  child: Image.network(
+    overlayUrl,
+    fit: BoxFit.fitWidth, // si adatta in larghezza, mantiene altezza naturale
+    width: double.infinity,
+    alignment: Alignment.topCenter,
+  ),
+),
 
       const SizedBox(height: 10),
 
