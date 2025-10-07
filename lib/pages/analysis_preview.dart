@@ -388,48 +388,50 @@ Widget _buildAnalysisBlock({
       ),
       const SizedBox(height: 10),
 
-      // ✅ Mostra overlay a pieno schermo, senza bordi o riquadri
-SizedBox(
+      // ✅ Mostra overlay a piena larghezza, proporzioni corrette, senza riquadri
+Container(
   width: double.infinity,
-  height: MediaQuery.of(context).size.height -
-      kToolbarHeight -
-      100, // occupa tutto lo schermo sotto l'appbar (puoi regolare il -100 se serve)
-  child: Image.network(
-    overlayUrl,
-    fit: BoxFit.cover, // riempie completamente lo schermo come la preview
-    width: double.infinity,
-    height: double.infinity,
-    alignment: Alignment.center,
+  color: Colors.black, // opzionale per eliminare bande bianche laterali
+  child: FittedBox(
+    fit: BoxFit.contain, // mantiene proporzioni corrette, nessuna distorsione
+    clipBehavior: Clip.hardEdge,
+    child: Image.network(
+      overlayUrl,
+      width: MediaQuery.of(context).size.width,
+      // Altezza coerente con formato fotocamera 4:3 (regolabile)
+      height: MediaQuery.of(context).size.width * 3 / 4,
+      alignment: Alignment.center,
+    ),
   ),
 ),
 
-      const SizedBox(height: 10),
+const SizedBox(height: 10),
 
-      if (percentuale != null)
-        Text(
-          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      if (numeroMacchie != null)
-        Text(
-          "Numero macchie: $numeroMacchie",
-          style: const TextStyle(fontSize: 16),
-        ),
-      if (numPoriTotali != null)
-        Text(
-          "Totale pori: $numPoriTotali",
-          style: const TextStyle(fontSize: 16),
-        ),
-      if (percPoriDilatati != null)
-        Text(
-          "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
-          style: const TextStyle(fontSize: 16),
-        ),
+if (percentuale != null)
+  Text(
+    "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+    style: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+if (numeroMacchie != null)
+  Text(
+    "Numero macchie: $numeroMacchie",
+    style: const TextStyle(fontSize: 16),
+  ),
+if (numPoriTotali != null)
+  Text(
+    "Totale pori: $numPoriTotali",
+    style: const TextStyle(fontSize: 16),
+  ),
+if (percPoriDilatati != null)
+  Text(
+    "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
+    style: const TextStyle(fontSize: 16),
+  ),
 
-      const SizedBox(height: 20),
+const SizedBox(height: 20),
 
       // 🔹 Sezione giudizi
       const Text(
