@@ -62,6 +62,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   double? _poriPercentuale;
   int? _numPoriTotali;
   double? _percPoriDilatati;
+  int? _numPoriVerdi;
+  int? _numPoriArancioni;
   String? _poriFilename;
 
   @override
@@ -385,158 +387,174 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ? "http://46.101.223.88:5000${data["overlay_url"]}"
         : null;
     _poriPercentuale = (data["percentuale"] as num?)?.toDouble();
+
     final numNorm = data["num_pori_normali"] as int? ?? 0;
     final numBorder = data["num_pori_borderline"] as int? ?? 0;
     final numDil = data["num_pori_dilatati"] as int? ?? 0;
-    _numPoriTotali = numNorm + numBorder + numDil;
+    _numPoriVerdi = data["num_pori_verdi"] as int? ?? numNorm;
+    _numPoriArancioni = data["num_pori_arancioni"] as int? ?? numBorder;
+    _numPoriTotali = data["num_pori_totali"] as int? ?? (numNorm + numBorder + numDil);
+
     _percPoriDilatati = (data["perc_pori_dilatati"] as num?)?.toDouble();
     _poriFilename = data["filename"];
     if (_poriOverlayUrl != null) {
       await _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
     }
+
+    if (mounted) setState(() {});
   }
 
   // === Blocchi UI ===
   Widget _buildAnalysisBlock({
-  required String title,
-  required String? overlayUrl,
-  required double? percentuale,
-  required String analysisType,
-  int? numeroMacchie,
-  int? numPoriTotali,
-  double? percPoriDilatati,
-}) {
-  if (overlayUrl == null) return const SizedBox.shrink();
+    required String title,
+    required String? overlayUrl,
+    required double? percentuale,
+    required String analysisType,
+    int? numeroMacchie,
+    int? numPoriTotali,
+    double? percPoriDilatati,
+  }) {
+    if (overlayUrl == null) return const SizedBox.shrink();
 
-  // Ricava filename corretto in base all’analisi
-  String filename = analysisType == "rughe"
-      ? (_rugheFilename ?? path.basename(widget.imagePath))
-      : analysisType == "macchie"
-          ? (_macchieFilename ?? path.basename(widget.imagePath))
-          : analysisType == "melasma"
-              ? (_melasmaFilename ?? path.basename(widget.imagePath))
-              : (_poriFilename ?? path.basename(widget.imagePath));
+    // Ricava filename corretto in base all’analisi
+    String filename = analysisType == "rughe"
+        ? (_rugheFilename ?? path.basename(widget.imagePath))
+        : analysisType == "macchie"
+            ? (_macchieFilename ?? path.basename(widget.imagePath))
+            : analysisType == "melasma"
+                ? (_melasmaFilename ?? path.basename(widget.imagePath))
+                : (_poriFilename ?? path.basename(widget.imagePath));
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Text(
-        "🔬 Analisi: $title",
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 10),
-
-      // ✅ Overlay con stesso formato e aspect ratio della foto originale
-      FutureBuilder<Size>(
-        future: _getImageSizeFromFilePath(widget.imagePath),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final originalSize = snapshot.data!;
-          final aspect = originalSize.width / originalSize.height;
-
-          return Container(
-            color: Colors.black,
-            width: double.infinity,
-            alignment: Alignment.center,
-            child: AspectRatio(
-              aspectRatio: aspect, // 👈 stesse proporzioni della foto originale
-              child: InteractiveViewer(
-                clipBehavior: Clip.none,
-                minScale: 1.0,
-                maxScale: 10.0,
-                child: Image.network(
-                  overlayUrl,
-                  fit: BoxFit.fitWidth, // 👈 riempie la larghezza mantenendo il formato originale
-                  alignment: Alignment.center,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      const SizedBox(height: 10),
-
-      if (percentuale != null)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
         Text(
-          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          "🔬 Analisi: $title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-      if (numeroMacchie != null)
-        Text(
-          "Numero macchie: $numeroMacchie",
-          style: const TextStyle(fontSize: 16),
-        ),
-      if (numPoriTotali != null)
-        Text(
-          "Totale pori: $numPoriTotali",
-          style: const TextStyle(fontSize: 16),
-        ),
-      if (percPoriDilatati != null)
-        Text(
-          "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
-          style: const TextStyle(fontSize: 16),
-        ),
+        const SizedBox(height: 10),
 
-      const SizedBox(height: 20),
+        // ✅ Overlay con stesso formato e aspect ratio della foto originale
+        FutureBuilder<Size>(
+          future: _getImageSizeFromFilePath(widget.imagePath),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-      const Text(
-        "Come giudichi questa analisi? Dai un voto da 1 a 10",
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
+            final originalSize = snapshot.data!;
+            final aspect = originalSize.width / originalSize.height;
 
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(10, (index) {
-          int voto = index + 1;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () async {
-              bool ok = await ApiService.sendJudgement(
-                filename: filename,
-                giudizio: voto,
-                analysisType: analysisType,
-                autore: "anonimo",
-              );
-              if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content:
-                        Text("✅ Giudizio $voto inviato per $analysisType"),
+            return Container(
+              color: Colors.black,
+              width: double.infinity,
+              alignment: Alignment.center,
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: InteractiveViewer(
+                  clipBehavior: Clip.none,
+                  minScale: 1.0,
+                  maxScale: 10.0,
+                  child: Image.network(
+                    overlayUrl,
+                    fit: BoxFit.fitWidth,
+                    alignment: Alignment.center,
                   ),
-                );
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                "$voto",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
                 ),
               ),
-            ),
-          );
-        }),
-      ),
+            );
+          },
+        ),
 
-      const SizedBox(height: 40),
-    ],
-  );
-}
+        const SizedBox(height: 10),
+
+        if (percentuale != null)
+          Text(
+            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        if (numeroMacchie != null)
+          Text(
+            "Numero macchie: $numeroMacchie",
+            style: const TextStyle(fontSize: 16),
+          ),
+        if (numPoriTotali != null)
+          Text(
+            "Totale pori: $numPoriTotali",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        if (_numPoriVerdi != null)
+          Text(
+            "Pori normali (verdi): $_numPoriVerdi",
+            style: const TextStyle(fontSize: 16),
+          ),
+        if (_numPoriArancioni != null)
+          Text(
+            "Pori borderline (arancioni): $_numPoriArancioni",
+            style: const TextStyle(fontSize: 16),
+          ),
+        if (percPoriDilatati != null)
+          Text(
+            "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
+            style: const TextStyle(fontSize: 16),
+          ),
+
+        const SizedBox(height: 20),
+
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: filename,
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
+                );
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text("✅ Giudizio $voto inviato per $analysisType"),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+
+        const SizedBox(height: 40),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
