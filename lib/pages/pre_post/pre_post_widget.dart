@@ -141,46 +141,46 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       });
 
       // 🔹 Usa timestamp per cercare nel DB il filename corretto
-final ts = file.lastModifiedSync().millisecondsSinceEpoch;
+      final ts = file.lastModifiedSync().millisecondsSinceEpoch;
 
-try {
-  final url = Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
-  final resp = await http.get(url);
+      try {
+        final url = Uri.parse("http://46.101.223.88:5000/find_by_timestamp?ts=$ts");
+        final resp = await http.get(url);
 
-  if (resp.statusCode == 200) {
-    final data = jsonDecode(resp.body);
-    final serverFilename = data["filename"];
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverFilename = data["filename"];
 
-    if (serverFilename != null && serverFilename.toString().contains("photo_")) {
-      // ✅ Usa il nome reale del DB (es. photo_1759751234567.jpg)
-      setState(() {
-        preFile = serverFilename;
-        preImage = file;
-      });
-      debugPrint("✅ PRE associato al record DB: $serverFilename");
-    } else {
-      // ⚠️ Nessun match nel DB, fallback su nome locale
-      setState(() {
-        preFile = path.basename(file.path);
-        preImage = file;
-      });
-      debugPrint("⚠️ Nessun match nel DB, uso nome locale: ${path.basename(file.path)}");
-    }
-  } else {
-    // ⚠️ Server non ha risposto correttamente → fallback
-    setState(() {
-      preFile = path.basename(file.path);
-      preImage = file;
-    });
-    debugPrint("⚠️ Server non ha risposto, uso nome locale: ${path.basename(file.path)}");
-  }
-} catch (e) {
-  debugPrint("❌ Errore lookup PRE: $e");
-  setState(() {
-    preFile = path.basename(file.path);
-    preImage = file;
-  });
-}
+          if (serverFilename != null && serverFilename.toString().contains("photo_")) {
+            // ✅ Usa il nome reale del DB (es. photo_1759751234567.jpg)
+            setState(() {
+              preFile = serverFilename;
+              preImage = file;
+            });
+            debugPrint("✅ PRE associato al record DB: $serverFilename");
+          } else {
+            // ⚠️ Nessun match nel DB, fallback su nome locale
+            setState(() {
+              preFile = path.basename(file.path);
+              preImage = file;
+            });
+            debugPrint("⚠️ Nessun match nel DB, uso nome locale: ${path.basename(file.path)}");
+          }
+        } else {
+          // ⚠️ Server non ha risposto correttamente → fallback
+          setState(() {
+            preFile = path.basename(file.path);
+            preImage = file;
+          });
+          debugPrint("⚠️ Server non ha risposto, uso nome locale: ${path.basename(file.path)}");
+        }
+      } catch (e) {
+        debugPrint("❌ Errore lookup PRE: $e");
+        setState(() {
+          preFile = path.basename(file.path);
+          preImage = file;
+        });
+      }
     }
   }
 
@@ -222,7 +222,26 @@ try {
             postImage = File(overlayPath);
           });
           debugPrint("✅ Overlay POST salvato: $overlayPath");
+
+          // 🔹 FIX: salva anche la foto POST (overlay) nella Galleria
+          try {
+            final bytes = await File(overlayPath).readAsBytes();
+            final PermissionState ps = await PhotoManager.requestPermissionExtend();
+            if (ps.hasAccess) {
+              final filename = "epidermys_post_${DateTime.now().millisecondsSinceEpoch}.jpg";
+              await PhotoManager.editor.saveImage(
+                bytes,
+                filename: filename,
+              );
+              debugPrint("✅ Copia POST esportata in galleria ($filename)");
+            } else {
+              debugPrint("⚠️ Permesso galleria negato, POST non esportato");
+            }
+          } catch (e) {
+            debugPrint("❌ Errore salvataggio POST in galleria: $e");
+          }
         }
+
         if (newPostFile != null) {
           setState(() {
             postFile = newPostFile;
@@ -428,13 +447,9 @@ try {
 
               // === Risultati comparazione ===
               if (compareData != null) ...[
-                // --- MACCHIE ---
                 if (compareData!["macchie"] != null) _buildMacchieCard(),
-                // --- PORI ---
                 if (compareData!["pori"] != null) _buildPoriCard(),
-                // --- RUGHE ---
                 if (compareData!["rughe"] != null) _buildRugheCard(),
-                // --- MELASMA ---
                 if (compareData!["melasma"] != null) _buildMelasmaCard(),
               ]
             ],
@@ -451,52 +466,51 @@ try {
 
   // === CARDS COMPARAZIONE ===
   Widget _buildMacchieCard() {
-  final macchie = compareData!["macchie"];
+    final macchie = compareData!["macchie"];
 
-  final double percPre = (macchie["percentuale_pre"] ?? 0.0).toDouble();
-  final double percPost = (macchie["percentuale_post"] ?? 0.0).toDouble();
-  final double percDiff = (macchie["percentuale_diff"] ?? 0.0).toDouble();
+    final double percPre = (macchie["percentuale_pre"] ?? 0.0).toDouble();
+    final double percPost = (macchie["percentuale_post"] ?? 0.0).toDouble();
+    final double percDiff = (macchie["percentuale_diff"] ?? 0.0).toDouble();
 
-  final int numPre = (macchie["numero_pre"] ?? 0).toInt();
-  final int numPost = (macchie["numero_post"] ?? 0).toInt();
-  final int numComuni = (macchie["numero_comuni"] ?? 0).toInt();
-  final double diffAbs = (macchie["differenza_assoluta"] ?? 0).toDouble();
-  final double diffPerc = (macchie["differenza_percentuale"] ?? 0).toDouble();
+    final int numPre = (macchie["numero_pre"] ?? 0).toInt();
+    final int numPost = (macchie["numero_post"] ?? 0).toInt();
+    final int numComuni = (macchie["numero_comuni"] ?? 0).toInt();
+    final double diffAbs = (macchie["differenza_assoluta"] ?? 0).toDouble();
+    final double diffPerc = (macchie["differenza_percentuale"] ?? 0).toDouble();
 
-  return Card(
-    margin: const EdgeInsets.all(12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "📊 Comparazione Macchie",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
+    return Card(
+      margin: const EdgeInsets.all(12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📊 Comparazione Macchie",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
 
-          _buildBar("Percentuale PRE", percPre, Colors.green),
-          _buildBar("Percentuale POST", percPost, Colors.blue),
+            _buildBar("Percentuale PRE", percPre, Colors.green),
+            _buildBar("Percentuale POST", percPost, Colors.blue),
 
-          _buildBar(
-            "Differenza % Area",
-            percDiff.abs(),
-            percDiff <= 0 ? Colors.green : Colors.red,
-          ),
+            _buildBar(
+              "Differenza % Area",
+              percDiff.abs(),
+              percDiff <= 0 ? Colors.green : Colors.red,
+            ),
 
-          const SizedBox(height: 12),
-          Text("Numero macchie PRE: $numPre"),
-          Text("Numero macchie POST: $numPost"),
-          Text("Macchie comuni: $numComuni"),
-          Text("Differenza assoluta: ${diffAbs.toStringAsFixed(0)}"),
-          Text("Differenza % numero: ${diffPerc.toStringAsFixed(2)}%"),
-        ],
+            const SizedBox(height: 12),
+            Text("Numero macchie PRE: $numPre"),
+            Text("Numero macchie POST: $numPost"),
+            Text("Macchie comuni: $numComuni"),
+            Text("Differenza assoluta: ${diffAbs.toStringAsFixed(0)}"),
+            Text("Differenza % numero: ${diffPerc.toStringAsFixed(2)}%"),
+          ],
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildPoriCard() {
     return Card(
