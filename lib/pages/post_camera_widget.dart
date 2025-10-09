@@ -1,17 +1,19 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost PRE e linee Mediapipe
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con Mediapipe, ghost PRE e fix iOS 18 / Flutter 3.22
 
 import 'dart:io';
-import 'dart:math' as math;
+import 'dart:math' show Point, sqrt, acos, pi;
 import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class PostCameraWidget extends StatefulWidget {
-  final File? guideImage; // 👈 immagine PRE come ghost
+  final File? guideImage; // 👻 immagine PRE come ghost
 
   const PostCameraWidget({
     super.key,
@@ -35,7 +37,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   bool _shooting = false;
   String? _lastShotPath;
 
-  // 🔹 Rilevatore volto per linee verdi Mediapipe
+  // 🔹 Mediapipe FaceDetector
   late final FaceDetector _faceDetector;
   CustomPainter? _faceLandmarksPainter;
 
@@ -98,52 +100,47 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
-  // 🔹 Stream Mediapipe (linee verdi)
+  // 🔹 Stream per Mediapipe (linee verdi)
   void _startStream() {
     _controller?.startImageStream((CameraImage image) async {
       try {
-        final WriteBuffer allBytes = WriteBuffer();
+        final WriteBuffer buffer = WriteBuffer();
         for (final Plane plane in image.planes) {
-          allBytes.putUint8List(plane.bytes);
+          buffer.putUint8List(plane.bytes);
         }
-        final bytes = allBytes.done().buffer.asUint8List();
-        final Size imageSize =
-            Size(image.width.toDouble(), image.height.toDouble());
+        final bytes = buffer.done().buffer.asUint8List();
+
         final camera = _cameras[_cameraIndex];
-        final imageRotation =
+        final rotation =
             InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
                 InputImageRotation.rotation0deg;
         final format = InputImageFormatValue.fromRawValue(image.format.raw) ??
             InputImageFormat.nv21;
-        final planeData = image.planes.map(
-          (Plane plane) {
-            return InputImagePlaneMetadata(
-              bytesPerRow: plane.bytesPerRow,
-              height: plane.height,
-              width: plane.width,
-            );
-          },
-        ).toList();
 
-        final inputImageData = InputImageData(
-          size: imageSize,
-          imageRotation: imageRotation,
-          inputImageFormat: format,
-          planeData: planeData,
+        final metadata = InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: format,
+          bytesPerRow: image.planes.first.bytesPerRow,
         );
 
-        final inputImage =
-            InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
+        final inputImage = InputImage.fromBytes(
+          bytes: bytes,
+          metadata: metadata,
+        );
+
         final faces = await _faceDetector.processImage(inputImage);
         if (faces.isNotEmpty) {
           setState(() {
             _faceLandmarksPainter = _FacePainter(
               faces: faces,
-              imageSize: imageSize,
+              imageSize: metadata.size,
             );
           });
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint("⚠️ Errore stream camera: $e");
+      }
     });
   }
 
@@ -429,11 +426,11 @@ Widget buildLivellaVerticaleOverlay(
             final ax = snap.data!.x;
             final ay = snap.data!.y;
             final az = snap.data!.z;
-            final g = math.sqrt(ax * ax + ay * ay + az * az);
+            final g = sqrt(ax * ax + ay * ay + az * az);
             if (g > 0) {
               double c = (-az) / g;
               c = c.clamp(-1.0, 1.0);
-              angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
+              angleDeg = (acos(c) * 180.0 / pi) - 90.0;
             }
           }
 
