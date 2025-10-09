@@ -98,26 +98,15 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final bright = img.adjustColor(gray, brightness: 0.3, contrast: 1.2);
       final edges = img.sobel(bright);
 
-      for (int y = 1; y < edges.height - 1; y++) {
-       for (int x = 1; x < edges.width - 1; x++) {
-       final px = edges.getPixel(x, y);
-       final lum = img.getLuminanceRgb(px.r, px.g, px.b);
-       if (lum > 100) {
-        // 🔹 Linee più spesse (3×3)
-        for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          if (x + dx >= 0 &&
-              x + dx < edges.width &&
-              y + dy >= 0 &&
-              y + dy < edges.height) {
-            bright.setPixel(x + dx, y + dy, img.ColorInt32.rgb(0, 255, 0));
+      for (int y = 0; y < edges.height; y++) {
+        for (int x = 0; x < edges.width; x++) {
+          final px = edges.getPixel(x, y);
+          final lum = img.getLuminanceRgb(px.r, px.g, px.b);
+          if (lum > 100) {
+            bright.setPixel(x, y, img.ColorInt32.rgb(0, 255, 0));
           }
         }
       }
-    }
-  }
-}
-
 
       return Uint8List.fromList(img.encodePng(bright));
     } catch (e) {
