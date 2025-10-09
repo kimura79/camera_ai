@@ -1,14 +1,14 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost PRE e linee verdi
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost PRE e linee Mediapipe
 
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class PostCameraWidget extends StatefulWidget {
   final File? guideImage; // 👈 immagine PRE come ghost
@@ -28,7 +28,6 @@ class PostCameraWidget extends StatefulWidget {
 class _PostCameraWidgetState extends State<PostCameraWidget>
     with WidgetsBindingObserver {
   final scaffoldKey = GlobalKey<ScaffoldState>();
-
   List<CameraDescription> _cameras = const [];
   CameraController? _controller;
   int _cameraIndex = 0;
@@ -36,11 +35,26 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   bool _shooting = false;
   String? _lastShotPath;
 
+  // 🔹 Rilevatore volto per linee verdi Mediapipe
+  late final FaceDetector _faceDetector;
+  CustomPainter? _faceLandmarksPainter;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
+    _initFaceDetector();
+  }
+
+  void _initFaceDetector() {
+    _faceDetector = FaceDetector(
+      options: FaceDetectorOptions(
+        enableLandmarks: true,
+        enableContours: true,
+        performanceMode: FaceDetectorMode.accurate,
+      ),
+    );
   }
 
   Future<void> _initCamera() async {
@@ -50,10 +64,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
+      final frontIndex = _cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
       );
-      _cameraIndex = backIndex >= 0 ? backIndex : 0;
+      _cameraIndex = frontIndex >= 0 ? frontIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
       debugPrint('Camera init error: $e');
@@ -72,16 +86,65 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
-
       setState(() {
         _controller = ctrl;
         _initializing = false;
       });
+      _startStream();
     } catch (e) {
       debugPrint('Controller start error: $e');
       await ctrl.dispose();
       setState(() => _initializing = false);
     }
+  }
+
+  // 🔹 Stream Mediapipe (linee verdi)
+  void _startStream() {
+    _controller?.startImageStream((CameraImage image) async {
+      try {
+        final WriteBuffer allBytes = WriteBuffer();
+        for (final Plane plane in image.planes) {
+          allBytes.putUint8List(plane.bytes);
+        }
+        final bytes = allBytes.done().buffer.asUint8List();
+        final Size imageSize =
+            Size(image.width.toDouble(), image.height.toDouble());
+        final camera = _cameras[_cameraIndex];
+        final imageRotation =
+            InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
+                InputImageRotation.rotation0deg;
+        final format = InputImageFormatValue.fromRawValue(image.format.raw) ??
+            InputImageFormat.nv21;
+        final planeData = image.planes.map(
+          (Plane plane) {
+            return InputImagePlaneMetadata(
+              bytesPerRow: plane.bytesPerRow,
+              height: plane.height,
+              width: plane.width,
+            );
+          },
+        ).toList();
+
+        final inputImageData = InputImageData(
+          size: imageSize,
+          imageRotation: imageRotation,
+          inputImageFormat: format,
+          planeData: planeData,
+        );
+
+        final inputImage =
+            InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
+        final faces = await _faceDetector.processImage(inputImage);
+        if (faces.isNotEmpty) {
+          setState(() {
+            _faceLandmarksPainter = _FacePainter(
+              faces: faces,
+              imageSize: imageSize,
+            );
+          });
+        }
+      } catch (_) {}
+    });
   }
 
   Future<void> _switchCamera() async {
@@ -113,7 +176,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         original = img.flipHorizontal(original);
       }
 
-      // 🔹 Nessun crop: salva l'immagine originale
+      // 🔹 Nessun crop: salva l'immagine intera
       final Uint8List pngBytes = Uint8List.fromList(img.encodePng(original));
 
       final PermissionState pState =
@@ -135,7 +198,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       );
       if (asset == null) throw Exception('Salvataggio PNG fallito');
 
-      final Directory tempDir = await Directory.systemTemp.createTemp('epi_post');
+      final Directory tempDir =
+          await Directory.systemTemp.createTemp('epi_post');
       final String newPath = '${tempDir.path}/$baseName.png';
       await File(newPath).writeAsBytes(pngBytes);
       _lastShotPath = newPath;
@@ -161,7 +225,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
-  // ====== UI Fotocamera ======
+  // ====== Preview FULLSCREEN con Mediapipe + Ghost ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) {
@@ -200,7 +264,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       children: [
         Positioned.fill(child: preview),
 
-        // 👻 Ghost PRE (trasparente)
+        // 👻 Ghost PRE trasparente
         if (widget.guideImage != null)
           Opacity(
             opacity: 0.4,
@@ -212,8 +276,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
             ),
           ),
 
-        // 🟩 Linee guida verdi (stile Home)
-        _buildGridOverlay(),
+        // 🟢 Linee Mediapipe (invariato)
+        if (_faceLandmarksPainter != null)
+          CustomPaint(painter: _faceLandmarksPainter),
 
         // ⚖️ Livella verticale
         buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
@@ -221,27 +286,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     );
   }
 
-  Widget _buildGridOverlay() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        final paint = Paint()
-          ..color = Colors.greenAccent
-          ..strokeWidth = 1.5
-          ..style = PaintingStyle.stroke;
-        return CustomPaint(
-          size: Size(w, h),
-          painter: _GridPainter(paint),
-        );
-      },
-    );
-  }
-
   Widget _buildBottomBar() {
-    final canShoot = _controller != null &&
-        _controller!.value.isInitialized &&
-        !_shooting;
+    final canShoot =
+        _controller != null && _controller!.value.isInitialized && !_shooting;
     return SafeArea(
       top: false,
       child: Padding(
@@ -249,7 +296,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Anteprima ultima foto
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -280,8 +326,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
                     : const Icon(Icons.image, color: Colors.white70),
               ),
             ),
-
-            // Pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -320,8 +364,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
                 ),
               ),
             ),
-
-            // Switch camera
             GestureDetector(
               onTap: _switchCamera,
               child: Container(
@@ -345,6 +387,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    _faceDetector.close();
     super.dispose();
   }
 
@@ -370,8 +413,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// 🎯 Livella verticale
-Widget buildLivellaVerticaleOverlay({double okThresholdDeg = 1.0, double topOffsetPx = 65.0}) {
+// ⚖️ Livella verticale
+Widget buildLivellaVerticaleOverlay(
+    {double okThresholdDeg = 1.0, double topOffsetPx = 65.0}) {
   return Positioned(
     top: topOffsetPx,
     left: 0,
@@ -417,31 +461,38 @@ Widget buildLivellaVerticaleOverlay({double okThresholdDeg = 1.0, double topOffs
   );
 }
 
-// 🎯 Pittore griglia verde (stile guida)
-class _GridPainter extends CustomPainter {
-  final Paint paintStyle;
-  _GridPainter(this.paintStyle);
+// 🟢 Disegno linee verdi Mediapipe
+class _FacePainter extends CustomPainter {
+  final List<Face> faces;
+  final Size imageSize;
+
+  _FacePainter({required this.faces, required this.imageSize});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double stepX = size.width / 3;
-    final double stepY = size.height / 3;
-
-    for (int i = 1; i < 3; i++) {
-      // linee verticali
-      canvas.drawLine(Offset(stepX * i, 0), Offset(stepX * i, size.height), paintStyle);
-      // linee orizzontali
-      canvas.drawLine(Offset(0, stepY * i), Offset(size.width, stepY * i), paintStyle);
-    }
-
-    // bordo esterno
-    final border = Paint()
+    final paint = Paint()
       ..color = Colors.greenAccent
-      ..strokeWidth = 2
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), border);
+
+    for (final face in faces) {
+      final contour = face.contours[FaceContourType.face];
+      if (contour != null) {
+        for (int i = 0; i < contour.points.length - 1; i++) {
+          final p1 = _scalePoint(contour.points[i], size);
+          final p2 = _scalePoint(contour.points[i + 1], size);
+          canvas.drawLine(p1, p2, paint);
+        }
+      }
+    }
+  }
+
+  Offset _scalePoint(Point<int> point, Size size) {
+    final double scaleX = size.width / imageSize.width;
+    final double scaleY = size.height / imageSize.height;
+    return Offset(point.x * scaleX, point.y * scaleY);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
