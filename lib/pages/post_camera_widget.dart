@@ -1,7 +1,6 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con Mediapipe, ghost PRE e fix iOS 18 / Flutter 3.22
-
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost statico + linee verdi Mediapipe
 import 'dart:io';
-import 'dart:math' show Point, sqrt, acos, pi;
+import 'dart:math' show sqrt, acos, pi;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
@@ -13,7 +12,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class PostCameraWidget extends StatefulWidget {
-  final File? guideImage; // 👻 immagine PRE come ghost
+  final File? guideImage; // 👻 immagine PRE con cui generare il ghost
 
   const PostCameraWidget({
     super.key,
@@ -32,31 +31,84 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   final scaffoldKey = GlobalKey<ScaffoldState>();
   List<CameraDescription> _cameras = const [];
   CameraController? _controller;
-  int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
   String? _lastShotPath;
 
-  // 🔹 Mediapipe FaceDetector
-  late final FaceDetector _faceDetector;
-  CustomPainter? _faceLandmarksPainter;
+  Uint8List? _ghostWithLines; // ghost statico da mostrare sopra la preview
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
-    _initFaceDetector();
+    _prepareGhost();
   }
 
-  void _initFaceDetector() {
-    _faceDetector = FaceDetector(
-      options: FaceDetectorOptions(
-        enableLandmarks: true,
-        enableContours: true,
-        performanceMode: FaceDetectorMode.accurate,
-      ),
-    );
+  Future<void> _prepareGhost() async {
+    if (widget.guideImage == null) return;
+    try {
+      final bytes = await widget.guideImage!.readAsBytes();
+      final img.Image? decoded = img.decodeImage(bytes);
+      if (decoded == null) return;
+
+      // ridimensiona a 1024x1024 per velocità
+      final img.Image resized = img.copyResize(decoded, width: 1024, height: 1024);
+
+      // converte in grigio e aumenta luminosità
+      final gray = img.grayscale(resized);
+      final bright = img.adjustColor(gray, brightness: 0.3, contrast: 1.3);
+
+      // genera contorni verdi simulando Mediapipe
+      final FaceDetector faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          enableContours: true,
+          enableLandmarks: true,
+          performanceMode: FaceDetectorMode.accurate,
+        ),
+      );
+
+      // converte in InputImage per MLKit
+      final tmpPath = '${Directory.systemTemp.path}/tmp_guide.png';
+      await File(tmpPath).writeAsBytes(img.encodePng(resized));
+      final input = InputImage.fromFilePath(tmpPath);
+
+      final faces = await faceDetector.processImage(input);
+      faceDetector.close();
+
+      final paint = img.Image.from(bright);
+      final green = img.ColorInt32.rgb(0, 255, 0);
+
+      if (faces.isNotEmpty) {
+        for (final face in faces) {
+          for (final contour in face.contours.values) {
+            for (final p in contour.points) {
+              final int x = (p.x.clamp(0, paint.width - 1)).toInt();
+              final int y = (p.y.clamp(0, paint.height - 1)).toInt();
+              // disegna pixel più spessi (3x3)
+              for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                  final nx = x + dx, ny = y + dy;
+                  if (nx >= 0 && nx < paint.width && ny >= 0 && ny < paint.height) {
+                    paint.setPixel(nx, ny, green);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // crea ghost con trasparenza
+      final blended = img.adjustColor(paint, brightness: 0.2);
+      final png = Uint8List.fromList(img.encodePng(blended));
+
+      setState(() {
+        _ghostWithLines = png;
+      });
+    } catch (e) {
+      debugPrint("⚠️ Errore generazione ghost: $e");
+    }
   }
 
   Future<void> _initCamera() async {
@@ -69,22 +121,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final frontIndex = _cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
       );
-      _cameraIndex = frontIndex >= 0 ? frontIndex : 0;
-      await _startController(_cameras[_cameraIndex]);
-    } catch (e) {
-      debugPrint('Camera init error: $e');
-      setState(() => _initializing = false);
-    }
-  }
-
-  Future<void> _startController(CameraDescription desc) async {
-    final ctrl = CameraController(
-      desc,
-      ResolutionPreset.max,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
-    try {
+      final index = frontIndex >= 0 ? frontIndex : 0;
+      final ctrl = CameraController(
+        _cameras[index],
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
       await ctrl.initialize();
       await ctrl.setFlashMode(FlashMode.off);
       await ctrl.setZoomLevel(1.0);
@@ -92,190 +135,65 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         _controller = ctrl;
         _initializing = false;
       });
-      _startStream();
     } catch (e) {
-      debugPrint('Controller start error: $e');
-      await ctrl.dispose();
+      debugPrint("Camera init error: $e");
       setState(() => _initializing = false);
     }
   }
 
-  // 🔹 Stream per Mediapipe (linee verdi)
-  void _startStream() {
-    _controller?.startImageStream((CameraImage image) async {
-      try {
-        final WriteBuffer buffer = WriteBuffer();
-        for (final Plane plane in image.planes) {
-          buffer.putUint8List(plane.bytes);
-        }
-        final bytes = buffer.done().buffer.asUint8List();
-
-        final camera = _cameras[_cameraIndex];
-        final rotation =
-            InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
-                InputImageRotation.rotation0deg;
-        final format = InputImageFormatValue.fromRawValue(image.format.raw) ??
-            InputImageFormat.nv21;
-
-        final metadata = InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: rotation,
-          format: format,
-          bytesPerRow: image.planes.first.bytesPerRow,
-        );
-
-        final inputImage = InputImage.fromBytes(
-          bytes: bytes,
-          metadata: metadata,
-        );
-
-        final faces = await _faceDetector.processImage(inputImage);
-        if (faces.isNotEmpty) {
-          setState(() {
-            _faceLandmarksPainter = _FacePainter(
-              faces: faces,
-              imageSize: metadata.size,
-            );
-          });
-        }
-      } catch (e) {
-        debugPrint("⚠️ Errore stream camera: $e");
-      }
-    });
-  }
-
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2) return;
-    setState(() => _initializing = true);
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
-    final old = _controller;
-    _controller = null;
-    await old?.dispose();
-    await _startController(_cameras[_cameraIndex]);
-  }
-
-  // ====== Scatto + salvataggio ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
-
     setState(() => _shooting = true);
     try {
-      final bool isFront =
-          ctrl.description.lensDirection == CameraLensDirection.front;
+      final shot = await ctrl.takePicture();
+      final Uint8List bytes = await File(shot.path).readAsBytes();
 
-      final XFile shot = await ctrl.takePicture();
-      final Uint8List origBytes = await File(shot.path).readAsBytes();
-      img.Image? original = img.decodeImage(origBytes);
-      if (original == null) throw Exception('Decodifica immagine fallita');
-
-      if (isFront) {
-        original = img.flipHorizontal(original);
+      final PermissionState pState = await PhotoManager.requestPermissionExtend();
+      if (pState.hasAccess) {
+        final baseName = 'post_full_${DateTime.now().millisecondsSinceEpoch}';
+        await PhotoManager.editor.saveImage(bytes, filename: '$baseName.jpg');
       }
-
-      // 🔹 Nessun crop: salva l'immagine intera
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(original));
-
-      final PermissionState pState =
-          await PhotoManager.requestPermissionExtend();
-      if (!pState.hasAccess) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permesso Foto negato')),
-          );
-        }
-        return;
-      }
-
-      final String baseName =
-          'post_full_${DateTime.now().millisecondsSinceEpoch}';
-      final AssetEntity? asset = await PhotoManager.editor.saveImage(
-        pngBytes,
-        filename: '$baseName.png',
-      );
-      if (asset == null) throw Exception('Salvataggio PNG fallito');
-
-      final Directory tempDir =
-          await Directory.systemTemp.createTemp('epi_post');
-      final String newPath = '${tempDir.path}/$baseName.png';
-      await File(newPath).writeAsBytes(pngBytes);
-      _lastShotPath = newPath;
-
-      debugPrint('✅ Foto salvata full-res — ${original.width}x${original.height}');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto salvata a pieno schermo')),
-        );
-        setState(() {});
-        Navigator.pop(context, newPath);
-      }
+      Navigator.pop(context, File(shot.path));
     } catch (e) {
-      debugPrint('Take/save error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore salvataggio: $e')),
-        );
-      }
+      debugPrint("Errore scatto: $e");
     } finally {
-      if (mounted) setState(() => _shooting = false);
+      setState(() => _shooting = false);
     }
   }
 
-  // ====== Preview FULLSCREEN con Mediapipe + Ghost ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
-    if (_initializing) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_initializing) return const Center(child: CircularProgressIndicator());
     if (ctrl == null || !ctrl.value.isInitialized) {
       return const Center(child: Text('Fotocamera non disponibile'));
     }
 
-    final bool isFront =
-        ctrl.description.lensDirection == CameraLensDirection.front;
-    final bool needsMirror = isFront && Platform.isAndroid;
-
-    final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-    final Widget inner = SizedBox(
-      width: p.height,
-      height: p.width,
-      child: CameraPreview(ctrl),
-    );
-
-    final Widget previewFull = FittedBox(
+    final preview = FittedBox(
       fit: BoxFit.cover,
-      child: inner,
+      child: SizedBox(
+        width: ctrl.value.previewSize?.height ?? 1080,
+        height: ctrl.value.previewSize?.width ?? 1440,
+        child: CameraPreview(ctrl),
+      ),
     );
-
-    final Widget preview = needsMirror
-        ? Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
-            child: previewFull,
-          )
-        : previewFull;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         Positioned.fill(child: preview),
 
-        // 👻 Ghost PRE trasparente
-        if (widget.guideImage != null)
+        // 👻 Ghost con linee verdi statiche
+        if (_ghostWithLines != null)
           Opacity(
-            opacity: 0.4,
-            child: Image.file(
-              widget.guideImage!,
+            opacity: 0.45,
+            child: Image.memory(
+              _ghostWithLines!,
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
             ),
           ),
-
-        // 🟢 Linee Mediapipe (invariato)
-        if (_faceLandmarksPainter != null)
-          CustomPaint(painter: _faceLandmarksPainter),
 
         // ⚖️ Livella verticale
         buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
@@ -291,41 +209,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: (_lastShotPath != null)
-                  ? () async {
-                      final p = _lastShotPath!;
-                      await showDialog(
-                        context: context,
-                        barrierColor: Colors.black.withOpacity(0.9),
-                        builder: (_) => GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: InteractiveViewer(
-                            child: Center(child: Image.file(File(p))),
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: (_lastShotPath != null)
-                    ? Image.file(File(_lastShotPath!), fit: BoxFit.cover)
-                    : const Icon(Icons.image, color: Colors.white70),
-              ),
-            ),
-            GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
-              behavior: HitTestBehavior.opaque,
               child: SizedBox(
                 width: 86,
                 height: 86,
@@ -361,19 +248,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
                 ),
               ),
             ),
-            GestureDetector(
-              onTap: _switchCamera,
-              child: Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Icon(Icons.cameraswitch, color: Colors.white),
-              ),
-            ),
           ],
         ),
       ),
@@ -384,7 +258,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
-    _faceDetector.close();
     super.dispose();
   }
 
@@ -393,26 +266,24 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     return Scaffold(
       key: scaffoldKey,
       backgroundColor: Colors.black,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Stack(
-          children: [
-            Positioned.fill(child: _buildCameraPreview()),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomBar(),
-            ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildCameraPreview()),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _buildBottomBar(),
+          ),
+        ],
       ),
     );
   }
 }
 
 // ⚖️ Livella verticale
-Widget buildLivellaVerticaleOverlay(
-    {double okThresholdDeg = 1.0, double topOffsetPx = 65.0}) {
+Widget buildLivellaVerticaleOverlay({
+  double okThresholdDeg = 1.5,
+  double topOffsetPx = 65.0,
+}) {
   return Positioned(
     top: topOffsetPx,
     left: 0,
@@ -433,10 +304,8 @@ Widget buildLivellaVerticaleOverlay(
               angleDeg = (acos(c) * 180.0 / pi) - 90.0;
             }
           }
-
           final bool ok = angleDeg.abs() <= okThresholdDeg;
-          final Color bigColor = ok ? Colors.greenAccent : Colors.redAccent;
-
+          final color = ok ? Colors.greenAccent : Colors.redAccent;
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
@@ -448,7 +317,7 @@ Widget buildLivellaVerticaleOverlay(
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
-                color: bigColor,
+                color: color,
               ),
             ),
           );
@@ -456,40 +325,4 @@ Widget buildLivellaVerticaleOverlay(
       ),
     ),
   );
-}
-
-// 🟢 Disegno linee verdi Mediapipe
-class _FacePainter extends CustomPainter {
-  final List<Face> faces;
-  final Size imageSize;
-
-  _FacePainter({required this.faces, required this.imageSize});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.greenAccent
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    for (final face in faces) {
-      final contour = face.contours[FaceContourType.face];
-      if (contour != null) {
-        for (int i = 0; i < contour.points.length - 1; i++) {
-          final p1 = _scalePoint(contour.points[i], size);
-          final p2 = _scalePoint(contour.points[i + 1], size);
-          canvas.drawLine(p1, p2, paint);
-        }
-      }
-    }
-  }
-
-  Offset _scalePoint(Point<int> point, Size size) {
-    final double scaleX = size.width / imageSize.width;
-    final double scaleY = size.height / imageSize.height;
-    return Offset(point.x * scaleX, point.y * scaleY);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
