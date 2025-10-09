@@ -1,4 +1,4 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen (senza crop) con ghost grigio chiaro + linee verdi
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost grigio chiaro + linee verdi (nessun crop, nessun riquadro verde)
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -64,7 +64,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   Future<void> _startController(CameraDescription desc) async {
     final ctrl = CameraController(
       desc,
-      ResolutionPreset.max, // 👉 risoluzione piena
+      ResolutionPreset.max, // 👉 piena risoluzione
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
@@ -117,18 +117,17 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         original = img.flipHorizontal(original);
       }
 
-      // 🔹 NESSUN CROP — salva intera risoluzione originale
+      // 4️⃣ Nessun crop: salva l'immagine intera
       final Uint8List pngBytes = Uint8List.fromList(img.encodeJpg(original, quality: 95));
 
-      // 4️⃣ Salva in galleria
+      // 5️⃣ Salva in galleria
       final PermissionState pState = await PhotoManager.requestPermissionExtend();
       if (pState.hasAccess) {
-        final String baseName =
-            'post_full_${DateTime.now().millisecondsSinceEpoch}';
+        final String baseName = 'post_full_${DateTime.now().millisecondsSinceEpoch}';
         await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.jpg');
       }
 
-      // 5️⃣ File temporaneo per ritorno
+      // 6️⃣ File temporaneo
       final Directory dir = await Directory.systemTemp.createTemp('epi_post');
       final String outPath = '${dir.path}/post_full_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await File(outPath).writeAsBytes(pngBytes);
@@ -139,7 +138,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
           const SnackBar(content: Text('✅ Foto POST salvata a piena risoluzione')),
         );
         setState(() {});
-        Navigator.pop(context, File(outPath)); // torna a PrePost
+        Navigator.pop(context, File(outPath));
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -153,7 +152,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
-  // 👻 GHOST STATICO: volto grigio chiaro + linee verdi (Canny)
+  // 👻 GHOST STATICO: volto grigio chiaro + linee verdi
   Future<Uint8List> _processGhostWithLines(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -164,14 +163,14 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final gray = img.grayscale(decoded);
       final bright = img.adjustColor(gray, brightness: 0.3, contrast: 1.2);
 
-      // 2️⃣ Rileva bordi con Canny (simile a notebook)
-      final edges = img.canny(decoded, threshold: 50, gaussianSigma: 1.0);
+      // 2️⃣ Rileva bordi (Sobel come file originale)
+      final edges = img.sobel(bright);
 
-      // 3️⃣ Disegna linee verdi
+      // 3️⃣ Disegna linee verdi neon
       for (int y = 0; y < edges.height; y++) {
         for (int x = 0; x < edges.width; x++) {
-          final px = edges.getPixel(x, y);
-          final lum = img.getLuminanceRgb(px.r, px.g, px.b);
+          final pixel = edges.getPixel(x, y);
+          final lum = img.getLuminanceRgb(pixel.r, pixel.g, pixel.b);
           if (lum > 100) {
             bright.setPixel(x, y, img.ColorInt32.rgb(0, 255, 0));
           }
@@ -210,7 +209,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       children: [
         Positioned.fill(child: previewFull),
 
-        // 👻 Ghost a piena grandezza (senza crop)
+        // 👻 Ghost PRE (a piena grandezza)
         if (widget.guideImage != null)
           FutureBuilder(
             future: _processGhostWithLines(widget.guideImage!),
@@ -220,7 +219,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               }
               if (!snapshot.hasData) return const SizedBox();
               return Opacity(
-                opacity: 0.55, // semitrasparente
+                opacity: 0.55,
                 child: Image.memory(
                   snapshot.data as Uint8List,
                   fit: BoxFit.cover,
@@ -278,7 +277,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
               ),
             ),
 
-            // 👇 Pulsante scatto stile Home
+            // 👇 Pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
