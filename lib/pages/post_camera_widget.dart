@@ -1,9 +1,4 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST
-//    - Ghost PRE quadrato a tutta larghezza
-//    - Livella verticale stile Home
-//    - Pulsante scatto stile Home
-//    - Crop 1024x1024 dentro quadrato verde
-//    - NIENTE MLKit
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost PRE e linee verdi
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -39,7 +34,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   int _cameraIndex = 0;
   bool _initializing = true;
   bool _shooting = false;
-
   String? _lastShotPath;
 
   @override
@@ -56,8 +50,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex =
-          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
+      final backIndex = _cameras.indexWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+      );
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -71,7 +66,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       desc,
       ResolutionPreset.max,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     try {
       await ctrl.initialize();
@@ -109,92 +104,50 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final bool isFront =
           ctrl.description.lensDirection == CameraLensDirection.front;
 
-      // 1) Scatta
       final XFile shot = await ctrl.takePicture();
       final Uint8List origBytes = await File(shot.path).readAsBytes();
-
-      // 2) Decodifica immagine
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      // 3) Specchio se fotocamera frontale
       if (isFront) {
         original = img.flipHorizontal(original);
       }
 
-      // 4) Calcolo crop dal quadrato verde
-      final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
-      final double previewW = p.height.toDouble();
-      final double previewH = p.width.toDouble();
+      // 🔹 Nessun crop: salva l'immagine originale
+      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(original));
 
-      final Size screen = MediaQuery.of(context).size;
-      final double screenW = screen.width;
-      final double screenH = screen.height;
-
-      final double scale = math.max(screenW / previewW, screenH / previewH);
-      final double dispW = previewW * scale;
-      final double dispH = previewH * scale;
-      final double dx = (screenW - dispW) / 2.0;
-      final double dy = (screenH - dispH) / 2.0;
-
-      final double squareSizeScreen = screenW; // quadrato verde = larghezza schermo
-      final double centerXScreen = screenW / 2.0;
-      final double centerYScreen = screenH / 2.0;
-
-      final double leftScreen = centerXScreen - squareSizeScreen / 2.0;
-      final double topScreen = centerYScreen - squareSizeScreen / 2.0;
-
-      final double leftInShown = leftScreen - dx;
-      final double topInShown = topScreen - dy;
-
-      final double leftPreview = leftInShown / scale;
-      final double topPreview = topInShown / scale;
-      final double sidePreview = squareSizeScreen / scale;
-
-      final double ratioX = original.width / previewW;
-      final double ratioY = original.height / previewH;
-
-      int cropX = (leftPreview * ratioX).round();
-      int cropY = (topPreview * ratioY).round();
-      int cropSide = (sidePreview * math.min(ratioX, ratioY)).round();
-
-      cropSide =
-          cropSide.clamp(1, math.min(original.width, original.height));
-      cropX = cropX.clamp(0, original.width - cropSide);
-      cropY = cropY.clamp(0, original.height - cropSide);
-
-      img.Image cropped = img.copyCrop(
-        original,
-        x: cropX,
-        y: cropY,
-        width: cropSide,
-        height: cropSide,
-      );
-
-      // 5) Resize a 1024x1024
-      img.Image resized = img.copyResize(cropped, width: 1024, height: 1024);
-      final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
-
-      // 6) Salva in galleria
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
-      if (pState.hasAccess) {
-        final String baseName = 'post_1024_${DateTime.now().millisecondsSinceEpoch}';
-        await PhotoManager.editor.saveImage(pngBytes, filename: '$baseName.png');
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
+      if (!pState.hasAccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permesso Foto negato')),
+          );
+        }
+        return;
       }
 
-      // 7) Salva file temporaneo
-      final String outPath = await _tempThumbPath(
-        'post_1024_${DateTime.now().millisecondsSinceEpoch}.png',
+      final String baseName =
+          'post_full_${DateTime.now().millisecondsSinceEpoch}';
+      final AssetEntity? asset = await PhotoManager.editor.saveImage(
+        pngBytes,
+        filename: '$baseName.png',
       );
-      await File(outPath).writeAsBytes(pngBytes);
-      _lastShotPath = outPath;
+      if (asset == null) throw Exception('Salvataggio PNG fallito');
+
+      final Directory tempDir = await Directory.systemTemp.createTemp('epi_post');
+      final String newPath = '${tempDir.path}/$baseName.png';
+      await File(newPath).writeAsBytes(pngBytes);
+      _lastShotPath = newPath;
+
+      debugPrint('✅ Foto salvata full-res — ${original.width}x${original.height}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Foto POST crop 1024×1024 salvata')),
+          const SnackBar(content: Text('✅ Foto salvata a pieno schermo')),
         );
         setState(() {});
-        Navigator.pop(context, File(outPath)); // torna a PrePost
+        Navigator.pop(context, newPath);
       }
     } catch (e) {
       debugPrint('Take/save error: $e');
@@ -208,18 +161,19 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
-  Future<String> _tempThumbPath(String fileName) async {
-    final dir = await Directory.systemTemp.createTemp('epi_thumbs');
-    return '${dir.path}/$fileName';
-  }
-
-  // ====== UI ======
+  // ====== UI Fotocamera ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
-    if (_initializing) return const Center(child: CircularProgressIndicator());
+    if (_initializing) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (ctrl == null || !ctrl.value.isInitialized) {
       return const Center(child: Text('Fotocamera non disponibile'));
     }
+
+    final bool isFront =
+        ctrl.description.lensDirection == CameraLensDirection.front;
+    final bool needsMirror = isFront && Platform.isAndroid;
 
     final Size p = ctrl.value.previewSize ?? const Size(1080, 1440);
     final Widget inner = SizedBox(
@@ -233,59 +187,61 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       child: inner,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double screenW = constraints.maxWidth;
+    final Widget preview = needsMirror
+        ? Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
+            child: previewFull,
+          )
+        : previewFull;
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: previewFull),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(child: preview),
 
-            // 👇 Ghost PRE quadrato con volto grigio chiaro + linee verdi (mediapipe)
-if (widget.guideImage != null)
-  FutureBuilder(
-    future: _processGhostWithLines(widget.guideImage!),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return const SizedBox();
-      }
-      if (!snapshot.hasData) return const SizedBox();
-      return Center(
-        child: SizedBox(
-          width: screenW,
-          height: screenW,
-          child: Opacity(
-            opacity: 0.55, // trasparenza globale ghost
-            child: Image.memory(
-              snapshot.data as Uint8List,
+        // 👻 Ghost PRE (trasparente)
+        if (widget.guideImage != null)
+          Opacity(
+            opacity: 0.4,
+            child: Image.file(
+              widget.guideImage!,
               fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
             ),
           ),
-        ),
-      );
-    },
-  ),
 
-            // 👇 Riquadro target
-            Center(
-              child: Container(
-                width: screenW,
-                height: screenW,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green, width: 4),
-                ),
-              ),
-            ),
-          ],
+        // 🟩 Linee guida verdi (stile Home)
+        _buildGridOverlay(),
+
+        // ⚖️ Livella verticale
+        buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
+      ],
+    );
+  }
+
+  Widget _buildGridOverlay() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        final paint = Paint()
+          ..color = Colors.greenAccent
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke;
+        return CustomPaint(
+          size: Size(w, h),
+          painter: _GridPainter(paint),
         );
       },
     );
   }
 
   Widget _buildBottomBar() {
-    final canShoot =
-        _controller != null && _controller!.value.isInitialized && !_shooting;
+    final canShoot = _controller != null &&
+        _controller!.value.isInitialized &&
+        !_shooting;
     return SafeArea(
       top: false,
       child: Padding(
@@ -293,6 +249,7 @@ if (widget.guideImage != null)
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Anteprima ultima foto
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -324,7 +281,7 @@ if (widget.guideImage != null)
               ),
             ),
 
-            // 👇 Pulsante scatto stile Home
+            // Pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
               behavior: HitTestBehavior.opaque,
@@ -364,6 +321,7 @@ if (widget.guideImage != null)
               ),
             ),
 
+            // Switch camera
             GestureDetector(
               onTap: _switchCamera,
               child: Container(
@@ -384,57 +342,11 @@ if (widget.guideImage != null)
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _controller;
-    if (ctrl == null) return;
-
-    if (state == AppLifecycleState.inactive) {
-      _controller?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _startController(_cameras[_cameraIndex]);
-    }
-  }
-
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
   }
-// ======================================================
-// 👁️‍🗨️ Crea ghost con volto grigio chiaro + linee verdi tipo Mediapipe (compatibile image 4.x)
-// ======================================================
-Future<Uint8List> _processGhostWithLines(File file) async {
-  try {
-    final bytes = await file.readAsBytes();
-    final img.Image? decoded = img.decodeImage(bytes);
-    if (decoded == null) return bytes;
-
-    // 1️⃣ Converti a grigio chiaro
-    final gray = img.grayscale(decoded);
-    final bright = img.adjustColor(gray, brightness: 0.25, contrast: 1.1);
-
-    // 2️⃣ Rileva bordi (simulazione linee Mediapipe)
-    final edges = img.sobel(bright);
-
-    // 3️⃣ Sovrapponi bordi verdi neon (usando ColorInt32)
-    for (int y = 0; y < edges.height; y++) {
-      for (int x = 0; x < edges.width; x++) {
-        final pixel = edges.getPixel(x, y);
-        final lum = img.getLuminanceRgb(pixel.r, pixel.g, pixel.b);
-        if (lum > 100) {
-          bright.setPixel(x, y, img.ColorInt32.rgb(0, 255, 0));
-        }
-      }
-    }
-
-    return Uint8List.fromList(img.encodePng(bright));
-  } catch (e) {
-    debugPrint("Ghost processing error: $e");
-    return file.readAsBytes();
-  }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -447,10 +359,6 @@ Future<Uint8List> _processGhostWithLines(File file) async {
         child: Stack(
           children: [
             Positioned.fill(child: _buildCameraPreview()),
-
-            // 👇 Livella verticale stile Home
-            buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
-
             Align(
               alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
@@ -462,90 +370,78 @@ Future<Uint8List> _processGhostWithLines(File file) async {
   }
 }
 
-// ====== Livella verticale stile Home (0° = perpendicolare) ======
-Widget buildLivellaVerticaleOverlay({
-  double okThresholdDeg = 1.5, // tolleranza in gradi
-  double topOffsetPx = 65.0,
-}) {
-  return Builder(
-    builder: (context) {
-      final double safeTop = MediaQuery.of(context).padding.top;
+// 🎯 Livella verticale
+Widget buildLivellaVerticaleOverlay({double okThresholdDeg = 1.0, double topOffsetPx = 65.0}) {
+  return Positioned(
+    top: topOffsetPx,
+    left: 0,
+    right: 0,
+    child: Center(
+      child: StreamBuilder<AccelerometerEvent>(
+        stream: accelerometerEventStream(),
+        builder: (context, snap) {
+          double angleDeg = 0.0;
+          if (snap.hasData) {
+            final ax = snap.data!.x;
+            final ay = snap.data!.y;
+            final az = snap.data!.z;
+            final g = math.sqrt(ax * ax + ay * ay + az * az);
+            if (g > 0) {
+              double c = (-az) / g;
+              c = c.clamp(-1.0, 1.0);
+              angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
+            }
+          }
 
-      return Positioned(
-        top: safeTop + topOffsetPx,
-        left: 0,
-        right: 0,
-        child: Center(
-          child: StreamBuilder<AccelerometerEvent>(
-            stream: accelerometerEventStream(),
-            builder: (context, snap) {
-              double angleDeg = 0.0;
+          final bool ok = angleDeg.abs() <= okThresholdDeg;
+          final Color bigColor = ok ? Colors.greenAccent : Colors.redAccent;
 
-              if (snap.hasData) {
-                final ax = snap.data!.x;
-                final ay = snap.data!.y;
-                final az = snap.data!.z;
-                final g = math.sqrt(ax * ax + ay * ay + az * az);
-                if (g > 0) {
-                  // 🔹 Calcolo angolo come deviazione da perpendicolare (0° = dritto)
-                  double c = (-az) / g;
-                  c = c.clamp(-1.0, 1.0);
-                  angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
-                }
-              }
-
-              final bool isOk = angleDeg.abs() <= okThresholdDeg;
-              final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
-              final Color badgeBg = isOk
-                  ? Colors.green.withOpacity(0.85)
-                  : Colors.black54;
-              final Color badgeBor =
-                  isOk ? Colors.greenAccent : Colors.white24;
-              final String badgeTxt = isOk ? "OK" : "Inclina";
-
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "${angleDeg.abs().toStringAsFixed(1)}°",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: bigColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: badgeBor, width: 1.2),
-                    ),
-                    child: Text(
-                      badgeTxt,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
-    },
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              "${angleDeg.toStringAsFixed(1)}°",
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: bigColor,
+              ),
+            ),
+          );
+        },
+      ),
+    ),
   );
+}
+
+// 🎯 Pittore griglia verde (stile guida)
+class _GridPainter extends CustomPainter {
+  final Paint paintStyle;
+  _GridPainter(this.paintStyle);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double stepX = size.width / 3;
+    final double stepY = size.height / 3;
+
+    for (int i = 1; i < 3; i++) {
+      // linee verticali
+      canvas.drawLine(Offset(stepX * i, 0), Offset(stepX * i, size.height), paintStyle);
+      // linee orizzontali
+      canvas.drawLine(Offset(0, stepY * i), Offset(size.width, stepY * i), paintStyle);
+    }
+
+    // bordo esterno
+    final border = Paint()
+      ..color = Colors.greenAccent
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), border);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
