@@ -482,26 +482,30 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             style: const TextStyle(fontSize: 16),
           ),
         if (numPoriTotali != null)
-          Text(
-            "Totale pori: $numPoriTotali",
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        if (_numPoriVerdi != null)
-          Text(
-            "Pori normali (verdi): $_numPoriVerdi",
-            style: const TextStyle(fontSize: 16),
-          ),
-        if (_numPoriArancioni != null)
-          Text(
-            "Pori borderline (arancioni): $_numPoriArancioni",
-            style: const TextStyle(fontSize: 16),
-          ),
-        if (percPoriDilatati != null)
-          Text(
-            "Pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
-            style: const TextStyle(fontSize: 16),
-          ),
-
+  Text(
+    "Totale pori: $numPoriTotali",
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  ),
+if (_numPoriVerdi != null)
+  Text(
+    "Pori normali (verdi): $_numPoriVerdi",
+    style: const TextStyle(fontSize: 16),
+  ),
+if (_numPoriArancioni != null)
+  Text(
+    "Pori borderline (arancioni): $_numPoriArancioni",
+    style: const TextStyle(fontSize: 16),
+  ),
+if (_poriResult?["num_pori_dilatati"] != null)
+  Text(
+    "Pori dilatati (rossi): ${_poriResult!["num_pori_dilatati"]}",
+    style: const TextStyle(fontSize: 16),
+  ),
+if (percPoriDilatati != null)
+  Text(
+    "Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
+    style: const TextStyle(fontSize: 16),
+  ),
         const SizedBox(height: 20),
 
         const Text(
