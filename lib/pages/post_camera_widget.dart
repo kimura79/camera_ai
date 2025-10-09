@@ -1,4 +1,4 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost statico + linee verdi Mediapipe
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen con ghost statico + linee verdi Mediapipe (fix iOS 18 / Flutter 3.22)
 import 'dart:io';
 import 'dart:math' show sqrt, acos, pi;
 import 'dart:typed_data';
@@ -45,6 +45,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     _prepareGhost();
   }
 
+  // ======================================================
+  // 👻 Prepara ghost statico con linee verdi Mediapipe
+  // ======================================================
   Future<void> _prepareGhost() async {
     if (widget.guideImage == null) return;
     try {
@@ -52,8 +55,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final img.Image? decoded = img.decodeImage(bytes);
       if (decoded == null) return;
 
-      // ridimensiona a 1024x1024 per velocità
-      final img.Image resized = img.copyResize(decoded, width: 1024, height: 1024);
+      // ridimensiona per prestazioni
+      final img.Image resized =
+          img.copyResize(decoded, width: 1024, height: 1024);
 
       // converte in grigio e aumenta luminosità
       final gray = img.grayscale(resized);
@@ -79,17 +83,24 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       final paint = img.Image.from(bright);
       final green = img.ColorInt32.rgb(0, 255, 0);
 
+      // ✅ FIX COMPATIBILITÀ MLKit (FaceContour? nullable)
       if (faces.isNotEmpty) {
         for (final face in faces) {
           for (final contour in face.contours.values) {
-            for (final p in contour.points) {
+            final points = contour?.points;
+            if (points == null) continue;
+
+            for (final p in points) {
               final int x = (p.x.clamp(0, paint.width - 1)).toInt();
               final int y = (p.y.clamp(0, paint.height - 1)).toInt();
               // disegna pixel più spessi (3x3)
               for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
                   final nx = x + dx, ny = y + dy;
-                  if (nx >= 0 && nx < paint.width && ny >= 0 && ny < paint.height) {
+                  if (nx >= 0 &&
+                      nx < paint.width &&
+                      ny >= 0 &&
+                      ny < paint.height) {
                     paint.setPixel(nx, ny, green);
                   }
                 }
@@ -99,7 +110,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         }
       }
 
-      // crea ghost con trasparenza
+      // crea ghost finale
       final blended = img.adjustColor(paint, brightness: 0.2);
       final png = Uint8List.fromList(img.encodePng(blended));
 
@@ -111,6 +122,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
+  // ======================================================
+  // 🎥 Inizializzazione fotocamera
+  // ======================================================
   Future<void> _initCamera() async {
     try {
       _cameras = await availableCameras();
@@ -141,6 +155,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
+  // ======================================================
+  // 📸 Scatto e salvataggio foto
+  // ======================================================
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _shooting) return;
@@ -162,6 +179,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     }
   }
 
+  // ======================================================
+  // 🖼️ Preview fotocamera fullscreen + ghost
+  // ======================================================
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) return const Center(child: CircularProgressIndicator());
@@ -183,7 +203,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       children: [
         Positioned.fill(child: preview),
 
-        // 👻 Ghost con linee verdi statiche
+        // 👻 Ghost statico con linee verdi
         if (_ghostWithLines != null)
           Opacity(
             opacity: 0.45,
@@ -201,6 +221,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     );
   }
 
+  // ======================================================
+  // 🎛️ Barra inferiore (pulsante scatto)
+  // ======================================================
   Widget _buildBottomBar() {
     final canShoot =
         _controller != null && _controller!.value.isInitialized && !_shooting;
@@ -279,7 +302,9 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// ⚖️ Livella verticale
+// ======================================================
+// ⚖️ Livella verticale stile Home
+// ======================================================
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.5,
   double topOffsetPx = 65.0,
