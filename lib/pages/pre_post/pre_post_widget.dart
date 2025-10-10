@@ -373,96 +373,110 @@ class _PrePostWidgetState extends State<PrePostWidget> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final double boxSize = MediaQuery.of(context).size.width / 2;
+ @override
+Widget build(BuildContext context) {
+  final double boxSize = MediaQuery.of(context).size.width / 2;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Pre/Post")),
-      body: SingleChildScrollView(
-        child: RepaintBoundary(
-          key: _exportKey,
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        if (preImage != null && postImage != null) {
-                          _showSwipeViewer(preImage!, postImage!);
-                        } else if (preImage != null) {
-                          _showFullscreenImage(preImage!);
-                        } else {
-                          _pickPreImage();
-                        }
-                      },
-                      child: Container(
-                        height: boxSize,
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.blueAccent, width: 2),
-                          borderRadius: BorderRadius.circular(12),
+  return Scaffold(
+    appBar: AppBar(title: const Text("Pre/Post")),
+    body: Stack(
+      children: [
+        // --- CONTENUTO NORMALE ---
+        SingleChildScrollView(
+          child: RepaintBoundary(
+            key: _exportKey,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (preImage != null && postImage != null) {
+                            _showSwipeViewer(preImage!, postImage!);
+                          } else if (preImage != null) {
+                            _showFullscreenImage(preImage!);
+                          } else {
+                            _pickPreImage();
+                          }
+                        },
+                        child: Container(
+                          height: boxSize,
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.blueAccent, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: preImage == null
+                              ? const Center(
+                                  child: Icon(Icons.add,
+                                      size: 80, color: Colors.blue),
+                                )
+                              : Image.file(preImage!, fit: BoxFit.cover),
                         ),
-                        child: preImage == null
-                            ? const Center(
-                                child: Icon(Icons.add,
-                                    size: 80, color: Colors.blue),
-                              )
-                            : Image.file(preImage!, fit: BoxFit.cover),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        if (preImage != null && postImage != null) {
-                          _showSwipeViewer(preImage!, postImage!);
-                        } else if (postImage != null) {
-                          _showFullscreenImage(postImage!);
-                        } else {
-                          _capturePostImage();
-                        }
-                      },
-                      onLongPress: postImage == null ? null : _confirmRetakePost,
-                      child: Container(
-                        height: boxSize,
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.green, width: 2),
-                          borderRadius: BorderRadius.circular(12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (preImage != null && postImage != null) {
+                            _showSwipeViewer(preImage!, postImage!);
+                          } else if (postImage != null) {
+                            _showFullscreenImage(postImage!);
+                          } else {
+                            _capturePostImage();
+                          }
+                        },
+                        onLongPress: postImage == null ? null : _confirmRetakePost,
+                        child: Container(
+                          height: boxSize,
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.green, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: postImage == null
+                              ? const Center(
+                                  child: Icon(Icons.add,
+                                      size: 80, color: Colors.green),
+                                )
+                              : Image.file(postImage!, fit: BoxFit.cover),
                         ),
-                        child: postImage == null
-                            ? const Center(
-                                child: Icon(Icons.add,
-                                    size: 80, color: Colors.green),
-                              )
-                            : Image.file(postImage!, fit: BoxFit.cover),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
-              // === Risultati comparazione ===
-              if (compareData != null) ...[
-                if (compareData!["macchie"] != null) _buildMacchieCard(),
-                if (compareData!["pori"] != null) _buildPoriCard(),
-                if (compareData!["rughe"] != null) _buildRugheCard(),
-                if (compareData!["melasma"] != null) _buildMelasmaCard(),
-              ]
-            ],
+                // === Risultati comparazione ===
+                if (compareData != null) ...[
+                  if (compareData!["macchie"] != null) _buildMacchieCard(),
+                  if (compareData!["pori"] != null) _buildPoriCard(),
+                  if (compareData!["rughe"] != null) _buildRugheCard(),
+                  if (compareData!["melasma"] != null) _buildMelasmaCard(),
+                ]
+              ],
+            ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _exportAndSaveToGallery,
-        icon: const Icon(Icons.download),
-        label: const Text("Download"),
-      ),
-    );
-  }
+
+        // === 🔄 Overlay caricamento stile AnalysisPreview ===
+        if (postImage != null && compareData == null)
+          Container(
+            color: Colors.black54,
+            child: const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          ),
+      ],
+    ),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: _exportAndSaveToGallery,
+      icon: const Icon(Icons.download),
+      label: const Text("Download"),
+    ),
+  );
+}
 
   // === CARDS COMPARAZIONE ===
   Widget _buildMacchieCard() {
