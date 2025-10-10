@@ -87,14 +87,14 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // 👻 Ghost grigio chiaro + linee verdi effetto "Canny soft"
+// 👻 Ghost grigio chiaro + linee verdi effetto "Canny soft" (Flutter safe)
 Future<Uint8List> _processGhostWithLines(File file) async {
   try {
     final bytes = await file.readAsBytes();
     final img.Image? decoded = img.decodeImage(bytes);
     if (decoded == null) return bytes;
 
-    // 1️⃣ Grayscale + schiarimento + contrasto
+    // 1️⃣ Scala di grigi + schiarimento + contrasto
     final gray = img.grayscale(decoded);
     final bright = img.adjustColor(
       gray,
@@ -103,42 +103,44 @@ Future<Uint8List> _processGhostWithLines(File file) async {
       saturation: 0,
     );
 
-    // 2️⃣ Estrai bordi (edge detection semplificata)
+    // 2️⃣ Rilevamento bordi (Sobel = compatibile con Flutter)
     final edges = img.sobel(bright);
 
-    // 3️⃣ Crea overlay verde sui bordi
+    // 3️⃣ Overlay verde sulle linee
     final greenOverlay = img.Image.from(bright);
     for (int y = 0; y < edges.height; y++) {
       for (int x = 0; x < edges.width; x++) {
         final px = edges.getPixel(x, y);
         final lum = img.getLuminanceRgb(px.r, px.g, px.b);
-        if (lum > 35) { // soglia più bassa → anche occhi, naso, labbra
+        if (lum > 35) { // soglia più bassa = più dettagli visibili
           greenOverlay.setPixel(x, y, img.ColorInt32.rgb(0, 255, 100));
         }
       }
     }
 
-    // 4️⃣ Fusione manuale ghost + overlay verde
+    // 4️⃣ Fusione "manuale" ghost + verde (equivalente a alphaComposite)
+    final blended = img.Image.from(bright);
     for (int y = 0; y < bright.height; y++) {
       for (int x = 0; x < bright.width; x++) {
-        final base = bright.getPixel(x, y);
-        final overlay = greenOverlay.getPixel(x, y);
-        final blended = img.getColor(
-          ((base.r * 0.45) + (overlay.r * 0.55)).toInt(),
-          ((base.g * 0.45) + (overlay.g * 0.55)).toInt(),
-          ((base.b * 0.45) + (overlay.b * 0.55)).toInt(),
-        );
-        bright.setPixel(x, y, blended);
+        final basePx = bright.getPixel(x, y);
+        final overlayPx = greenOverlay.getPixel(x, y);
+
+        // blending manuale (55% overlay, 45% base)
+        final r = ((basePx.r * 0.45) + (overlayPx.r * 0.55)).toInt().clamp(0, 255);
+        final g = ((basePx.g * 0.45) + (overlayPx.g * 0.55)).toInt().clamp(0, 255);
+        final b = ((basePx.b * 0.45) + (overlayPx.b * 0.55)).toInt().clamp(0, 255);
+
+        blended.setPixel(x, y, img.ColorInt32.rgb(r, g, b));
       }
     }
 
-    return Uint8List.fromList(img.encodePng(bright));
+    return Uint8List.fromList(img.encodePng(blended));
   } catch (e) {
     debugPrint("Ghost processing error: $e");
     return file.readAsBytes();
   }
 }
-
+  
   // ====== Scatto foto identico alla preview fullscreen ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
