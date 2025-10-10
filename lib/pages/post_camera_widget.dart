@@ -1,4 +1,4 @@
-// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen identica a Home + ghost grigio con linee verdi Sobel + angolo PRE
+// 🔹 post_camera_widget.dart — Fotocamera POST fullscreen identica a Home + ghost grigio con linee verdi Sobel
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -11,13 +11,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 class PostCameraWidget extends StatefulWidget {
   final File? guideImage; // 👻 immagine PRE come ghost
-  final double preAngle;  // 📏 valore gradi livella della foto PRE
 
-  const PostCameraWidget({
-    super.key,
-    this.guideImage,
-    this.preAngle = 0.0,
-  });
+  const PostCameraWidget({super.key, this.guideImage});
 
   static String routeName = 'PostCameraPage';
   static String routePath = '/postCameraPage';
@@ -36,8 +31,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   bool _shooting = false;
   String? _lastShotPath;
 
-  double _currentAngleDeg = 0.0; // 📍 angolo attuale durante preview POST
-
   @override
   void initState() {
     super.initState();
@@ -52,8 +45,8 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         setState(() => _initializing = false);
         return;
       }
-      final backIndex = _cameras.indexWhere(
-          (c) => c.lensDirection == CameraLensDirection.back);
+      final backIndex =
+          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       _cameraIndex = backIndex >= 0 ? backIndex : 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
@@ -94,41 +87,42 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // 👻 Ghost identico al Colab (Canny + equalizzazione + linee verdi neon)
-  Future<Uint8List> _processGhostWithLines(File file) async {
-    try {
-      final bytes = await file.readAsBytes();
-      final img.Image? decoded = img.decodeImage(bytes);
-      if (decoded == null) return bytes;
+// 👻 Ghost identico al Colab (Canny + equalizzazione + linee verdi neon)
+Future<Uint8List> _processGhostWithLines(File file) async {
+  try {
+    final bytes = await file.readAsBytes();
+    final img.Image? decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
 
-      // 1️⃣ Grayscale + equalizzazione
-      final gray = img.grayscale(decoded);
-      final histEq = img.adjustColor(gray, contrast: 0.8, brightness: 1.6);
+    // 1️⃣ Grayscale + equalizzazione (come cv2.equalizeHist)
+    final gray = img.grayscale(decoded);
+    final histEq = img.adjustColor(gray, contrast: 0.8, brightness: 1.6);
 
-      // 2️⃣ Approssimazione del Canny (Sobel)
-      final edges = img.sobel(histEq);
-      final ghost = img.Image.from(histEq);
+    // 2️⃣ Approssimazione del Canny (differenza di Sobel)
+    final edges = img.sobel(histEq);
+    final ghost = img.Image.from(histEq);
 
-      // 3️⃣ Linee verdi neon
-      for (int y = 0; y < edges.height; y++) {
-        for (int x = 0; x < edges.width; x++) {
-          final px = edges.getPixel(x, y);
-          final lum = img.getLuminanceRgb(px.r, px.g, px.b);
-          if (lum > 40) {
-            ghost.setPixel(x, y, img.ColorInt32.rgb(0, 255, 100));
-          }
+    // 3️⃣ Colorazione verde neon sui bordi
+    for (int y = 0; y < edges.height; y++) {
+      for (int x = 0; x < edges.width; x++) {
+        final px = edges.getPixel(x, y);
+        final lum = img.getLuminanceRgb(px.r, px.g, px.b);
+        if (lum > 40) {
+          ghost.setPixel(x, y, img.ColorInt32.rgb(0, 255, 100)); // 💚 Verde neon
         }
       }
-
-      // 4️⃣ Schiarisci un po’
-      final result = img.adjustColor(ghost, brightness: 1.0, contrast: 1.0);
-      return Uint8List.fromList(img.encodePng(result));
-    } catch (e) {
-      debugPrint("Ghost processing error: $e");
-      return file.readAsBytes();
     }
-  }
 
+    
+    // 4️⃣ Schiarisci un po’ il viso sotto
+    final result = img.adjustColor(ghost, brightness: 0.9, contrast: 1.2);
+    return Uint8List.fromList(img.encodePng(result));
+  } catch (e) {
+    debugPrint("Ghost processing error: $e");
+    return file.readAsBytes();
+  }
+}
+  
   // ====== Scatto foto identico alla preview fullscreen ======
   Future<void> _takeAndSavePicture() async {
     final ctrl = _controller;
@@ -144,9 +138,11 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       img.Image? original = img.decodeImage(origBytes);
       if (original == null) throw Exception('Decodifica immagine fallita');
 
-      if (isFront) original = img.flipHorizontal(original);
+      if (isFront) {
+        original = img.flipHorizontal(original);
+      }
 
-      // allinea aspect ratio schermo
+      // === Allinea l'immagine all'aspect ratio dello schermo ===
       final Size screen = MediaQuery.of(context).size;
       final double screenAspect = screen.width / screen.height;
       final double photoAspect = original.width / original.height;
@@ -154,11 +150,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       if ((photoAspect - screenAspect).abs() > 0.01) {
         int newWidth, newHeight, offsetX, offsetY;
         if (photoAspect > screenAspect) {
+          // foto più larga → taglia ai lati
           newWidth = (original.height * screenAspect).round();
           newHeight = original.height;
           offsetX = ((original.width - newWidth) / 2).round();
           offsetY = 0;
         } else {
+          // foto più stretta → taglia sopra/sotto
           newWidth = original.width;
           newHeight = (original.width / screenAspect).round();
           offsetX = 0;
@@ -173,14 +171,13 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         );
       }
 
-      // salva immagine finale
+      // === Salva immagine finale ===
       final Uint8List jpgBytes =
           Uint8List.fromList(img.encodeJpg(original, quality: 95));
 
       final PermissionState perm = await PhotoManager.requestPermissionExtend();
       if (perm.hasAccess) {
-        final String baseName =
-            'post_full_${DateTime.now().millisecondsSinceEpoch}';
+        final String baseName = 'post_full_${DateTime.now().millisecondsSinceEpoch}';
         await PhotoManager.editor.saveImage(jpgBytes, filename: '$baseName.jpg');
       }
 
@@ -199,15 +196,16 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     } catch (e) {
       debugPrint('Errore scatto: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Errore: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _shooting = false);
     }
   }
 
-  // ====== Preview FULLSCREEN + ghost + angoli ======
+  // ====== Preview FULLSCREEN + ghost ======
   Widget _buildCameraPreview() {
     final ctrl = _controller;
     if (_initializing) return const Center(child: CircularProgressIndicator());
@@ -232,78 +230,45 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
       children: [
         Positioned.fill(child: previewFull),
 
-        // 👻 Ghost PRE
-        if (widget.guideImage != null)
-          FutureBuilder<Uint8List>(
-            future: _processGhostWithLines(widget.guideImage!),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const SizedBox();
-              }
-              if (!snapshot.hasData) return const SizedBox();
-              return Opacity(
-                opacity: 0.45,
-                child: Image.memory(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-              );
-            },
-          ),
+        // 👻 Ghost PRE sovrapposto a piena grandezza (identico al Colab)
+if (widget.guideImage != null)
+  FutureBuilder<Uint8List>(
+    future: _processGhostWithLines(widget.guideImage!),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const SizedBox();
+      }
+      if (!snapshot.hasData || snapshot.data == null) {
+        debugPrint("⚠️ Ghost snapshot vuoto");
+        return const SizedBox();
+      }
 
-        // 📍 Valore gradi PRE (statico)
-        Positioned(
-          top: 30,
-          right: 20,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              "PRE: ${widget.preAngle.toStringAsFixed(1)}°",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+      debugPrint("✅ Ghost generato e visibile");
+      return Opacity(
+        opacity: 0.45,
+        child: Image.memory(
+          snapshot.data!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
         ),
+      );
+    },
+  )
+else
+  // 🔸 fallback di debug se guideImage non è passata
+  Container(
+    color: Colors.grey.withOpacity(0.3),
+    child: const Center(
+      child: Text(
+        "⚠️ Nessuna guida PRE caricata",
+        style: TextStyle(color: Colors.white70),
+      ),
+    ),
+  ),
 
-        // 📍 Valore gradi POST (dinamico)
-        Positioned(
-          top: 30,
-          left: 20,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              "POST: ${_currentAngleDeg.toStringAsFixed(1)}°",
-              style: const TextStyle(
-                color: Colors.greenAccent,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-
-        // ⚖️ Livella verticale con callback
-        buildLivellaVerticaleOverlay(
-          topOffsetPx: 65.0,
-          onAngleChanged: (ang) {
-            setState(() {
-              _currentAngleDeg = ang;
-            });
-          },
-        ),
+        // ⚖️ Livella verticale
+        buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
       ],
     );
   }
@@ -318,7 +283,6 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // 📷 Ultimo scatto
             GestureDetector(
               onTap: (_lastShotPath != null)
                   ? () async {
@@ -353,6 +317,7 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
             // 🔘 Pulsante scatto
             GestureDetector(
               onTap: canShoot ? _takeAndSavePicture : null,
+              behavior: HitTestBehavior.opaque,
               child: SizedBox(
                 width: 86,
                 height: 86,
@@ -437,11 +402,10 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
   }
 }
 
-// ⚖️ Livella verticale con callback
+// ⚖️ Livella verticale
 Widget buildLivellaVerticaleOverlay({
   double okThresholdDeg = 1.5,
   double topOffsetPx = 65.0,
-  required Function(double) onAngleChanged,
 }) {
   return Positioned(
     top: topOffsetPx,
@@ -464,8 +428,6 @@ Widget buildLivellaVerticaleOverlay({
               angleDeg = (math.acos(c) * 180.0 / math.pi) - 90.0;
             }
           }
-
-          onAngleChanged(angleDeg); // 🔹 aggiorna stato esterno
 
           final bool isOk = angleDeg.abs() <= okThresholdDeg;
           final Color bigColor = isOk ? Colors.greenAccent : Colors.white;
