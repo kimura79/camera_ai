@@ -446,12 +446,35 @@ class _PrePostWidgetState extends State<PrePostWidget> {
               const SizedBox(height: 20),
 
               // === Risultati comparazione ===
-              if (compareData != null) ...[
-                if (compareData!["macchie"] != null) _buildMacchieCard(),
-                if (compareData!["pori"] != null) _buildPoriCard(),
-                if (compareData!["rughe"] != null) _buildRugheCard(),
-                if (compareData!["melasma"] != null) _buildMelasmaCard(),
-              ]
+if (compareData == null) ...[
+  const SizedBox(height: 30),
+  const Text(
+    "Caricamento comparazione...",
+    style: TextStyle(color: Colors.grey, fontSize: 16),
+  ),
+  const SizedBox(height: 20),
+
+  // 🔄 Rotellina sotto immagini PRE e POST
+  Row(
+    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    children: [
+      _imageWithSpinner(preImage, "PRE"),
+      _imageWithSpinner(postImage, "POST"),
+    ],
+  ),
+  const SizedBox(height: 40),
+  const CircularProgressIndicator(color: Colors.blueAccent, strokeWidth: 3),
+  const SizedBox(height: 10),
+  const Text(
+    "Analisi in corso...",
+    style: TextStyle(color: Colors.blueGrey),
+  ),
+] else ...[
+  if (compareData!["macchie"] != null) _buildMacchieCard(),
+  if (compareData!["pori"] != null) _buildPoriCard(),
+  if (compareData!["rughe"] != null) _buildRugheCard(),
+  if (compareData!["melasma"] != null) _buildMelasmaCard(),
+]
             ],
           ),
         ),
@@ -628,4 +651,33 @@ class _PrePostWidgetState extends State<PrePostWidget> {
       ),
     );
   }
+}
+// === Rotellina sotto immagini PRE e POST ===
+Widget _imageWithSpinner(File? imageFile, String label) {
+  return Column(
+    children: [
+      Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+      const SizedBox(height: 8),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: imageFile != null
+            ? Image.file(imageFile, width: 100, height: 100, fit: BoxFit.cover)
+            : Container(
+                width: 100,
+                height: 100,
+                color: Colors.black12,
+                child: const Icon(Icons.image, color: Colors.grey),
+              ),
+      ),
+      const SizedBox(height: 10),
+      const SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(
+          color: Colors.blueAccent,
+          strokeWidth: 3,
+        ),
+      ),
+    ],
+  );
 }
