@@ -113,17 +113,6 @@ Future<Uint8List> _processGhostWithLines(File file) async {
       }
     }
 
-// Rimuovi sfondo grigio: lascia solo le linee
-for (int y = 0; y < ghost.height; y++) {
-  for (int x = 0; x < ghost.width; x++) {
-    final px = ghost.getPixel(x, y);
-    final lum = img.getLuminanceRgb(px.r, px.g, px.b);
-    if (lum < 220 && px != img.ColorInt32.rgb(0, 255, 100)) {
-      ghost.setPixel(x, y, img.ColorInt32.rgb(0, 0, 0));
-    }
-  }
-}
-
     
     // 4️⃣ Schiarisci un po’ il viso sotto
     final result = img.adjustColor(ghost, brightness: 0.9, contrast: 1.2);
@@ -256,7 +245,7 @@ if (widget.guideImage != null)
 
       debugPrint("✅ Ghost generato e visibile");
       return Opacity(
-        opacity: 0.85, // 🔹 aumenta visibilità del ghost
+        opacity: 0.45,
         child: Image.memory(
           snapshot.data!,
           fit: BoxFit.cover,
