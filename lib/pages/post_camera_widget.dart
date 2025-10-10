@@ -96,7 +96,7 @@ Future<Uint8List> _processGhostWithLines(File file) async {
 
     // 1️⃣ Grayscale + equalizzazione (come cv2.equalizeHist)
     final gray = img.grayscale(decoded);
-    final histEq = img.adjustColor(gray, contrast: 1.4, brightness: 0.4);
+    final histEq = img.adjustColor(gray, contrast: 0.8, brightness: 1.6);
 
     // 2️⃣ Approssimazione del Canny (differenza di Sobel)
     final edges = img.sobel(histEq);
@@ -113,6 +113,18 @@ Future<Uint8List> _processGhostWithLines(File file) async {
       }
     }
 
+// Rimuovi sfondo grigio: lascia solo le linee
+for (int y = 0; y < ghost.height; y++) {
+  for (int x = 0; x < ghost.width; x++) {
+    final px = ghost.getPixel(x, y);
+    final lum = img.getLuminanceRgb(px.r, px.g, px.b);
+    if (lum < 220 && px != img.ColorInt32.rgb(0, 255, 100)) {
+      ghost.setPixel(x, y, img.ColorInt32.rgb(0, 0, 0));
+    }
+  }
+}
+
+    
     // 4️⃣ Schiarisci un po’ il viso sotto
     final result = img.adjustColor(ghost, brightness: 0.9, contrast: 1.2);
     return Uint8List.fromList(img.encodePng(result));
