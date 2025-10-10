@@ -87,39 +87,52 @@ class _PostCameraWidgetState extends State<PostCameraWidget>
     await _startController(_cameras[_cameraIndex]);
   }
 
-  // 👻 Ghost grigio chiaro + linee verdi Canny-like
+  // 👻 Ghost grigio chiaro + linee verdi effetto "Canny soft"
 Future<Uint8List> _processGhostWithLines(File file) async {
   try {
     final bytes = await file.readAsBytes();
     final img.Image? decoded = img.decodeImage(bytes);
     if (decoded == null) return bytes;
 
-    // scala di grigi e schiarimento simile a equalizeHist + brightness
+    // 1️⃣ Grayscale + schiarimento + contrasto
     final gray = img.grayscale(decoded);
-    final bright =
-        img.adjustColor(gray, brightness: 0.3, contrast: 1.4, saturation: 0);
+    final bright = img.adjustColor(
+      gray,
+      brightness: 0.3,
+      contrast: 1.4,
+      saturation: 0,
+    );
 
-    // "pseudo-Canny": edgeEnhance + findEdges = bordi più sottili e interni
-    img.Image edges = img.edgeGlow(bright, amount: 1.0);
-    edges = img.findEdges(edges);
+    // 2️⃣ Estrai bordi (edge detection semplificata)
+    final edges = img.sobel(bright);
 
-    // soglia bassa per catturare occhi, naso, labbra
-    final threshold = 25;
-    final colorOverlay = img.Image.from(decoded);
+    // 3️⃣ Crea overlay verde sui bordi
+    final greenOverlay = img.Image.from(bright);
     for (int y = 0; y < edges.height; y++) {
       for (int x = 0; x < edges.width; x++) {
         final px = edges.getPixel(x, y);
         final lum = img.getLuminanceRgb(px.r, px.g, px.b);
-        if (lum > threshold) {
-          // verde neon
-          colorOverlay.setPixel(x, y, img.ColorInt32.rgb(0, 255, 100));
+        if (lum > 35) { // soglia più bassa → anche occhi, naso, labbra
+          greenOverlay.setPixel(x, y, img.ColorInt32.rgb(0, 255, 100));
         }
       }
     }
 
-    // fusione volto-ghost + linee verdi
-    final blended = img.alphaComposite(bright, colorOverlay, alpha: 0.55);
-    return Uint8List.fromList(img.encodePng(blended));
+    // 4️⃣ Fusione manuale ghost + overlay verde
+    for (int y = 0; y < bright.height; y++) {
+      for (int x = 0; x < bright.width; x++) {
+        final base = bright.getPixel(x, y);
+        final overlay = greenOverlay.getPixel(x, y);
+        final blended = img.getColor(
+          ((base.r * 0.45) + (overlay.r * 0.55)).toInt(),
+          ((base.g * 0.45) + (overlay.g * 0.55)).toInt(),
+          ((base.b * 0.45) + (overlay.b * 0.55)).toInt(),
+        );
+        bright.setPixel(x, y, blended);
+      }
+    }
+
+    return Uint8List.fromList(img.encodePng(bright));
   } catch (e) {
     debugPrint("Ghost processing error: $e");
     return file.readAsBytes();
