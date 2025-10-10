@@ -229,26 +229,42 @@ Future<Uint8List> _processGhostWithLines(File file) async {
       children: [
         Positioned.fill(child: previewFull),
 
-        // 👻 Ghost PRE sovrapposto a piena grandezza
-        if (widget.guideImage != null)
-          FutureBuilder(
-            future: _processGhostWithLines(widget.guideImage!),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const SizedBox();
-              }
-              if (!snapshot.hasData) return const SizedBox();
-              return Opacity(
-                opacity: 0.55,
-                child: Image.memory(
-                  snapshot.data as Uint8List,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-              );
-            },
-          ),
+        // 👻 Ghost PRE sovrapposto a piena grandezza (identico al Colab)
+if (widget.guideImage != null)
+  FutureBuilder<Uint8List>(
+    future: _processGhostWithLines(widget.guideImage!),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const SizedBox();
+      }
+      if (!snapshot.hasData || snapshot.data == null) {
+        debugPrint("⚠️ Ghost snapshot vuoto");
+        return const SizedBox();
+      }
+
+      debugPrint("✅ Ghost generato e visibile");
+      return Opacity(
+        opacity: 0.85, // 🔹 aumenta visibilità del ghost
+        child: Image.memory(
+          snapshot.data!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        ),
+      );
+    },
+  )
+else
+  // 🔸 fallback di debug se guideImage non è passata
+  Container(
+    color: Colors.grey.withOpacity(0.3),
+    child: const Center(
+      child: Text(
+        "⚠️ Nessuna guida PRE caricata",
+        style: TextStyle(color: Colors.white70),
+      ),
+    ),
+  ),
 
         // ⚖️ Livella verticale
         buildLivellaVerticaleOverlay(topOffsetPx: 65.0),
