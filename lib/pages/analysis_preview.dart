@@ -10,9 +10,20 @@ import 'package:custom_camera_component/services/api_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// =====================================================
-// === Utility: copia immagine in percorso sicuro ======
-// =====================================================
+// ✅ Funzione di polling asincrono: attende il completamento del job
+Future<Map<String, dynamic>> waitForResult(String jobId) async {
+  final url = Uri.parse("http://46.101.223.88:5000/status/$jobId");
+  for (int i = 0; i < 180; i++) { // fino a 9 minuti di attesa
+    final resp = await http.get(url);
+    final data = jsonDecode(resp.body);
+    if (data["status"] == "done") return data["result"];
+    if (data["status"] == "error") throw Exception(data["result"]["error"]);
+    await Future.delayed(const Duration(seconds: 3)); // ripeti ogni 3 secondi
+  }
+  throw Exception("Timeout analisi");
+}
+
+// 🔹 Copia la foto in un percorso sicuro che resta valido anche a schermo spento
 Future<String> copyToSafePath(String originalPath) async {
   final dir = await getApplicationDocumentsDirectory();
   final safePath = path.join(
@@ -24,27 +35,9 @@ Future<String> copyToSafePath(String originalPath) async {
   return safePath;
 }
 
-// =====================================================
-// === Utility: polling asincrono ======================
-// =====================================================
-Future<Map<String, dynamic>> waitForResult(String jobId) async {
-  final url = Uri.parse("http://46.101.223.88:5000/status/$jobId");
-  for (int i = 0; i < 300; i++) {
-    final resp = await http.get(url);
-    final data = jsonDecode(resp.body);
-    if (data["status"] == "done") return data["result"];
-    if (data["status"] == "error") throw Exception(data["result"]["error"]);
-    await Future.delayed(const Duration(seconds: 3));
-  }
-  throw Exception("Timeout analisi");
-}
-
-// =====================================================
-// === Pagina principale ===============================
-// =====================================================
 class AnalysisPreview extends StatefulWidget {
   final String imagePath;
-  final String mode; // fullface / particolare / prepost
+  final String mode; // "fullface" o "particolare" o "prepost"
 
   const AnalysisPreview({
     super.key,
@@ -86,9 +79,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   int? _numPoriArancioni;
   String? _poriFilename;
 
-  // =====================================================
-  // === INIT ===========================================
-  // =====================================================
   @override
   void initState() {
     super.initState();
@@ -97,20 +87,29 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     _checkServer();
   }
 
-  // =====================================================
-  // === JOB MANAGEMENT ================================
-  // =====================================================
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  // === 🔹 Cancella un singolo job lato server ===
   Future<void> _cancelJob(String jobId) async {
     try {
-      await http.post(Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId"));
-    } catch (_) {}
+      final url = Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId");
+      await http.post(url);
+      debugPrint("🛑 Job $jobId cancellato lato server");
+    } catch (e) {
+      debugPrint("⚠️ Errore cancellazione job $jobId: $e");
+    }
   }
 
   Future<void> _cancelAllJobs() async {
     final prefs = await SharedPreferences.getInstance();
     for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
       final jobId = prefs.getString("last_job_id_$tipo");
-      if (jobId != null && jobId.isNotEmpty) await _cancelJob(jobId);
+      if (jobId != null && jobId.isNotEmpty) {
+        await _cancelJob(jobId);
+      }
     }
   }
 
@@ -119,14 +118,19 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
       await prefs.remove("last_job_id_$tipo");
     }
+    debugPrint("🧹 Pending jobs puliti");
   }
 
   Future<void> _checkServer() async {
-    setState(() => _checkingServer = true);
+    setState(() {
+      _checkingServer = true;
+    });
+
     try {
       final resp = await http
           .get(Uri.parse("http://46.101.223.88:5000/status"))
           .timeout(const Duration(seconds: 5));
+
       if (resp.statusCode == 200) {
         setState(() {
           _serverReady = true;
@@ -135,6 +139,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         return;
       }
     } catch (_) {}
+
     setState(() {
       _serverReady = false;
       _checkingServer = false;
@@ -147,24 +152,26 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
       final jobId = prefs.getString("last_job_id_$tipo");
       if (jobId != null && jobId.isNotEmpty) {
+        debugPrint("ℹ️ Riprendo job in corso: $tipo ($jobId)");
         await _resumeJob(tipo, jobId);
         break;
       }
     }
   }
 
-  // =====================================================
-  // === UTILITIES ======================================
-  // =====================================================
-  Future<Size> _getImageSizeFromFilePath(String filePath) async {
+  // === Funzioni per calcolare dimensioni immagine ===
+  Future<Size> _getImageSizeFromUrl(String url) async {
     final completer = Completer<Size>();
-    final imgWidget = Image.file(File(filePath));
-    final stream = imgWidget.image.resolve(const ImageConfiguration());
-    late ImageStreamListener listener;
-    listener = ImageStreamListener((ImageInfo info, _) {
-      completer.complete(Size(info.image.width.toDouble(), info.image.height.toDouble()));
+    final imgWidget = Image.network(url);
+    final ImageStream stream = imgWidget.image.resolve(const ImageConfiguration());
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((ImageInfo info, bool _) {
+      completer.complete(Size(
+        info.image.width.toDouble(),
+        info.image.height.toDouble(),
+      ));
       stream.removeListener(listener);
-    }, onError: (_, __) {
+    }, onError: (dynamic _, __) {
       completer.complete(const Size(1024, 1024));
       stream.removeListener(listener);
     });
@@ -172,108 +179,232 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     return completer.future;
   }
 
-  Future<void> _saveOverlayOnMain({required String url, required String tipo}) async {
+  Future<Size> _getImageSizeFromFilePath(String filePath) async {
+    final completer = Completer<Size>();
+    final imgWidget = Image.file(File(filePath));
+    final ImageStream stream = imgWidget.image.resolve(const ImageConfiguration());
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((ImageInfo info, bool _) {
+      completer.complete(Size(
+        info.image.width.toDouble(),
+        info.image.height.toDouble(),
+      ));
+      stream.removeListener(listener);
+    }, onError: (dynamic _, __) {
+      completer.complete(const Size(1024, 1024));
+      stream.removeListener(listener);
+    });
+    stream.addListener(listener);
+    return completer.future;
+  }
+
+  // === Salvataggio overlay ===
+  Future<void> _saveOverlayOnMain({
+    required String url,
+    required String tipo,
+  }) async {
     try {
       final overlayResp = await http.get(Uri.parse(url));
       if (overlayResp.statusCode != 200) return;
+
       final bytes = overlayResp.bodyBytes;
-      final PermissionState pState = await PhotoManager.requestPermissionExtend();
-      if (!(pState.isAuth || pState.hasAccess)) return;
+      final PermissionState pState =
+          await PhotoManager.requestPermissionExtend();
+      final bool granted = pState.isAuth || pState.hasAccess;
+      if (!granted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Permesso galleria negato")),
+        );
+        return;
+      }
+
       final String prefix = (widget.mode == "prepost") ? "POST" : "PRE";
+
       await PhotoManager.editor.saveImage(
         bytes,
-        filename: "${prefix}_overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+        filename:
+            "${prefix}_overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
       );
-    } catch (_) {}
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("✅ Overlay $tipo pronto in galleria")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
+        );
+      }
+    }
   }
 
-  // =====================================================
-  // === CHIAMATA ASINCRONA PRINCIPALE ===================
-  // =====================================================
+  // === Chiamata async con polling ===
   Future<void> _callAnalysisAsync(String tipo) async {
     setState(() => _loading = true);
     try {
       final safePath = await copyToSafePath(widget.imagePath);
+
       final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
       final req = http.MultipartRequest("POST", uri);
-      req.files.add(await http.MultipartFile.fromPath("file", safePath));
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          safePath,
+          filename: path.basename(safePath),
+        ),
+      );
       req.fields["mode"] = widget.mode;
+
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
+
       if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
-        throw Exception("Risposta non valida: $body");
+        throw Exception("Risposta non valida dal server: $body");
       }
+
       final decoded = jsonDecode(body);
       final String jobId = decoded["job_id"];
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString("last_job_id_$tipo", jobId);
-      final result = await waitForResult(jobId);
-      await prefs.remove("last_job_id_$tipo");
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("✅ Analisi $tipo completata")));
-      }
+
+      await _resumeJob(tipo, jobId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("❌ Errore analisi: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore analisi: $e")),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  // =====================================================
-  // === PARSER RISULTATI ================================
-  // =====================================================
+  // ✅ Versione migliorata di _resumeJob che usa waitForResult()
+  Future<void> _resumeJob(String tipo, String jobId) async {
+    setState(() => _loading = true);
+    try {
+      final result = await waitForResult(jobId);
+
+      if (result != null) {
+        if (tipo == "rughe") _parseRughe(result);
+        if (tipo == "macchie") _parseMacchie(result);
+        if (tipo == "melasma") _parseMelasma(result);
+        if (tipo == "pori") _parsePori(result);
+
+        final prefs = await SharedPreferences.getInstance();
+        prefs.remove("last_job_id_$tipo");
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ Analisi $tipo completata")),
+          );
+
+          if (widget.mode == "prepost") {
+            final overlayUrl = result["overlay_url"] != null
+                ? "http://46.101.223.88:5000${result["overlay_url"]}"
+                : null;
+
+            String? overlayPath;
+            if (overlayUrl != null) {
+              final resp = await http.get(Uri.parse(overlayUrl));
+              if (resp.statusCode == 200) {
+                final dir = await getApplicationDocumentsDirectory();
+                overlayPath = path.join(
+                  dir.path,
+                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+                );
+                await File(overlayPath).writeAsBytes(resp.bodyBytes);
+              }
+            }
+
+            Navigator.pop(context, {
+              "result": result,
+              "overlay_path": overlayPath,
+              "id": result["id"],
+              "filename": result["filename"],
+            });
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ Errore nel resumeJob: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // === Parsers ===
   void _parseRughe(dynamic data) async {
     _rugheResult = data;
-    _rugheOverlayUrl = "http://46.101.223.88:5000${data["overlay_url"]}";
+    _rugheOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
     _rughePercentuale = (data["percentuale"] as num?)?.toDouble();
     _rugheFilename = data["filename"];
-    await _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
-    setState(() {});
+    if (_rugheOverlayUrl != null) {
+      await _saveOverlayOnMain(url: _rugheOverlayUrl!, tipo: "rughe");
+    }
   }
 
   void _parseMacchie(dynamic data) async {
     _macchieResult = data;
-    _macchieOverlayUrl = "http://46.101.223.88:5000${data["overlay_url"]}";
+    _macchieOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
     _macchiePercentuale = (data["percentuale"] as num?)?.toDouble();
     _numeroMacchie = data["numero_macchie"] as int?;
     _macchieFilename = data["filename"];
-    await _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
-    setState(() {});
+    if (_macchieOverlayUrl != null) {
+      await _saveOverlayOnMain(url: _macchieOverlayUrl!, tipo: "macchie");
+    }
   }
 
   void _parseMelasma(dynamic data) async {
     _melasmaResult = data;
-    _melasmaOverlayUrl = "http://46.101.223.88:5000${data["overlay_url"]}";
+    _melasmaOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
     _melasmaPercentuale = (data["percentuale"] as num?)?.toDouble();
     _melasmaFilename = data["filename"];
-    await _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
-    setState(() {});
+    if (_melasmaOverlayUrl != null) {
+      await _saveOverlayOnMain(url: _melasmaOverlayUrl!, tipo: "melasma");
+    }
   }
 
   void _parsePori(dynamic data) async {
     _poriResult = data;
-    _poriOverlayUrl = "http://46.101.223.88:5000${data["overlay_url"]}";
+    _poriOverlayUrl = data["overlay_url"] != null
+        ? "http://46.101.223.88:5000${data["overlay_url"]}"
+        : null;
     _poriPercentuale = (data["percentuale"] as num?)?.toDouble();
-    _numPoriTotali = data["num_pori_totali"] as int?;
+
+    final numNorm = data["num_pori_normali"] as int? ?? 0;
+    final numBorder = data["num_pori_borderline"] as int? ?? 0;
+    final numDil = data["num_pori_dilatati"] as int? ?? 0;
+    _numPoriVerdi = data["num_pori_verdi"] as int? ?? numNorm;
+    _numPoriArancioni = data["num_pori_arancioni"] as int? ?? numBorder;
+    _numPoriTotali = data["num_pori_totali"] as int? ?? (numNorm + numBorder + numDil);
+
     _percPoriDilatati = (data["perc_pori_dilatati"] as num?)?.toDouble();
-    _numPoriVerdi = data["num_pori_normali"] as int?;
-    _numPoriArancioni = data["num_pori_borderline"] as int?;
     _poriFilename = data["filename"];
-    await _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
-    setState(() {});
+    if (_poriOverlayUrl != null) {
+      await _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
+    }
+
+    if (mounted) setState(() {});
   }
 
-  // =====================================================
-  // === UI: BLOCCO RISULTATI + VOTO =====================
-  // =====================================================
+  // === Blocchi UI ===
   Widget _buildAnalysisBlock({
     required String title,
     required String? overlayUrl,
@@ -284,6 +415,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     double? percPoriDilatati,
   }) {
     if (overlayUrl == null) return const SizedBox.shrink();
+
     String filename = analysisType == "rughe"
         ? (_rugheFilename ?? path.basename(widget.imagePath))
         : analysisType == "macchie"
@@ -295,43 +427,68 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text("🔬 Analisi: $title",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          "🔬 Analisi: $title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 10),
-        Container(
-          color: Colors.black,
-          width: double.infinity,
-          alignment: Alignment.center,
-          child: InteractiveViewer(
-            clipBehavior: Clip.none,
-            minScale: 1.0,
-            maxScale: 10.0,
-            child: Image.network(overlayUrl, fit: BoxFit.fitWidth),
-          ),
+        FutureBuilder<Size>(
+          future: _getImageSizeFromFilePath(widget.imagePath),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final originalSize = snapshot.data!;
+            final aspect = originalSize.width / originalSize.height;
+
+            return Container(
+              color: Colors.black,
+              width: double.infinity,
+              alignment: Alignment.center,
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: InteractiveViewer(
+                  clipBehavior: Clip.none,
+                  minScale: 1.0,
+                  maxScale: 10.0,
+                  child: Image.network(
+                    overlayUrl,
+                    fit: BoxFit.fitWidth,
+                    alignment: Alignment.center,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 10),
         if (percentuale != null)
           Text("Percentuale area: ${percentuale.toStringAsFixed(2)}%"),
-        if (numeroMacchie != null) Text("Numero macchie: $numeroMacchie"),
+        if (numeroMacchie != null)
+          Text("Numero macchie: $numeroMacchie"),
         if (numPoriTotali != null)
-          Text("Totale pori: $numPoriTotali (${percPoriDilatati?.toStringAsFixed(2)}% dilatati)"),
+          Text("Totale pori: $numPoriTotali"),
+        if (percPoriDilatati != null)
+          Text("Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%"),
         const SizedBox(height: 20),
-        const Text("Come giudichi questa analisi? Dai un voto da 1 a 10",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (i) {
-            final voto = i + 1;
+          children: List.generate(10, (index) {
+            int voto = index + 1;
             return GestureDetector(
               onTap: () async {
-                await ApiService.sendJudgement(
+                bool ok = await ApiService.sendJudgement(
                   filename: filename,
                   giudizio: voto,
                   analysisType: analysisType,
-                  autore: "auto",
+                  autore: "anonimo",
                 );
-                if (mounted) {
+                if (ok && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("✅ Giudizio $voto inviato per $analysisType")),
                   );
@@ -344,7 +501,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                   color: Colors.blueAccent,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text("$voto", style: const TextStyle(color: Colors.white)),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
               ),
             );
           }),
@@ -354,9 +514,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     );
   }
 
-  // =====================================================
-  // === BUILD UI COMPLETA ===============================
-  // =====================================================
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -372,7 +529,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                 ? "Anteprima (Particolare)"
                 : widget.mode == "prepost"
                     ? "Anteprima (Pre/Post)"
-                    : "Anteprima Analisi",
+                    : "Anteprima (Volto intero)",
           ),
           backgroundColor: Colors.blue,
         ),
@@ -381,17 +538,43 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
             SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ✅ FOTO ORIGINALE
                   Container(
                     color: Colors.black,
                     width: double.infinity,
                     alignment: Alignment.center,
-                    child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxW = constraints.maxWidth;
+                        return FutureBuilder<Size>(
+                          future: _getImageSizeFromFilePath(widget.imagePath),
+                          builder: (context, snap) {
+                            if (!snap.hasData) {
+                              return const SizedBox(
+                                height: 200,
+                                child: Center(child: CircularProgressIndicator()),
+                              );
+                            }
+                            final sz = snap.data!;
+                            final aspect = sz.width / sz.height;
+                            final displayW = maxW;
+                            final displayH = displayW / aspect;
+                            return SizedBox(
+                              width: displayW,
+                              height: displayH,
+                              child: Image.file(
+                                File(widget.imagePath),
+                                fit: BoxFit.fill,
+                                alignment: Alignment.center,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
-
-                  // ✅ SERVER STATUS
                   if (_checkingServer)
                     const CircularProgressIndicator()
                   else if (!_serverReady)
@@ -404,8 +587,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                         ),
                       ],
                     ),
-
-                  // ✅ PULSANTI ANALISI
                   Row(
                     children: [
                       Expanded(
@@ -449,33 +630,34 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 24),
-
-                  // ✅ RISULTATI
                   _buildAnalysisBlock(
-                      title: "Rughe",
-                      overlayUrl: _rugheOverlayUrl,
-                      percentuale: _rughePercentuale,
-                      analysisType: "rughe"),
+                    title: "Rughe",
+                    overlayUrl: _rugheOverlayUrl,
+                    percentuale: _rughePercentuale,
+                    analysisType: "rughe",
+                  ),
                   _buildAnalysisBlock(
-                      title: "Macchie",
-                      overlayUrl: _macchieOverlayUrl,
-                      percentuale: _macchiePercentuale,
-                      analysisType: "macchie",
-                      numeroMacchie: _numeroMacchie),
+                    title: "Macchie",
+                    overlayUrl: _macchieOverlayUrl,
+                    percentuale: _macchiePercentuale,
+                    analysisType: "macchie",
+                    numeroMacchie: _numeroMacchie,
+                  ),
                   _buildAnalysisBlock(
-                      title: "Melasma",
-                      overlayUrl: _melasmaOverlayUrl,
-                      percentuale: _melasmaPercentuale,
-                      analysisType: "melasma"),
+                    title: "Melasma",
+                    overlayUrl: _melasmaOverlayUrl,
+                    percentuale: _melasmaPercentuale,
+                    analysisType: "melasma",
+                  ),
                   _buildAnalysisBlock(
-                      title: "Pori",
-                      overlayUrl: _poriOverlayUrl,
-                      percentuale: _poriPercentuale,
-                      analysisType: "pori",
-                      numPoriTotali: _numPoriTotali,
-                      percPoriDilatati: _percPoriDilatati),
+                    title: "Pori",
+                    overlayUrl: _poriOverlayUrl,
+                    percentuale: _poriPercentuale,
+                    analysisType: "pori",
+                    numPoriTotali: _numPoriTotali,
+                    percPoriDilatati: _percPoriDilatati,
+                  ),
                 ],
               ),
             ),
