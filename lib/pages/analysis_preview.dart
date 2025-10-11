@@ -10,6 +10,19 @@ import 'package:custom_camera_component/services/api_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// ✅ Funzione di polling asincrono: attende il completamento del job
+Future<Map<String, dynamic>> waitForResult(String jobId) async {
+  final url = Uri.parse("http://46.101.223.88:5000/status/$jobId");
+  for (int i = 0; i < 180; i++) { // fino a 9 minuti di attesa
+    final resp = await http.get(url);
+    final data = jsonDecode(resp.body);
+    if (data["status"] == "done") return data["result"];
+    if (data["status"] == "error") throw Exception(data["result"]["error"]);
+    await Future.delayed(const Duration(seconds: 3)); // ripeti ogni 3 secondi
+  }
+  throw Exception("Timeout analisi");
+}
+
 // 🔹 Copia la foto in un percorso sicuro che resta valido anche a schermo spento
 Future<String> copyToSafePath(String originalPath) async {
   final dir = await getApplicationDocumentsDirectory();
@@ -270,77 +283,64 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
+  // ✅ Versione migliorata con waitForResult()
   Future<void> _resumeJob(String tipo, String jobId) async {
     setState(() => _loading = true);
-    bool done = false;
-    Map<String, dynamic>? result;
+    try {
+      final result = await waitForResult(jobId);
 
-    while (!done && mounted) {
-      await Future.delayed(const Duration(seconds: 2));
-      try {
-        final statusResp = await http
-            .get(Uri.parse("http://46.101.223.88:5000/status/$jobId"))
-            .timeout(const Duration(seconds: 10));
-        if (statusResp.statusCode != 200) continue;
+      if (result != null) {
+        if (tipo == "rughe") _parseRughe(result);
+        if (tipo == "macchie") _parseMacchie(result);
+        if (tipo == "melasma") _parseMelasma(result);
+        if (tipo == "pori") _parsePori(result);
 
-        final statusData = jsonDecode(statusResp.body);
-        if (statusData["status"] == "done") {
-          done = true;
-          result = statusData["result"];
-        } else if (statusData["status"] == "error") {
-          done = true;
-          result = {"error": statusData["result"]};
+        final prefs = await SharedPreferences.getInstance();
+        prefs.remove("last_job_id_$tipo");
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ Analisi $tipo completata")),
+          );
+
+          if (widget.mode == "prepost") {
+            final overlayUrl = result["overlay_url"] != null
+                ? "http://46.101.223.88:5000${result["overlay_url"]}"
+                : null;
+
+            String? overlayPath;
+            if (overlayUrl != null) {
+              final resp = await http.get(Uri.parse(overlayUrl));
+              if (resp.statusCode == 200) {
+                final dir = await getApplicationDocumentsDirectory();
+                overlayPath = path.join(
+                  dir.path,
+                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+                );
+                await File(overlayPath).writeAsBytes(resp.bodyBytes);
+              }
+            }
+
+            Navigator.pop(context, {
+              "result": result,
+              "overlay_path": overlayPath,
+              "id": result["id"],
+              "filename": result["filename"],
+            });
+            return;
+          }
         }
-      } catch (_) {
-        continue;
       }
-    }
-
-    if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
-
-      final prefs = await SharedPreferences.getInstance();
-      prefs.remove("last_job_id_$tipo");
-
+    } catch (e) {
+      debugPrint("❌ Errore nel resumeJob: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Analisi $tipo completata")),
+          SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
         );
-
-        // 🔹 Se siamo in modalità PRE/POST → torna indietro con l'overlay
-        if (widget.mode == "prepost") {
-          final overlayUrl = result["overlay_url"] != null
-              ? "http://46.101.223.88:5000${result["overlay_url"]}"
-              : null;
-
-          String? overlayPath;
-          if (overlayUrl != null) {
-            final resp = await http.get(Uri.parse(overlayUrl));
-            if (resp.statusCode == 200) {
-              final dir = await getApplicationDocumentsDirectory();
-              overlayPath = path.join(
-                dir.path,
-                "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-              );
-              await File(overlayPath).writeAsBytes(resp.bodyBytes);
-            }
-          }
-
-          Navigator.pop(context, {
-            "result": result,
-            "overlay_path": overlayPath,
-            "id": result["id"],
-            "filename": result["filename"],
-          });
-          return;
-        }
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    if (mounted) setState(() => _loading = false);
   }
 
   // === Parsers ===
@@ -393,7 +393,8 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     final numDil = data["num_pori_dilatati"] as int? ?? 0;
     _numPoriVerdi = data["num_pori_verdi"] as int? ?? numNorm;
     _numPoriArancioni = data["num_pori_arancioni"] as int? ?? numBorder;
-    _numPoriTotali = data["num_pori_totali"] as int? ?? (numNorm + numBorder + numDil);
+    _numPoriTotali =
+        data["num_pori_totali"] as int? ?? (numNorm + numBorder + numDil);
 
     _percPoriDilatati = (data["perc_pori_dilatati"] as num?)?.toDouble();
     _poriFilename = data["filename"];
@@ -416,7 +417,6 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
   }) {
     if (overlayUrl == null) return const SizedBox.shrink();
 
-    // Ricava filename corretto in base all’analisi
     String filename = analysisType == "rughe"
         ? (_rugheFilename ?? path.basename(widget.imagePath))
         : analysisType == "macchie"
@@ -434,7 +434,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         const SizedBox(height: 10),
 
-        // ✅ Overlay con stesso formato e aspect ratio della foto originale
+        // ✅ Overlay proporzionato all'immagine originale
         FutureBuilder<Size>(
           future: _getImageSizeFromFilePath(widget.imagePath),
           builder: (context, snapshot) {
@@ -467,95 +467,33 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
 
         const SizedBox(height: 10),
-
         if (percentuale != null)
           Text(
             "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+                fontSize: 16, fontWeight: FontWeight.bold),
           ),
         if (numeroMacchie != null)
-          Text(
-            "Numero macchie: $numeroMacchie",
-            style: const TextStyle(fontSize: 16),
-          ),
+          Text("Numero macchie: $numeroMacchie",
+              style: const TextStyle(fontSize: 16)),
         if (numPoriTotali != null)
-  Text(
-    "Totale pori: $numPoriTotali",
-    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-  ),
-if (_numPoriVerdi != null)
-  Text(
-    "Pori normali (verdi): $_numPoriVerdi",
-    style: const TextStyle(fontSize: 16),
-  ),
-if (_numPoriArancioni != null)
-  Text(
-    "Pori borderline (arancioni): $_numPoriArancioni",
-    style: const TextStyle(fontSize: 16),
-  ),
-if (_poriResult?["num_pori_dilatati"] != null)
-  Text(
-    "Pori dilatati (rossi): ${_poriResult!["num_pori_dilatati"]}",
-    style: const TextStyle(fontSize: 16),
-  ),
-if (percPoriDilatati != null)
-  Text(
-    "Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
-    style: const TextStyle(fontSize: 16),
-  ),
+          Text("Totale pori: $numPoriTotali",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        if (_numPoriVerdi != null)
+          Text("Pori normali (verdi): $_numPoriVerdi",
+              style: const TextStyle(fontSize: 16)),
+        if (_numPoriArancioni != null)
+          Text("Pori borderline (arancioni): $_numPoriArancioni",
+              style: const TextStyle(fontSize: 16)),
+        if (_poriResult?["num_pori_dilatati"] != null)
+          Text(
+              "Pori dilatati (rossi): ${_poriResult!["num_pori_dilatati"]}",
+              style: const TextStyle(fontSize: 16)),
+        if (percPoriDilatati != null)
+          Text(
+              "Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%",
+              style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 20),
-
-        const Text(
-          "Come giudichi questa analisi? Dai un voto da 1 a 10",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (index) {
-            int voto = index + 1;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                bool ok = await ApiService.sendJudgement(
-                  filename: filename,
-                  giudizio: voto,
-                  analysisType: analysisType,
-                  autore: "anonimo",
-                );
-                if (ok && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text("✅ Giudizio $voto inviato per $analysisType"),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "$voto",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-
-        const SizedBox(height: 40),
       ],
     );
   }
@@ -586,7 +524,6 @@ if (percPoriDilatati != null)
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ✅ Foto originale a proporzioni reali
                   Container(
                     color: Colors.black,
                     width: double.infinity,
@@ -595,8 +532,7 @@ if (percPoriDilatati != null)
                       builder: (context, constraints) {
                         final maxW = constraints.maxWidth;
                         return FutureBuilder<Size>(
-                          future:
-                              _getImageSizeFromFilePath(widget.imagePath),
+                          future: _getImageSizeFromFilePath(widget.imagePath),
                           builder: (context, snap) {
                             if (!snap.hasData) {
                               return const SizedBox(
