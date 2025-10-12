@@ -406,115 +406,129 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   // === Blocchi UI ===
   Widget _buildAnalysisBlock({
-    required String title,
-    required String? overlayUrl,
-    required double? percentuale,
-    required String analysisType,
-    int? numeroMacchie,
-    int? numPoriTotali,
-    double? percPoriDilatati,
-  }) {
-    if (overlayUrl == null) return const SizedBox.shrink();
+  required String title,
+  required String? overlayUrl,
+  required double? percentuale,
+  required String analysisType,
+  int? numeroMacchie,
+  int? numPoriTotali,
+  double? percPoriDilatati,
+}) {
+  // Se l’overlay non esiste o non è valido, non mostra nulla
+  if (overlayUrl == null || overlayUrl.isEmpty) {
+    return const SizedBox.shrink();
+  }
 
-    String filename = analysisType == "rughe"
-        ? (_rugheFilename ?? path.basename(widget.imagePath))
-        : analysisType == "macchie"
-            ? (_macchieFilename ?? path.basename(widget.imagePath))
-            : analysisType == "melasma"
-                ? (_melasmaFilename ?? path.basename(widget.imagePath))
-                : (_poriFilename ?? path.basename(widget.imagePath));
+  // Determina il nome file corretto
+  String filename = analysisType == "rughe"
+      ? (_rugheFilename ?? path.basename(widget.imagePath))
+      : analysisType == "macchie"
+          ? (_macchieFilename ?? path.basename(widget.imagePath))
+          : analysisType == "melasma"
+              ? (_melasmaFilename ?? path.basename(widget.imagePath))
+              : (_poriFilename ?? path.basename(widget.imagePath));
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          "🔬 Analisi: $title",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        FutureBuilder<Size>(
-          future: _getImageSizeFromFilePath(widget.imagePath),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final originalSize = snapshot.data!;
-            final aspect = originalSize.width / originalSize.height;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Text(
+        "🔬 Analisi: $title",
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 10),
 
-            return Container(
-              color: Colors.black,
-              width: double.infinity,
-              alignment: Alignment.center,
-              child: AspectRatio(
-                aspectRatio: aspect,
-                child: InteractiveViewer(
-                  clipBehavior: Clip.none,
-                  minScale: 1.0,
-                  maxScale: 10.0,
-                  child: Image.network(
-                    overlayUrl,
-                    fit: BoxFit.fitWidth,
-                    alignment: Alignment.center,
+      // === Mostra overlay in modo sicuro ===
+      FutureBuilder<Size>(
+        future: _getImageSizeFromFilePath(widget.imagePath),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final originalSize = snapshot.data!;
+          final aspect = originalSize.width / originalSize.height;
+
+          return Container(
+            color: Colors.black,
+            width: double.infinity,
+            alignment: Alignment.center,
+            child: AspectRatio(
+              aspectRatio: aspect,
+              child: InteractiveViewer(
+                clipBehavior: Clip.none,
+                minScale: 1.0,
+                maxScale: 10.0,
+                child: Image.network(
+                  overlayUrl,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.center,
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Text(
+                      "❌ Errore nel caricamento overlay",
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
                 ),
               ),
-            );
-          },
-        ),
-        const SizedBox(height: 10),
-        if (percentuale != null)
-  Text("Percentuale area: ${percentuale.toStringAsFixed(2)}%"),
+            ),
+          );
+        },
+      ),
 
-if (analysisType != "macchie" && numeroMacchie != null)
-  Text("Numero macchie: $numeroMacchie"),
+      const SizedBox(height: 10),
 
-if (numPoriTotali != null)
-  Text("Totale pori: $numPoriTotali"),
-if (percPoriDilatati != null)
-  Text("Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%"),
-        const SizedBox(height: 20),
-        const Text(
-          "Come giudichi questa analisi? Dai un voto da 1 a 10",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      // === Mostra solo percentuale area ===
+      if (percentuale != null)
+        Text(
+          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(10, (index) {
-            int voto = index + 1;
-            return GestureDetector(
-              onTap: () async {
-                bool ok = await ApiService.sendJudgement(
-                  filename: filename,
-                  giudizio: voto,
-                  analysisType: analysisType,
-                  autore: "anonimo",
+
+      const SizedBox(height: 20),
+
+      const Text(
+        "Come giudichi questa analisi? Dai un voto da 1 a 10",
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 12),
+
+      // === Pulsanti di valutazione ===
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(10, (index) {
+          int voto = index + 1;
+          return GestureDetector(
+            onTap: () async {
+              bool ok = await ApiService.sendJudgement(
+                filename: filename,
+                giudizio: voto,
+                analysisType: analysisType,
+                autore: "anonimo",
+              );
+              if (ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("✅ Giudizio $voto inviato per $analysisType")),
                 );
-                if (ok && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("✅ Giudizio $voto inviato per $analysisType")),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "$voto",
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent,
+                borderRadius: BorderRadius.circular(6),
               ),
-            );
-          }),
-        ),
-        const SizedBox(height: 40),
-      ],
-    );
-  }
+              child: Text(
+                "$voto",
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          );
+        }),
+      ),
+      const SizedBox(height: 40),
+    ],
+  );
+}
 
   @override
   Widget build(BuildContext context) {
