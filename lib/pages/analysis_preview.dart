@@ -463,13 +463,15 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ),
         const SizedBox(height: 10),
         if (percentuale != null)
-          Text("Percentuale area: ${percentuale.toStringAsFixed(2)}%"),
-        if (numeroMacchie != null)
-          Text("Numero macchie: $numeroMacchie"),
-        if (numPoriTotali != null)
-          Text("Totale pori: $numPoriTotali"),
-        if (percPoriDilatati != null)
-          Text("Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%"),
+  Text("Percentuale area: ${percentuale.toStringAsFixed(2)}%"),
+
+if (analysisType != "macchie" && numeroMacchie != null)
+  Text("Numero macchie: $numeroMacchie"),
+
+if (numPoriTotali != null)
+  Text("Totale pori: $numPoriTotali"),
+if (percPoriDilatati != null)
+  Text("Percentuale pori dilatati: ${percPoriDilatati.toStringAsFixed(2)}%"),
         const SizedBox(height: 20),
         const Text(
           "Come giudichi questa analisi? Dai un voto da 1 a 10",
