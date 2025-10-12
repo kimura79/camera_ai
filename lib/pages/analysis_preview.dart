@@ -290,10 +290,10 @@ Future<void> _callAnalysisAsync(String tipo) async {
     // ✅ Attendi completamento job (polling asincrono)
     final result = await waitForResult(jobId);
     if (result != null) {
-      if (tipo == "rughe") await _parseRughe(result);
-      if (tipo == "macchie") await _parseMacchie(result);
-      if (tipo == "melasma") await _parseMelasma(result);
-      if (tipo == "pori") await _parsePori(result);
+      if (tipo == "rughe") _parseRughe(result);
+      if (tipo == "macchie") _parseMacchie(result);
+      if (tipo == "melasma") _parseMelasma(result);
+      if (tipo == "pori") _parsePori(result);
     }
 
     prefs.remove("last_job_id_$tipo");
