@@ -211,13 +211,7 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
       final PermissionState pState =
           await PhotoManager.requestPermissionExtend();
       final bool granted = pState.isAuth || pState.hasAccess;
-      if (!granted) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Permesso galleria negato")),
-        );
-        return;
-      }
+      if (!granted) return;
 
       final String prefix = (widget.mode == "prepost") ? "POST" : "PRE";
 
@@ -226,58 +220,50 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         filename:
             "${prefix}_overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Overlay $tipo pronto in galleria")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore salvataggio $tipo: $e")),
-        );
-      }
-    }
+    } catch (_) {}
   }
 
-  // === Chiamata async con polling ===
+  // === Chiamata async con retry silenzioso e polling ===
   Future<void> _callAnalysisAsync(String tipo) async {
     setState(() => _loading = true);
     try {
       final safePath = await copyToSafePath(widget.imagePath);
-
       final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
-      final req = http.MultipartRequest("POST", uri);
-      req.files.add(
-        await http.MultipartFile.fromPath(
-          "file",
-          safePath,
-          filename: path.basename(safePath),
-        ),
-      );
-      req.fields["mode"] = widget.mode;
 
-      final resp = await req.send();
-      final body = await resp.stream.bytesToString();
+      const int maxTentativi = 3;
+      int tentativo = 0;
+      http.StreamedResponse? resp;
+      String? body;
 
-      if (resp.statusCode != 200 || !body.trim().startsWith("{")) {
-        throw Exception("Risposta non valida dal server: $body");
+      while (tentativo < maxTentativi) {
+        try {
+          final req = http.MultipartRequest("POST", uri);
+          req.files.add(await http.MultipartFile.fromPath("file", safePath));
+          req.fields["mode"] = widget.mode;
+          req.headers["Connection"] = "close"; // evita socket riusati
+
+          resp = await req.send().timeout(const Duration(seconds: 90));
+          body = await resp.stream.bytesToString();
+
+          if (resp.statusCode == 200 && body.trim().startsWith("{")) break;
+        } catch (_) {
+          tentativo++;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+
+      if (resp == null || body == null || !body.trim().startsWith("{")) {
+        throw Exception("Server non raggiungibile dopo $maxTentativi tentativi");
       }
 
       final decoded = jsonDecode(body);
       final String jobId = decoded["job_id"];
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString("last_job_id_$tipo", jobId);
 
       await _resumeJob(tipo, jobId);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore analisi: $e")),
-        );
-      }
+      debugPrint("❌ Errore analisi $tipo: $e");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -297,47 +283,9 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
         final prefs = await SharedPreferences.getInstance();
         prefs.remove("last_job_id_$tipo");
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("✅ Analisi $tipo completata")),
-          );
-
-          if (widget.mode == "prepost") {
-            final overlayUrl = result["overlay_url"] != null
-                ? "http://46.101.223.88:5000${result["overlay_url"]}"
-                : null;
-
-            String? overlayPath;
-            if (overlayUrl != null) {
-              final resp = await http.get(Uri.parse(overlayUrl));
-              if (resp.statusCode == 200) {
-                final dir = await getApplicationDocumentsDirectory();
-                overlayPath = path.join(
-                  dir.path,
-                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-                );
-                await File(overlayPath).writeAsBytes(resp.bodyBytes);
-              }
-            }
-
-            Navigator.pop(context, {
-              "result": result,
-              "overlay_path": overlayPath,
-              "id": result["id"],
-              "filename": result["filename"],
-            });
-            return;
-          }
-        }
       }
     } catch (e) {
-      debugPrint("❌ Errore nel resumeJob: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
-        );
-      }
+      debugPrint("❌ Errore nel resumeJob ($tipo): $e");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -387,148 +335,133 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
         ? "http://46.101.223.88:5000${data["overlay_url"]}"
         : null;
     _poriPercentuale = (data["percentuale"] as num?)?.toDouble();
-
     final numNorm = data["num_pori_normali"] as int? ?? 0;
     final numBorder = data["num_pori_borderline"] as int? ?? 0;
     final numDil = data["num_pori_dilatati"] as int? ?? 0;
     _numPoriVerdi = data["num_pori_verdi"] as int? ?? numNorm;
     _numPoriArancioni = data["num_pori_arancioni"] as int? ?? numBorder;
     _numPoriTotali = data["num_pori_totali"] as int? ?? (numNorm + numBorder + numDil);
-
     _percPoriDilatati = (data["perc_pori_dilatati"] as num?)?.toDouble();
     _poriFilename = data["filename"];
     if (_poriOverlayUrl != null) {
       await _saveOverlayOnMain(url: _poriOverlayUrl!, tipo: "pori");
     }
-
     if (mounted) setState(() {});
   }
 
   // === Blocchi UI ===
   Widget _buildAnalysisBlock({
-  required String title,
-  required String? overlayUrl,
-  required double? percentuale,
-  required String analysisType,
-  int? numeroMacchie,
-  int? numPoriTotali,
-  double? percPoriDilatati,
-}) {
-  // Se l’overlay non esiste o non è valido, non mostra nulla
-  if (overlayUrl == null || overlayUrl.isEmpty) {
-    return const SizedBox.shrink();
-  }
+    required String title,
+    required String? overlayUrl,
+    required double? percentuale,
+    required String analysisType,
+    int? numeroMacchie,
+    int? numPoriTotali,
+    double? percPoriDilatati,
+  }) {
+    if (overlayUrl == null || overlayUrl.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-  // Determina il nome file corretto
-  String filename = analysisType == "rughe"
-      ? (_rugheFilename ?? path.basename(widget.imagePath))
-      : analysisType == "macchie"
-          ? (_macchieFilename ?? path.basename(widget.imagePath))
-          : analysisType == "melasma"
-              ? (_melasmaFilename ?? path.basename(widget.imagePath))
-              : (_poriFilename ?? path.basename(widget.imagePath));
+    String filename = analysisType == "rughe"
+        ? (_rugheFilename ?? path.basename(widget.imagePath))
+        : analysisType == "macchie"
+            ? (_macchieFilename ?? path.basename(widget.imagePath))
+            : analysisType == "melasma"
+                ? (_melasmaFilename ?? path.basename(widget.imagePath))
+                : (_poriFilename ?? path.basename(widget.imagePath));
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Text(
-        "🔬 Analisi: $title",
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 10),
-
-      // === Mostra overlay in modo sicuro ===
-      FutureBuilder<Size>(
-        future: _getImageSizeFromFilePath(widget.imagePath),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final originalSize = snapshot.data!;
-          final aspect = originalSize.width / originalSize.height;
-
-          return Container(
-            color: Colors.black,
-            width: double.infinity,
-            alignment: Alignment.center,
-            child: AspectRatio(
-              aspectRatio: aspect,
-              child: InteractiveViewer(
-                clipBehavior: Clip.none,
-                minScale: 1.0,
-                maxScale: 10.0,
-                child: Image.network(
-                  overlayUrl,
-                  fit: BoxFit.fitWidth,
-                  alignment: Alignment.center,
-                  errorBuilder: (context, error, stackTrace) => const Center(
-                    child: Text(
-                      "❌ Errore nel caricamento overlay",
-                      style: TextStyle(color: Colors.red),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          "🔬 Analisi: $title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        FutureBuilder<Size>(
+          future: _getImageSizeFromFilePath(widget.imagePath),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final originalSize = snapshot.data!;
+            final aspect = originalSize.width / originalSize.height;
+            return Container(
+              color: Colors.black,
+              width: double.infinity,
+              alignment: Alignment.center,
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: InteractiveViewer(
+                  clipBehavior: Clip.none,
+                  minScale: 1.0,
+                  maxScale: 10.0,
+                  child: Image.network(
+                    overlayUrl,
+                    fit: BoxFit.fitWidth,
+                    alignment: Alignment.center,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Text(
+                        "❌ Errore nel caricamento overlay",
+                        style: TextStyle(color: Colors.red),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
-
-      const SizedBox(height: 10),
-
-      // === Mostra solo percentuale area ===
-      if (percentuale != null)
-        Text(
-          "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            );
+          },
         ),
-
-      const SizedBox(height: 20),
-
-      const Text(
-        "Come giudichi questa analisi? Dai un voto da 1 a 10",
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
-
-      // === Pulsanti di valutazione ===
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(10, (index) {
-          int voto = index + 1;
-          return GestureDetector(
-            onTap: () async {
-              bool ok = await ApiService.sendJudgement(
-                filename: filename,
-                giudizio: voto,
-                analysisType: analysisType,
-                autore: "anonimo",
-              );
-              if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("✅ Giudizio $voto inviato per $analysisType")),
+        const SizedBox(height: 10),
+        if (percentuale != null)
+          Text(
+            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        const SizedBox(height: 20),
+        const Text(
+          "Come giudichi questa analisi? Dai un voto da 1 a 10",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(10, (index) {
+            int voto = index + 1;
+            return GestureDetector(
+              onTap: () async {
+                bool ok = await ApiService.sendJudgement(
+                  filename: filename,
+                  giudizio: voto,
+                  analysisType: analysisType,
+                  autore: "anonimo",
                 );
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent,
-                borderRadius: BorderRadius.circular(6),
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("✅ Giudizio $voto inviato per $analysisType")),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "$voto",
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
               ),
-              child: Text(
-                "$voto",
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          );
-        }),
-      ),
-      const SizedBox(height: 40),
-    ],
-  );
-}
+            );
+          }),
+        ),
+        const SizedBox(height: 40),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
