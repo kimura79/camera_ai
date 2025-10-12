@@ -223,51 +223,91 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     } catch (_) {}
   }
 
-  // === Chiamata async con retry silenzioso e polling ===
-  Future<void> _callAnalysisAsync(String tipo) async {
-    setState(() => _loading = true);
-    try {
-      final safePath = await copyToSafePath(widget.imagePath);
-      final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+  // === Chiamata async con retry, verifica file e polling ===
+Future<void> _callAnalysisAsync(String tipo) async {
+  setState(() => _loading = true);
+  try {
+    // ✅ Copia l'immagine in percorso persistente
+    final safePath = await copyToSafePath(widget.imagePath);
+    final fileToSend = File(safePath);
 
-      const int maxTentativi = 3;
-      int tentativo = 0;
-      http.StreamedResponse? resp;
-      String? body;
-
-      while (tentativo < maxTentativi) {
-        try {
-          final req = http.MultipartRequest("POST", uri);
-          req.files.add(await http.MultipartFile.fromPath("file", safePath));
-          req.fields["mode"] = widget.mode;
-          req.headers["Connection"] = "close"; // evita socket riusati
-
-          resp = await req.send().timeout(const Duration(seconds: 90));
-          body = await resp.stream.bytesToString();
-
-          if (resp.statusCode == 200 && body.trim().startsWith("{")) break;
-        } catch (_) {
-          tentativo++;
-          await Future.delayed(const Duration(seconds: 2));
-        }
+    // ✅ Attendi che il file sia realmente scritto e > 100 KB
+    bool ready = false;
+    for (int i = 0; i < 10; i++) {
+      if (await fileToSend.exists() && await fileToSend.length() > 100000) {
+        ready = true;
+        break;
       }
-
-      if (resp == null || body == null || !body.trim().startsWith("{")) {
-        throw Exception("Server non raggiungibile dopo $maxTentativi tentativi");
-      }
-
-      final decoded = jsonDecode(body);
-      final String jobId = decoded["job_id"];
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("last_job_id_$tipo", jobId);
-
-      await _resumeJob(tipo, jobId);
-    } catch (e) {
-      debugPrint("❌ Errore analisi $tipo: $e");
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      await Future.delayed(const Duration(milliseconds: 300));
     }
+    if (!ready) {
+      throw Exception("⚠️ File non pronto o vuoto: $safePath");
+    }
+
+    final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+    const int maxTentativi = 3;
+    int tentativo = 0;
+    http.StreamedResponse? resp;
+    String? body;
+
+    // ✅ Tentativi multipli con timeout e connessione chiusa
+    while (tentativo < maxTentativi) {
+      try {
+        final req = http.MultipartRequest("POST", uri);
+        req.files.add(await http.MultipartFile.fromPath("file", safePath));
+        req.fields["mode"] = widget.mode;
+        req.headers["Connection"] = "close"; // evita socket riusati
+
+        debugPrint("📤 Invio analisi $tipo (tentativo ${tentativo + 1})...");
+        resp = await req.send().timeout(const Duration(seconds: 90));
+        body = await resp.stream.bytesToString();
+
+        if (resp.statusCode == 200 && body.trim().startsWith("{")) break;
+        debugPrint("⚠️ Tentativo ${tentativo + 1} fallito (HTTP ${resp.statusCode})");
+      } catch (e) {
+        debugPrint("⚠️ Errore tentativo ${tentativo + 1}: $e");
+      }
+
+      tentativo++;
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
+    if (resp == null || body == null || !body.trim().startsWith("{")) {
+      throw Exception("❌ Server non raggiungibile dopo $maxTentativi tentativi");
+    }
+
+    // ✅ Decodifica risposta server e salva job ID
+    final decoded = jsonDecode(body);
+    if (decoded["job_id"] == null) {
+      throw Exception("❌ Risposta server non valida: $body");
+    }
+    final String jobId = decoded["job_id"];
+    debugPrint("🆔 Job avviato ($tipo): $jobId");
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("last_job_id_$tipo", jobId);
+
+    // ✅ Attendi completamento job (polling asincrono)
+    final result = await waitForResult(jobId);
+    if (result != null) {
+      if (tipo == "rughe") await _parseRughe(result);
+      if (tipo == "macchie") await _parseMacchie(result);
+      if (tipo == "melasma") await _parseMelasma(result);
+      if (tipo == "pori") await _parsePori(result);
+    }
+
+    prefs.remove("last_job_id_$tipo");
+  } catch (e) {
+    debugPrint("❌ Errore analisi $tipo: $e");
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _loading = false);
   }
+}
 
   // ✅ Versione migliorata di _resumeJob che usa waitForResult()
   Future<void> _resumeJob(String tipo, String jobId) async {
