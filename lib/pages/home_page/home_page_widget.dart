@@ -605,10 +605,10 @@ class _FaceGuidePainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final ovalRect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: size.width * 0.8, // 80% larghezza schermo
-      height: size.height * 0.9, // quasi piena altezza
-    );
+  center: Offset(size.width / 2, size.height * 0.52),
+  width: size.width * 0.86, // più largo
+  height: size.height * 0.75, // meno alto
+);
 
     // 🔹 Crea il buco ovale nel layer nero
     final path = Path.combine(
@@ -643,14 +643,14 @@ class LevelGuide extends StatefulWidget {
 }
 
 class _LevelGuideState extends State<LevelGuide> {
-  StreamSubscription? _accSub;
+  StreamSubscription<AccelerometerEvent>? _accSub;
 
   double _rollDeg = 0;
   double _pitchDeg = 0;
   double _rollFilt = 0;
   double _pitchFilt = 0;
 
-  static const _alpha = 0.12;
+  static const _alpha = 0.15;
 
   @override
   void initState() {
@@ -665,12 +665,14 @@ class _LevelGuideState extends State<LevelGuide> {
   }
 
   void _onAccelerometer(AccelerometerEvent e) {
+    // Calcolo angoli
     final rollRad = math.atan2(e.y, e.z);
     final pitchRad = math.atan2(-e.x, math.sqrt(e.y * e.y + e.z * e.z));
 
     final roll = rollRad * 180 / math.pi;
     final pitch = pitchRad * 180 / math.pi;
 
+    // Filtro dolce
     _rollFilt = _rollFilt + _alpha * (roll - _rollFilt);
     _pitchFilt = _pitchFilt + _alpha * (pitch - _pitchFilt);
 
@@ -685,49 +687,57 @@ class _LevelGuideState extends State<LevelGuide> {
     final rollErr = _rollDeg;
     final pitchOk = _pitchDeg.abs() <= 3.0;
 
-    double offset = (rollErr.abs() * 2.0).clamp(0, 28.0);
-    final aligned = rollErr.abs() <= 1.0 && pitchOk;
+    double offset = (rollErr.abs() * 1.5).clamp(0, 25.0);
+    final aligned = rollErr.abs() <= 1.5 && pitchOk;
     if (aligned) offset = 0;
 
-    final baseColor = Colors.white.withOpacity(0.9);
+    final baseColor = Colors.white.withOpacity(0.8);
     final okColor = Colors.greenAccent.withOpacity(0.95);
+    final midColor = Colors.yellowAccent.withOpacity(0.9);
 
-    final thick = aligned ? 3.5 : 2.0;
+    final color = aligned
+        ? okColor
+        : (rollErr.abs() < 5.0 ? midColor : baseColor);
+
+    final thickness = aligned ? 4.0 : 2.0;
 
     return IgnorePointer(
       ignoring: true,
       child: LayoutBuilder(
         builder: (context, c) {
-          final centerY = c.maxHeight / 2;
-          final lineWidth = c.maxWidth * 0.5;
+          final centerY = c.maxHeight * 0.75; // più in basso, vicino al riquadro
+          final lineWidth = c.maxWidth * 0.6;
           final x = (c.maxWidth - lineWidth) / 2;
 
           return Stack(
             children: [
+              // Linea centrale
               Positioned(
                 left: x,
                 top: centerY,
                 child: _Line(
                   width: lineWidth,
-                  thickness: thick,
-                  color: aligned ? okColor : baseColor.withOpacity(0.55),
+                  thickness: thickness,
+                  color: color,
                 ),
               ),
+              // Linea superiore
               Positioned(
                 left: x,
                 top: centerY - offset,
                 child: _Line(
                   width: lineWidth,
-                  thickness: 2.0,
+                  thickness: 2,
                   color: aligned ? Colors.transparent : baseColor,
                 ),
               ),
+              // Linea inferiore
               Positioned(
                 left: x,
                 top: centerY + offset,
                 child: _Line(
                   width: lineWidth,
-                  thickness: 2.0,
+                  thickness: 2,
                   color: aligned ? Colors.transparent : baseColor,
                 ),
               ),
@@ -743,12 +753,16 @@ class _Line extends StatelessWidget {
   final double width;
   final double thickness;
   final Color color;
-  const _Line({required this.width, required this.thickness, required this.color});
+  const _Line({
+    required this.width,
+    required this.thickness,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 150),
       width: width,
       height: thickness,
       decoration: BoxDecoration(
@@ -758,4 +772,5 @@ class _Line extends StatelessWidget {
     );
   }
 }
+
 
