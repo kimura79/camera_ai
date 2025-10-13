@@ -631,159 +631,79 @@ class _FaceGuidePainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-  // ==========================================================
-// 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE)
 // ==========================================================
+// 🔹 LIVELLA ORIZZONTALE A 3 LINEE (fullscreen, scala 0.117)
+// ==========================================================
+Widget _buildLivellaOrizzontale3Linee({
+  required double width,
+  required double height,
+  double okThresholdDeg = 1.0,
+}) {
+  // Piccolo helper per disegnare una linea arrotondata
+  Widget _segment(double w, double h, Color c) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(h),
+        ),
+      );
 
-class LevelGuide extends StatefulWidget {
-  const LevelGuide({super.key});
+  return StreamBuilder<AccelerometerEvent>(
+    stream: accelerometerEventStream(),
+    builder: (context, snap) {
+      double rollDeg = 0.0;
 
-  @override
-  State<LevelGuide> createState() => _LevelGuideState();
+      // 🔸 Calcolo inclinazione orizzontale da giroscopio
+      if (snap.hasData) {
+        final ax = snap.data!.x;
+        final ay = snap.data!.y;
+        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
+      }
+
+      final bool isOk = rollDeg.abs() <= okThresholdDeg;
+      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
+      final Color bg = Colors.black54;
+
+      // 🔸 Rotazione delle tre linee
+      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
+      final double midRot = (rollDeg) * math.pi / 180;
+
+      return Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isOk ? Colors.greenAccent : Colors.white24,
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Transform.rotate(
+              angle: topRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+            Transform.rotate(
+              angle: midRot,
+              child: _segment(width - 20, 3, lineColor),
+            ),
+            Transform.rotate(
+              angle: botRot,
+              child: _segment(width - 40, 2, lineColor),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
-class _LevelGuideState extends State<LevelGuide> {
-  StreamSubscription<AccelerometerEvent>? _accSub;
-
-  double _rollDeg = 0;
-  double _pitchDeg = 0;
-  double _rollFilt = 0;
-  double _pitchFilt = 0;
-
-  static const _alpha = 0.12; // smorzamento per stabilità
-
-  @override
-  void initState() {
-    super.initState();
-    _accSub = accelerometerEventStream().listen(_onAccelerometer);
-  }
-
-  @override
-  void dispose() {
-    _accSub?.cancel();
-    super.dispose();
-  }
-
-  void _onAccelerometer(AccelerometerEvent e) {
-    // Calcolo angoli da giroscopio
-    final rollRad = math.atan2(e.y, e.z);
-    final pitchRad = math.atan2(-e.x, math.sqrt(e.y * e.y + e.z * e.z));
-
-    final roll = rollRad * 180 / math.pi;
-    final pitch = pitchRad * 180 / math.pi;
-
-    // Filtro per smorzare oscillazioni
-    _rollFilt = _rollFilt + _alpha * (roll - _rollFilt);
-    _pitchFilt = _pitchFilt + _alpha * (pitch - _pitchFilt);
-
-    setState(() {
-      _rollDeg = _rollFilt;
-      _pitchDeg = _pitchFilt;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final rollErr = _rollDeg; // inclinazione orizzontale
-    final pitchOk = _pitchDeg.abs() <= 3.0; // stabilità frontale
-
-    double offset = (rollErr.abs() * 2.0).clamp(0, 28.0);
-    final aligned = rollErr.abs() <= 1.0 && pitchOk;
-    if (aligned) offset = 0;
-
-    final baseColor = Colors.white.withOpacity(0.9);
-    final okColor = Colors.greenAccent.withOpacity(0.95);
-
-    final thick = aligned ? 3.5 : 2.0;
-
-    return IgnorePointer(
-      ignoring: true,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          // ✅ centrata verticalmente a schermo intero
-          final centerY = c.maxHeight / 2;
-          final lineWidth = c.maxWidth * 0.55;
-          final x = (c.maxWidth - lineWidth) / 2;
-
-          return Stack(
-            children: [
-              // 🔹 Linea centrale
-              Positioned(
-                left: x,
-                top: centerY,
-                child: _Line(
-                  width: lineWidth,
-                  thickness: thick,
-                  color: aligned ? okColor : baseColor.withOpacity(0.6),
-                ),
-              ),
-              // 🔹 Linea sopra
-              Positioned(
-                left: x,
-                top: centerY - offset,
-                child: _Line(
-                  width: lineWidth,
-                  thickness: 2.0,
-                  color: aligned ? Colors.transparent : baseColor,
-                ),
-              ),
-              // 🔹 Linea sotto
-              Positioned(
-                left: x,
-                top: centerY + offset,
-                child: _Line(
-                  width: lineWidth,
-                  thickness: 2.0,
-                  color: aligned ? Colors.transparent : baseColor,
-                ),
-              ),
-              // 🔹 Gradi visivi (facoltativo)
-              Positioned(
-                right: 20,
-                top: centerY - 25,
-                child: Text(
-                  "${rollErr.toStringAsFixed(1)}°",
-                  style: TextStyle(
-                    color: aligned ? okColor : baseColor,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(color: Colors.black, blurRadius: 6),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _Line extends StatelessWidget {
-  final double width;
-  final double thickness;
-  final Color color;
-  const _Line({
-    required this.width,
-    required this.thickness,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      width: width,
-      height: thickness,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-    );
-  }
-}
 
 
 
