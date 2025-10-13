@@ -478,7 +478,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
             const FaceGuideOverlay(),
 
             // ✅ Livella orizzontale
-            const LevelGuide(),
+            LevelGuide(),
 
             // ✅ Testo guida sopra l’ovale
             Positioned(
