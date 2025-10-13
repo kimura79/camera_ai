@@ -635,8 +635,14 @@ class _FaceGuidePainter extends CustomPainter {
 // 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE)
 // ==========================================================
 // ==========================================================
-// 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE) — centrata a schermo
+// 🔹 LIVELLA ORIZZONTALE GIROSCOPIO — SCHERMO INTERO
+//    Tre linee che si fondono in una verde quando il telefono è allineato
 // ==========================================================
+
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 class LevelGuide extends StatefulWidget {
   const LevelGuide({super.key});
@@ -653,7 +659,7 @@ class _LevelGuideState extends State<LevelGuide> {
   double _rollFilt = 0;
   double _pitchFilt = 0;
 
-  static const _alpha = 0.15; // sensibilità più fluida
+  static const _alpha = 0.12; // smorzamento per stabilità
 
   @override
   void initState() {
@@ -668,12 +674,14 @@ class _LevelGuideState extends State<LevelGuide> {
   }
 
   void _onAccelerometer(AccelerometerEvent e) {
+    // Calcolo angoli da giroscopio
     final rollRad = math.atan2(e.y, e.z);
     final pitchRad = math.atan2(-e.x, math.sqrt(e.y * e.y + e.z * e.z));
 
     final roll = rollRad * 180 / math.pi;
     final pitch = pitchRad * 180 / math.pi;
 
+    // Filtro per smorzare oscillazioni
     _rollFilt = _rollFilt + _alpha * (roll - _rollFilt);
     _pitchFilt = _pitchFilt + _alpha * (pitch - _pitchFilt);
 
@@ -685,63 +693,73 @@ class _LevelGuideState extends State<LevelGuide> {
 
   @override
   Widget build(BuildContext context) {
-    final rollErr = _rollDeg;
-    final pitchOk = _pitchDeg.abs() <= 3.0;
+    final rollErr = _rollDeg; // inclinazione orizzontale
+    final pitchOk = _pitchDeg.abs() <= 3.0; // stabilità frontale
 
-    double offset = (rollErr.abs() * 1.5).clamp(0, 25.0);
+    double offset = (rollErr.abs() * 2.0).clamp(0, 28.0);
     final aligned = rollErr.abs() <= 1.0 && pitchOk;
     if (aligned) offset = 0;
 
-    // 🌈 transizione colore dinamica
-    Color color;
-    if (aligned) {
-      color = Colors.greenAccent.withOpacity(0.95);
-    } else if (rollErr.abs() < 5) {
-      color = Colors.yellowAccent.withOpacity(0.9);
-    } else {
-      color = Colors.white.withOpacity(0.85);
-    }
+    final baseColor = Colors.white.withOpacity(0.9);
+    final okColor = Colors.greenAccent.withOpacity(0.95);
 
-    final thickness = aligned ? 4.0 : 2.0;
+    final thick = aligned ? 3.5 : 2.0;
 
     return IgnorePointer(
       ignoring: true,
       child: LayoutBuilder(
         builder: (context, c) {
-          final centerY = c.maxHeight / 2; // 🟢 ora centrata esattamente
+          // ✅ centrata verticalmente a schermo intero
+          final centerY = c.maxHeight / 2;
           final lineWidth = c.maxWidth * 0.55;
           final x = (c.maxWidth - lineWidth) / 2;
 
           return Stack(
             children: [
-              // Linea centrale
+              // 🔹 Linea centrale
               Positioned(
                 left: x,
                 top: centerY,
                 child: _Line(
                   width: lineWidth,
-                  thickness: thickness,
-                  color: color,
+                  thickness: thick,
+                  color: aligned ? okColor : baseColor.withOpacity(0.6),
                 ),
               ),
-              // Linea sopra
+              // 🔹 Linea sopra
               Positioned(
                 left: x,
                 top: centerY - offset,
                 child: _Line(
                   width: lineWidth,
                   thickness: 2.0,
-                  color: aligned ? Colors.transparent : Colors.white.withOpacity(0.6),
+                  color: aligned ? Colors.transparent : baseColor,
                 ),
               ),
-              // Linea sotto
+              // 🔹 Linea sotto
               Positioned(
                 left: x,
                 top: centerY + offset,
                 child: _Line(
                   width: lineWidth,
                   thickness: 2.0,
-                  color: aligned ? Colors.transparent : Colors.white.withOpacity(0.6),
+                  color: aligned ? Colors.transparent : baseColor,
+                ),
+              ),
+              // 🔹 Gradi visivi (facoltativo)
+              Positioned(
+                right: 20,
+                top: centerY - 25,
+                child: Text(
+                  "${rollErr.toStringAsFixed(1)}°",
+                  style: TextStyle(
+                    color: aligned ? okColor : baseColor,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(color: Colors.black, blurRadius: 6),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -775,6 +793,7 @@ class _Line extends StatelessWidget {
     );
   }
 }
+
 
 
 
