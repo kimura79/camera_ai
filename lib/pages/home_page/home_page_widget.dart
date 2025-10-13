@@ -638,11 +638,6 @@ class _FaceGuidePainter extends CustomPainter {
 // 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE) — centrata a schermo
 // ==========================================================
 
-import 'dart:async';
-import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
-
 class LevelGuide extends StatefulWidget {
   const LevelGuide({super.key});
 
