@@ -1,5 +1,6 @@
 // 🔹 home_page_widget.dart — Fotocamera fullscreen (foto identica alla preview) + livella verticale
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -19,6 +20,7 @@ import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
+
 
 // ✅ Pagina risultati analisi
 class AnalysisResultsPage extends StatelessWidget {
