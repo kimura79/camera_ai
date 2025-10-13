@@ -606,8 +606,8 @@ class _FaceGuidePainter extends CustomPainter {
 
     final ovalRect = Rect.fromCenter(
   center: Offset(size.width / 2, size.height * 0.52),
-  width: size.width * 0.86, // più largo
-  height: size.height * 0.75, // meno alto
+  width: size.width * 0.95, // più largo
+  height: size.height * 0.70, // meno alto
 );
 
     // 🔹 Crea il buco ovale nel layer nero
@@ -634,6 +634,14 @@ class _FaceGuidePainter extends CustomPainter {
   // ==========================================================
 // 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE)
 // ==========================================================
+// ==========================================================
+// 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE) — centrata a schermo
+// ==========================================================
+
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 class LevelGuide extends StatefulWidget {
   const LevelGuide({super.key});
@@ -650,7 +658,7 @@ class _LevelGuideState extends State<LevelGuide> {
   double _rollFilt = 0;
   double _pitchFilt = 0;
 
-  static const _alpha = 0.15;
+  static const _alpha = 0.15; // sensibilità più fluida
 
   @override
   void initState() {
@@ -665,14 +673,12 @@ class _LevelGuideState extends State<LevelGuide> {
   }
 
   void _onAccelerometer(AccelerometerEvent e) {
-    // Calcolo angoli
     final rollRad = math.atan2(e.y, e.z);
     final pitchRad = math.atan2(-e.x, math.sqrt(e.y * e.y + e.z * e.z));
 
     final roll = rollRad * 180 / math.pi;
     final pitch = pitchRad * 180 / math.pi;
 
-    // Filtro dolce
     _rollFilt = _rollFilt + _alpha * (roll - _rollFilt);
     _pitchFilt = _pitchFilt + _alpha * (pitch - _pitchFilt);
 
@@ -688,16 +694,18 @@ class _LevelGuideState extends State<LevelGuide> {
     final pitchOk = _pitchDeg.abs() <= 3.0;
 
     double offset = (rollErr.abs() * 1.5).clamp(0, 25.0);
-    final aligned = rollErr.abs() <= 1.5 && pitchOk;
+    final aligned = rollErr.abs() <= 1.0 && pitchOk;
     if (aligned) offset = 0;
 
-    final baseColor = Colors.white.withOpacity(0.8);
-    final okColor = Colors.greenAccent.withOpacity(0.95);
-    final midColor = Colors.yellowAccent.withOpacity(0.9);
-
-    final color = aligned
-        ? okColor
-        : (rollErr.abs() < 5.0 ? midColor : baseColor);
+    // 🌈 transizione colore dinamica
+    Color color;
+    if (aligned) {
+      color = Colors.greenAccent.withOpacity(0.95);
+    } else if (rollErr.abs() < 5) {
+      color = Colors.yellowAccent.withOpacity(0.9);
+    } else {
+      color = Colors.white.withOpacity(0.85);
+    }
 
     final thickness = aligned ? 4.0 : 2.0;
 
@@ -705,8 +713,8 @@ class _LevelGuideState extends State<LevelGuide> {
       ignoring: true,
       child: LayoutBuilder(
         builder: (context, c) {
-          final centerY = c.maxHeight * 0.75; // più in basso, vicino al riquadro
-          final lineWidth = c.maxWidth * 0.6;
+          final centerY = c.maxHeight / 2; // 🟢 ora centrata esattamente
+          final lineWidth = c.maxWidth * 0.55;
           final x = (c.maxWidth - lineWidth) / 2;
 
           return Stack(
@@ -721,24 +729,24 @@ class _LevelGuideState extends State<LevelGuide> {
                   color: color,
                 ),
               ),
-              // Linea superiore
+              // Linea sopra
               Positioned(
                 left: x,
                 top: centerY - offset,
                 child: _Line(
                   width: lineWidth,
-                  thickness: 2,
-                  color: aligned ? Colors.transparent : baseColor,
+                  thickness: 2.0,
+                  color: aligned ? Colors.transparent : Colors.white.withOpacity(0.6),
                 ),
               ),
-              // Linea inferiore
+              // Linea sotto
               Positioned(
                 left: x,
                 top: centerY + offset,
                 child: _Line(
                   width: lineWidth,
-                  thickness: 2,
-                  color: aligned ? Colors.transparent : baseColor,
+                  thickness: 2.0,
+                  color: aligned ? Colors.transparent : Colors.white.withOpacity(0.6),
                 ),
               ),
             ],
@@ -762,7 +770,7 @@ class _Line extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 120),
       width: width,
       height: thickness,
       decoration: BoxDecoration(
@@ -772,5 +780,6 @@ class _Line extends StatelessWidget {
     );
   }
 }
+
 
 
