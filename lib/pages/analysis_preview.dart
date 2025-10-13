@@ -225,6 +225,10 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
 
   // === Chiamata async con retry, verifica file e polling ===
 Future<void> _callAnalysisAsync(String tipo) async {
+  // ✅ 1. Cancella eventuali job precedenti prima di lanciare una nuova analisi
+  await _cancelAllJobs();
+  await _clearPendingJobs();
+
   setState(() => _loading = true);
   try {
     // ✅ Copia l'immagine in percorso persistente
@@ -284,6 +288,13 @@ Future<void> _callAnalysisAsync(String tipo) async {
     final String jobId = decoded["job_id"];
     debugPrint("🆔 Job avviato ($tipo): $jobId");
 
+    // 🔹 Mostra messaggio visivo all'utente
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("🚀 Analisi $tipo avviata")),
+      );
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("last_job_id_$tipo", jobId);
 
@@ -296,9 +307,15 @@ Future<void> _callAnalysisAsync(String tipo) async {
       if (tipo == "pori") _parsePori(result);
     }
 
+    // ✅ Pulisci job completato
     prefs.remove("last_job_id_$tipo");
   } catch (e) {
     debugPrint("❌ Errore analisi $tipo: $e");
+
+    // ✅ 2. In caso di errore, pulisci e cancella i job rimasti
+    await _cancelAllJobs();
+    await _clearPendingJobs();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
