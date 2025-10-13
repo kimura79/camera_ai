@@ -634,15 +634,6 @@ class _FaceGuidePainter extends CustomPainter {
   // ==========================================================
 // 🔹 LIVELLA ORIZZONTALE STILE iOS (3 LINEE)
 // ==========================================================
-// ==========================================================
-// 🔹 LIVELLA ORIZZONTALE GIROSCOPIO — SCHERMO INTERO
-//    Tre linee che si fondono in una verde quando il telefono è allineato
-// ==========================================================
-
-import 'dart:async';
-import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 class LevelGuide extends StatefulWidget {
   const LevelGuide({super.key});
