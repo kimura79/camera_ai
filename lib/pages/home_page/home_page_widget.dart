@@ -471,6 +471,29 @@ class _HomePageWidgetState extends State<HomePageWidget>
             // ✅ Anteprima fotocamera fullscreen
             Positioned.fill(child: _buildCameraPreview()),
 
+                // 🔹 Livella orizzontale centrata — 3 linee
+    Positioned.fill(
+      child: StreamBuilder<GyroscopeEvent>(
+        stream: gyroscopeEvents,
+        builder: (context, snapshot) {
+          double rollDeg = 0.0;
+          if (snapshot.hasData) {
+            final gx = snapshot.data!.x;
+            final gy = snapshot.data!.y;
+            final gz = snapshot.data!.z;
+            rollDeg = gx * 57.3; // conversione rad → gradi (approssimativa)
+          }
+          return Center(
+            child: LivellaOrizzontale3Linee(
+              width: MediaQuery.of(context).size.width * 0.6,
+              height: 100,
+              rollDeg: rollDeg,
+            ),
+          );
+        },
+      ),
+    ),
+
             // ✅ Livella verticale
             buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 65.0),
 
@@ -631,8 +654,7 @@ class _FaceGuidePainter extends CustomPainter {
 // ==========================================================
 // 🔹 LIVELLA ORIZZONTALE A 3 LINEE (fullscreen, scala 0.117)
 // ==========================================================
-/// 🔹 Livella orizzontale con 3 linee e indicatori di inclinazione.
-/// Mostra se l'utente sta tenendo il telefono dritto sull'asse orizzontale.
+
 class LivellaOrizzontale3Linee extends StatelessWidget {
   final double width;
   final double height;
