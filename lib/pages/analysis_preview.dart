@@ -454,11 +454,43 @@ Future<void> _callAnalysisAsync(String tipo) async {
           },
         ),
         const SizedBox(height: 10),
-        if (percentuale != null)
+       if (analysisType == "pori" && numPoriTotali != null && numPoriTotali > 0) ...[
+  Text(
+    "Percentuale area totale pori: ${percentuale?.toStringAsFixed(2) ?? "0.00"}%",
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+  ),
+  const SizedBox(height: 6),
+  Builder(
+    builder: (_) {
+      final percVerdi = (_numPoriVerdi ?? 0) / numPoriTotali * 100.0;
+      final percArancioni = (_numPoriArancioni ?? 0) / numPoriTotali * 100.0;
+      final percRossi = _percPoriDilatati ?? 0.0;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
           Text(
-            "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            "🟢 Pori normali: ${percVerdi.toStringAsFixed(2)}%",
+            style: const TextStyle(color: Colors.green, fontSize: 15),
           ),
+          Text(
+            "🟠 Pori borderline: ${percArancioni.toStringAsFixed(2)}%",
+            style: const TextStyle(color: Colors.orange, fontSize: 15),
+          ),
+          Text(
+            "🔴 Pori dilatati: ${percRossi.toStringAsFixed(2)}%",
+            style: const TextStyle(color: Colors.red, fontSize: 15),
+          ),
+        ],
+      );
+    },
+  ),
+] else if (percentuale != null) ...[
+  Text(
+    "Percentuale area: ${percentuale.toStringAsFixed(2)}%",
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+  ),
+],
         const SizedBox(height: 20),
         const Text(
           "Come giudichi questa analisi? Dai un voto da 1 a 10",
