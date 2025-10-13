@@ -631,74 +631,65 @@ class _FaceGuidePainter extends CustomPainter {
 // ==========================================================
 // 🔹 LIVELLA ORIZZONTALE A 3 LINEE (fullscreen, scala 0.117)
 // ==========================================================
-Widget _buildLivellaOrizzontale3Linee({
-  required double width,
-  required double height,
-  double okThresholdDeg = 1.0,
-}) {
-  // Piccolo helper per disegnare una linea arrotondata
-  Widget _segment(double w, double h, Color c) => Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: c,
-          borderRadius: BorderRadius.circular(h),
-        ),
-      );
+/// 🔹 Livella orizzontale con 3 linee e indicatori di inclinazione.
+/// Mostra se l'utente sta tenendo il telefono dritto sull'asse orizzontale.
+class LivellaOrizzontale3Linee extends StatelessWidget {
+  final double width;
+  final double height;
+  final double rollDeg;
+  final double okThresholdDeg;
 
-  return StreamBuilder<AccelerometerEvent>(
-    stream: accelerometerEventStream(),
-    builder: (context, snap) {
-      double rollDeg = 0.0;
+  const LivellaOrizzontale3Linee({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.rollDeg,
+    this.okThresholdDeg = 1.0,
+  });
 
-      // 🔸 Calcolo inclinazione orizzontale da giroscopio
-      if (snap.hasData) {
-        final ax = snap.data!.x;
-        final ay = snap.data!.y;
-        rollDeg = math.atan2(ax, ay) * 180.0 / math.pi;
-      }
+  @override
+  Widget build(BuildContext context) {
+    final isOk = rollDeg.abs() < okThresholdDeg;
 
-      final bool isOk = rollDeg.abs() <= okThresholdDeg;
-      final Color lineColor = isOk ? Colors.greenAccent : Colors.white;
-      final Color bg = Colors.black54;
-
-      // 🔸 Rotazione delle tre linee
-      final double topRot = (-rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double botRot = (rollDeg.abs()) * math.pi / 180 / 1.2;
-      final double midRot = (rollDeg) * math.pi / 180;
-
-      return Container(
+    return Transform.rotate(
+      angle: -rollDeg * math.pi / 180,
+      child: SizedBox(
         width: width,
         height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isOk ? Colors.greenAccent : Colors.white24,
-            width: 1.2,
-          ),
+        child: CustomPaint(
+          painter: _LivellaPainter(isOk: isOk),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Transform.rotate(
-              angle: topRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-            Transform.rotate(
-              angle: midRot,
-              child: _segment(width - 20, 3, lineColor),
-            ),
-            Transform.rotate(
-              angle: botRot,
-              child: _segment(width - 40, 2, lineColor),
-            ),
-          ],
-        ),
-      );
-    },
-  );
+      ),
+    );
+  }
+}
+
+class _LivellaPainter extends CustomPainter {
+  final bool isOk;
+
+  _LivellaPainter({required this.isOk});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isOk ? Colors.green : Colors.red
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    final centerY = size.height / 2;
+    final spacing = size.height / 4;
+
+    // Disegna 3 linee orizzontali centrate
+    for (int i = -1; i <= 1; i++) {
+      final y = centerY + i * spacing;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LivellaPainter oldDelegate) {
+    return oldDelegate.isOk != isOk;
+  }
 }
 
 
