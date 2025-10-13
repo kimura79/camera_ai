@@ -455,15 +455,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
     }
   }
 
-  @override
-  void dispose() {
-    _model.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
+    @override
   Widget build(BuildContext context) {
     context.watch<FFAppState>();
     return Scaffold(
@@ -474,11 +466,40 @@ class _HomePageWidgetState extends State<HomePageWidget>
         bottom: false,
         child: Stack(
           children: [
+            // ✅ Anteprima fotocamera fullscreen
             Positioned.fill(child: _buildCameraPreview()),
 
-            // ✅ Solo livella verticale
+            // ✅ Livella verticale
             buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 65.0),
 
+            // ✅ Sagoma ovale verde (nuova)
+            const FaceGuideOverlay(),
+
+            // ✅ Testo guida sopra l’ovale
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.1,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  "Posiziona il volto all’interno dell’ovale",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black,
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ✅ Barra inferiore
             Align(
               alignment: Alignment.bottomCenter,
               child: _buildBottomBar(),
@@ -488,7 +509,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
       ),
     );
   }
-}
+
 
 Widget buildLivellaVerticaleOverlay({
   CaptureMode? mode,
@@ -554,4 +575,53 @@ Widget buildLivellaVerticaleOverlay({
       );
     },
   );
+}
+// ==========================================================
+// 🔹 SAGOMA OVALE VERDE — GUIDA INQUADRATURA VOLTO
+// ==========================================================
+class FaceGuideOverlay extends StatelessWidget {
+  const FaceGuideOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: CustomPaint(
+        painter: _FaceGuidePainter(),
+      ),
+    );
+  }
+}
+
+class _FaceGuidePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paintOverlay = Paint()
+      ..color = Colors.black.withOpacity(0.75)
+      ..style = PaintingStyle.fill;
+
+    final ovalRect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2),
+      width: size.width * 0.8, // 80% larghezza schermo
+      height: size.height * 0.9, // quasi piena altezza
+    );
+
+    // 🔹 Crea il buco ovale nel layer nero
+    final path = Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
+      Path()..addOval(ovalRect),
+    );
+
+    canvas.drawPath(path, paintOverlay);
+
+    // 🔹 Bordo verde
+    final paintBorder = Paint()
+      ..color = Colors.greenAccent
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+    canvas.drawOval(ovalRect, paintBorder);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
