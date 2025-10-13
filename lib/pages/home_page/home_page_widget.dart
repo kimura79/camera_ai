@@ -477,9 +477,6 @@ class _HomePageWidgetState extends State<HomePageWidget>
             // ✅ Sagoma ovale verde (nuova)
             const FaceGuideOverlay(),
 
-            // ✅ Livella orizzontale
-            LevelGuide(),
-
             // ✅ Testo guida sopra l’ovale
             Positioned(
               top: MediaQuery.of(context).size.height * 0.1,
