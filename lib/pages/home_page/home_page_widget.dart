@@ -494,11 +494,11 @@ class _HomePageWidgetState extends State<HomePageWidget>
       ),
     ),
 
-            // ✅ Livella verticale
-            buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 65.0),
+             // ✅ Sagoma ovale verde (nuova)
+             const FaceGuideOverlay(),
 
-            // ✅ Sagoma ovale verde (nuova)
-            const FaceGuideOverlay(),
+             // ✅ Livella verticale (ora disegnata sopra il nero)
+             buildLivellaVerticaleOverlay(mode: _mode, topOffsetPx: 90.0),
 
             // ✅ Testo guida sopra l’ovale
             Positioned(
