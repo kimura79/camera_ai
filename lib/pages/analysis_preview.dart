@@ -103,15 +103,46 @@ class _AnalysisPreviewState extends State<AnalysisPreview> {
     }
   }
 
-  Future<void> _cancelAllJobs() async {
+  // ✅ Variabile di stato per evitare chiamate multiple simultanee
+bool _isCancelling = false;
+
+// ✅ Funzione aggiornata per cancellare tutti i job attivi in sicurezza
+Future<void> _cancelAllJobs() async {
+  // Evita chiamate multiple contemporanee
+  if (_isCancelling) {
+    debugPrint("⚠️ Cancellazione già in corso, salto duplicato.");
+    return;
+  }
+
+  _isCancelling = true;
+  try {
     final prefs = await SharedPreferences.getInstance();
     for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
       final jobId = prefs.getString("last_job_id_$tipo");
       if (jobId != null && jobId.isNotEmpty) {
-        await _cancelJob(jobId);
+        try {
+          final url = Uri.parse("http://46.101.223.88:5000/cancel_job/$jobId");
+          final resp = await http.post(url).timeout(const Duration(seconds: 5));
+          if (resp.statusCode == 200) {
+            debugPrint("🛑 Job $jobId ($tipo) cancellato con successo lato server");
+          } else {
+            debugPrint("⚠️ Job $jobId ($tipo) non trovato o già completato (${resp.statusCode})");
+          }
+        } catch (e) {
+          debugPrint("⚠️ Errore cancellazione job $jobId ($tipo): $e");
+        }
       }
     }
+
+    // ✅ Pulisce anche la cache locale dei job salvati
+    for (final tipo in ["rughe", "macchie", "melasma", "pori"]) {
+      await prefs.remove("last_job_id_$tipo");
+    }
+    debugPrint("🧹 Tutti i job e riferimenti locali puliti");
+  } finally {
+    _isCancelling = false;
   }
+}
 
   Future<void> _clearPendingJobs() async {
     final prefs = await SharedPreferences.getInstance();
