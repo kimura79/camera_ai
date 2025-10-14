@@ -362,8 +362,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
     Navigator.pop(context, {"completed": true});
     debugPrint("✅ Ritorno automatico a PrePost completato");
   }
-}
-  }
+ }
 }
 
   // ✅ Versione migliorata di _resumeJob che usa waitForResult()
