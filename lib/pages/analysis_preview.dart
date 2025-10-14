@@ -353,7 +353,16 @@ Future<void> _callAnalysisAsync(String tipo) async {
       );
     }
   } finally {
-    if (mounted) setState(() => _loading = false);
+  if (mounted) setState(() => _loading = false);
+
+  // ✅ Ritorno automatico a PrePostWidget appena completato l’overlay POST
+  if (widget.mode == "prepost" && mounted) {
+    // attende giusto un istante per assicurarsi che l’overlay sia salvato
+    await Future.delayed(const Duration(milliseconds: 800));
+    Navigator.pop(context, {"completed": true});
+    debugPrint("✅ Ritorno automatico a PrePost completato");
+  }
+}
   }
 }
 
