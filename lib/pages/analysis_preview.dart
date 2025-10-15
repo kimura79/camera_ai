@@ -354,52 +354,9 @@ Future<void> _callAnalysisAsync(String tipo) async {
     }
     } finally {
     if (mounted) setState(() => _loading = false);
+    } // <— chiude _callAnalysisAsync()
 
-    // ✅ Ritorno automatico a PrePostWidget appena completato l’overlay POST
-    if (widget.mode == "prepost" && mounted) {
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // 🔹 Prende SOLO l’overlay e il filename del tipo appena analizzato
-      String? overlayPath;
-      String? filename;
-
-      if (tipo == "rughe") {
-        overlayPath = _rugheOverlayUrl;
-        filename = _rugheFilename;
-      } else if (tipo == "macchie") {
-        overlayPath = _macchieOverlayUrl;
-        filename = _macchieFilename;
-      } else if (tipo == "melasma") {
-        overlayPath = _melasmaOverlayUrl;
-        filename = _melasmaFilename;
-      } else if (tipo == "pori") {
-        overlayPath = _poriOverlayUrl;
-        filename = _poriFilename;
-      }
-
-      // Se per qualche motivo manca il nome, fallback sul locale
-      if (filename == null || !filename.contains("photo_")) {
-        filename = path.basename(widget.imagePath);
-        debugPrint("⚠️ Filename fallback: $filename");
-      } else {
-        debugPrint("📸 Filename corretto: $filename");
-      }
-
-      Navigator.pop(context, {
-        "completed": true,
-        "overlay_path": overlayPath,
-        "filename": filename,
-        "analysis_type": tipo, // utile per debug o estensioni future
-      });
-
-      debugPrint(
-        "✅ Ritorno automatico a PrePost con tipo=$tipo overlay=$overlayPath file=$filename",
-      );
-    }
-  }
-} // <— chiude _callAnalysisAsync()
-
-  // ✅ Versione migliorata di _resumeJob che usa waitForResult()
+   // ✅ Versione migliorata di _resumeJob che usa waitForResult() e ritorna a PrePostWidget
   Future<void> _resumeJob(String tipo, String jobId) async {
     setState(() => _loading = true);
     try {
@@ -413,6 +370,46 @@ Future<void> _callAnalysisAsync(String tipo) async {
 
         final prefs = await SharedPreferences.getInstance();
         prefs.remove("last_job_id_$tipo");
+
+        // ✅ Se siamo in modalità PRE/POST → scarica overlay e torna a PrePostWidget
+        if (widget.mode == "prepost") {
+          final overlayUrl = result["overlay_url"] != null
+              ? "http://46.101.223.88:5000${result["overlay_url"]}"
+              : null;
+
+          String? overlayPath;
+          if (overlayUrl != null) {
+            try {
+              final resp = await http.get(Uri.parse(overlayUrl));
+              if (resp.statusCode == 200) {
+                final dir = await getApplicationDocumentsDirectory();
+                overlayPath = path.join(
+                  dir.path,
+                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+                );
+                await File(overlayPath).writeAsBytes(resp.bodyBytes);
+                debugPrint("✅ Overlay $tipo salvato in locale: $overlayPath");
+              } else {
+                debugPrint(
+                    "⚠️ Overlay non scaricabile (HTTP ${resp.statusCode})");
+              }
+            } catch (e) {
+              debugPrint("⚠️ Errore download overlay: $e");
+            }
+          }
+
+          Navigator.pop(context, {
+            "completed": true,
+            "result": result,
+            "overlay_path": overlayPath,
+            "filename":
+                result["filename"] ?? path.basename(widget.imagePath),
+            "analysis_type": tipo,
+          });
+
+          debugPrint("🔙 Ritorno automatico con overlay locale: $overlayPath");
+          return;
+        }
       }
     } catch (e) {
       debugPrint("❌ Errore nel resumeJob ($tipo): $e");
@@ -420,6 +417,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
       if (mounted) setState(() => _loading = false);
     }
   }
+
 
   // === Parsers ===
   void _parseRughe(dynamic data) async {
