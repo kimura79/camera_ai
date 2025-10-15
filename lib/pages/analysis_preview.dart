@@ -329,46 +329,17 @@ Future<void> _callAnalysisAsync(String tipo) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("last_job_id_$tipo", jobId);
 
-    // ✅ Attendi completamento job (polling asincrono)
-    final result = await waitForResult(jobId);
-    if (result != null) {
-      if (tipo == "rughe") _parseRughe(result);
-      if (tipo == "macchie") _parseMacchie(result);
-      if (tipo == "melasma") _parseMelasma(result);
-      if (tipo == "pori") _parsePori(result);
-    }
-
-    // ✅ Pulisci job completato
-    prefs.remove("last_job_id_$tipo");
-    } catch (e) {
-    debugPrint("❌ Errore analisi $tipo: $e");
-
-    // ✅ In caso di errore, pulisci e cancella i job rimasti
-    await _cancelAllJobs();
-    await _clearPendingJobs();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
-      );
-    }
-  } finally {
-    if (mounted) setState(() => _loading = false);
-  }
-} // ✅ <-- CHIUDE DAVVERO _callAnalysisAsync()
-
-// ✅ Versione migliorata di _resumeJob che usa waitForResult() e ritorna a PrePostWidget
-Future<void> _resumeJob(String tipo, String jobId) async {
-  setState(() => _loading = true);
-  try {
+        // ✅ Attendi completamento job (polling asincrono)
     final result = await waitForResult(jobId);
 
     if (result != null) {
+      // Parsing risultati
       if (tipo == "rughe") _parseRughe(result);
       if (tipo == "macchie") _parseMacchie(result);
       if (tipo == "melasma") _parseMelasma(result);
       if (tipo == "pori") _parsePori(result);
 
+      // ✅ Pulisci job completato
       final prefs = await SharedPreferences.getInstance();
       prefs.remove("last_job_id_$tipo");
 
@@ -398,16 +369,18 @@ Future<void> _resumeJob(String tipo, String jobId) async {
           }
         }
 
-        Navigator.pop(context, {
-          "completed": true,
-          "result": result,
-          "overlay_path": overlayPath,
-          "filename": result["filename"] ?? path.basename(widget.imagePath),
-          "analysis_type": tipo,
-        });
+        if (mounted) {
+          Navigator.pop(context, {
+            "completed": true,
+            "result": result,
+            "overlay_path": overlayPath,
+            "filename": result["filename"] ?? path.basename(widget.imagePath),
+            "analysis_type": tipo,
+          });
+          debugPrint("🔙 Ritorno automatico da _callAnalysisAsync con overlay: $overlayPath");
+        }
 
-        debugPrint("🔙 Ritorno automatico con overlay locale: $overlayPath");
-        return;
+        return; // interrompe il flusso per evitare che resti su questa pagina
       }
     }
   } catch (e) {
