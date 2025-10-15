@@ -343,7 +343,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
   } catch (e) {
     debugPrint("❌ Errore analisi $tipo: $e");
 
-    // ✅ 2. In caso di errore, pulisci e cancella i job rimasti
+    // ✅ In caso di errore, pulisci e cancella i job rimasti
     await _cancelAllJobs();
     await _clearPendingJobs();
 
@@ -352,9 +352,9 @@ Future<void> _callAnalysisAsync(String tipo) async {
         SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
       );
     }
-    } finally {
+  } finally {
     if (mounted) setState(() => _loading = false);
-    } // <— chiude _callAnalysisAsync()
+  } // <— chiude _callAnalysisAsync()
 
    // ✅ Versione migliorata di _resumeJob che usa waitForResult() e ritorna a PrePostWidget
   Future<void> _resumeJob(String tipo, String jobId) async {
