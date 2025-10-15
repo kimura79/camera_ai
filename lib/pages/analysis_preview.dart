@@ -357,12 +357,42 @@ Future<void> _callAnalysisAsync(String tipo) async {
 
   // ✅ Ritorno automatico a PrePostWidget appena completato l’overlay POST
   if (widget.mode == "prepost" && mounted) {
-    // attende giusto un istante per assicurarsi che l’overlay sia salvato
     await Future.delayed(const Duration(milliseconds: 800));
-    Navigator.pop(context, {"completed": true});
-    debugPrint("✅ Ritorno automatico a PrePost completato");
+
+    // Estrai filename con timestamp e overlay generato
+    String? overlayPath;
+    String? filename;
+
+    if (_rugheOverlayUrl != null && _rugheFilename != null) {
+      overlayPath = _rugheOverlayUrl;
+      filename = _rugheFilename;
+    } else if (_macchieOverlayUrl != null && _macchieFilename != null) {
+      overlayPath = _macchieOverlayUrl;
+      filename = _macchieFilename;
+    } else if (_melasmaOverlayUrl != null && _melasmaFilename != null) {
+      overlayPath = _melasmaOverlayUrl;
+      filename = _melasmaFilename;
+    } else if (_poriOverlayUrl != null && _poriFilename != null) {
+      overlayPath = _poriOverlayUrl;
+      filename = _poriFilename;
+    }
+
+    if (filename != null && filename.contains("photo_")) {
+      debugPrint("📸 Filename corretto: $filename");
+    } else {
+      // fallback sul nome locale se il server non ha restituito filename
+      filename = path.basename(widget.imagePath);
+      debugPrint("⚠️ Filename fallback: $filename");
+    }
+
+    Navigator.pop(context, {
+      "completed": true,
+      "overlay_path": overlayPath,
+      "filename": filename,
+    });
+
+    debugPrint("✅ Ritorno automatico a PrePost con overlay=$overlayPath e file=$filename");
   }
- }
 }
 
   // ✅ Versione migliorata di _resumeJob che usa waitForResult()
