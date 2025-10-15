@@ -389,6 +389,69 @@ Future<void> _callAnalysisAsync(String tipo) async {
     if (mounted) setState(() => _loading = false);
   }
 }
+    // ✅ Riprende un job in corso (usata da _checkPendingJobs)
+  Future<void> _resumeJob(String tipo, String jobId) async {
+    setState(() => _loading = true);
+    try {
+      final result = await waitForResult(jobId);
+
+      if (result != null) {
+        // Parsing risultati
+        if (tipo == "rughe") _parseRughe(result);
+        if (tipo == "macchie") _parseMacchie(result);
+        if (tipo == "melasma") _parseMelasma(result);
+        if (tipo == "pori") _parsePori(result);
+
+        final prefs = await SharedPreferences.getInstance();
+        prefs.remove("last_job_id_$tipo");
+
+        // ✅ Se siamo in modalità PRE/POST → scarica overlay e torna a PrePostWidget
+        if (widget.mode == "prepost") {
+          final overlayUrl = result["overlay_url"] != null
+              ? "http://46.101.223.88:5000${result["overlay_url"]}"
+              : null;
+
+          String? overlayPath;
+          if (overlayUrl != null) {
+            try {
+              final resp = await http.get(Uri.parse(overlayUrl));
+              if (resp.statusCode == 200) {
+                final dir = await getApplicationDocumentsDirectory();
+                overlayPath = path.join(
+                  dir.path,
+                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+                );
+                await File(overlayPath).writeAsBytes(resp.bodyBytes);
+                debugPrint("✅ Overlay $tipo salvato in locale: $overlayPath");
+              } else {
+                debugPrint("⚠️ Overlay non scaricabile (HTTP ${resp.statusCode})");
+              }
+            } catch (e) {
+              debugPrint("⚠️ Errore download overlay: $e");
+            }
+          }
+
+          if (mounted) {
+            Navigator.pop(context, {
+              "completed": true,
+              "result": result,
+              "overlay_path": overlayPath,
+              "filename": result["filename"] ?? path.basename(widget.imagePath),
+              "analysis_type": tipo,
+            });
+            debugPrint("🔙 Ritorno automatico da _resumeJob con overlay: $overlayPath");
+          }
+
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ Errore nel resumeJob ($tipo): $e");
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
 
 
   // === Parsers ===
