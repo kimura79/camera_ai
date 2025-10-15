@@ -352,49 +352,52 @@ Future<void> _callAnalysisAsync(String tipo) async {
         SnackBar(content: Text("❌ Errore analisi $tipo: $e")),
       );
     }
-  } finally {
-  if (mounted) setState(() => _loading = false);
+    } finally {
+    if (mounted) setState(() => _loading = false);
 
-  // ✅ Ritorno automatico a PrePostWidget appena completato l’overlay POST
-  if (widget.mode == "prepost" && mounted) {
-    await Future.delayed(const Duration(milliseconds: 800));
+    // ✅ Ritorno automatico a PrePostWidget appena completato l’overlay POST
+    if (widget.mode == "prepost" && mounted) {
+      await Future.delayed(const Duration(milliseconds: 800));
 
-    // Estrai filename con timestamp e overlay generato
-    String? overlayPath;
-    String? filename;
+      // 🔹 Prende SOLO l’overlay e il filename del tipo appena analizzato
+      String? overlayPath;
+      String? filename;
 
-    if (_rugheOverlayUrl != null && _rugheFilename != null) {
-      overlayPath = _rugheOverlayUrl;
-      filename = _rugheFilename;
-    } else if (_macchieOverlayUrl != null && _macchieFilename != null) {
-      overlayPath = _macchieOverlayUrl;
-      filename = _macchieFilename;
-    } else if (_melasmaOverlayUrl != null && _melasmaFilename != null) {
-      overlayPath = _melasmaOverlayUrl;
-      filename = _melasmaFilename;
-    } else if (_poriOverlayUrl != null && _poriFilename != null) {
-      overlayPath = _poriOverlayUrl;
-      filename = _poriFilename;
+      if (tipo == "rughe") {
+        overlayPath = _rugheOverlayUrl;
+        filename = _rugheFilename;
+      } else if (tipo == "macchie") {
+        overlayPath = _macchieOverlayUrl;
+        filename = _macchieFilename;
+      } else if (tipo == "melasma") {
+        overlayPath = _melasmaOverlayUrl;
+        filename = _melasmaFilename;
+      } else if (tipo == "pori") {
+        overlayPath = _poriOverlayUrl;
+        filename = _poriFilename;
+      }
+
+      // Se per qualche motivo manca il nome, fallback sul locale
+      if (filename == null || !filename.contains("photo_")) {
+        filename = path.basename(widget.imagePath);
+        debugPrint("⚠️ Filename fallback: $filename");
+      } else {
+        debugPrint("📸 Filename corretto: $filename");
+      }
+
+      Navigator.pop(context, {
+        "completed": true,
+        "overlay_path": overlayPath,
+        "filename": filename,
+        "analysis_type": tipo, // utile per debug o estensioni future
+      });
+
+      debugPrint(
+        "✅ Ritorno automatico a PrePost con tipo=$tipo overlay=$overlayPath file=$filename",
+      );
     }
-
-    if (filename != null && filename.contains("photo_")) {
-      debugPrint("📸 Filename corretto: $filename");
-    } else {
-      // fallback sul nome locale se il server non ha restituito filename
-      filename = path.basename(widget.imagePath);
-      debugPrint("⚠️ Filename fallback: $filename");
-    }
-
-    Navigator.pop(context, {
-      "completed": true,
-      "overlay_path": overlayPath,
-      "filename": filename,
-    });
-
-    debugPrint("✅ Ritorno automatico a PrePost con overlay=$overlayPath e file=$filename");
   }
-}
-}
+} // <— chiude _callAnalysisAsync()
 
   // ✅ Versione migliorata di _resumeJob che usa waitForResult()
   Future<void> _resumeJob(String tipo, String jobId) async {
