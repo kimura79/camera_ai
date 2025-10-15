@@ -340,7 +340,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
 
     // ✅ Pulisci job completato
     prefs.remove("last_job_id_$tipo");
-  } catch (e) {
+    } catch (e) {
     debugPrint("❌ Errore analisi $tipo: $e");
 
     // ✅ In caso di errore, pulisci e cancella i job rimasti
@@ -354,69 +354,68 @@ Future<void> _callAnalysisAsync(String tipo) async {
     }
   } finally {
     if (mounted) setState(() => _loading = false);
-  } // <— chiude _callAnalysisAsync()
-
-   // ✅ Versione migliorata di _resumeJob che usa waitForResult() e ritorna a PrePostWidget
-  Future<void> _resumeJob(String tipo, String jobId) async {
-    setState(() => _loading = true);
-    try {
-      final result = await waitForResult(jobId);
-
-      if (result != null) {
-        if (tipo == "rughe") _parseRughe(result);
-        if (tipo == "macchie") _parseMacchie(result);
-        if (tipo == "melasma") _parseMelasma(result);
-        if (tipo == "pori") _parsePori(result);
-
-        final prefs = await SharedPreferences.getInstance();
-        prefs.remove("last_job_id_$tipo");
-
-        // ✅ Se siamo in modalità PRE/POST → scarica overlay e torna a PrePostWidget
-        if (widget.mode == "prepost") {
-          final overlayUrl = result["overlay_url"] != null
-              ? "http://46.101.223.88:5000${result["overlay_url"]}"
-              : null;
-
-          String? overlayPath;
-          if (overlayUrl != null) {
-            try {
-              final resp = await http.get(Uri.parse(overlayUrl));
-              if (resp.statusCode == 200) {
-                final dir = await getApplicationDocumentsDirectory();
-                overlayPath = path.join(
-                  dir.path,
-                  "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
-                );
-                await File(overlayPath).writeAsBytes(resp.bodyBytes);
-                debugPrint("✅ Overlay $tipo salvato in locale: $overlayPath");
-              } else {
-                debugPrint(
-                    "⚠️ Overlay non scaricabile (HTTP ${resp.statusCode})");
-              }
-            } catch (e) {
-              debugPrint("⚠️ Errore download overlay: $e");
-            }
-          }
-
-          Navigator.pop(context, {
-            "completed": true,
-            "result": result,
-            "overlay_path": overlayPath,
-            "filename":
-                result["filename"] ?? path.basename(widget.imagePath),
-            "analysis_type": tipo,
-          });
-
-          debugPrint("🔙 Ritorno automatico con overlay locale: $overlayPath");
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint("❌ Errore nel resumeJob ($tipo): $e");
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
+} // ✅ <-- CHIUDE DAVVERO _callAnalysisAsync()
+
+// ✅ Versione migliorata di _resumeJob che usa waitForResult() e ritorna a PrePostWidget
+Future<void> _resumeJob(String tipo, String jobId) async {
+  setState(() => _loading = true);
+  try {
+    final result = await waitForResult(jobId);
+
+    if (result != null) {
+      if (tipo == "rughe") _parseRughe(result);
+      if (tipo == "macchie") _parseMacchie(result);
+      if (tipo == "melasma") _parseMelasma(result);
+      if (tipo == "pori") _parsePori(result);
+
+      final prefs = await SharedPreferences.getInstance();
+      prefs.remove("last_job_id_$tipo");
+
+      // ✅ Se siamo in modalità PRE/POST → scarica overlay e torna a PrePostWidget
+      if (widget.mode == "prepost") {
+        final overlayUrl = result["overlay_url"] != null
+            ? "http://46.101.223.88:5000${result["overlay_url"]}"
+            : null;
+
+        String? overlayPath;
+        if (overlayUrl != null) {
+          try {
+            final resp = await http.get(Uri.parse(overlayUrl));
+            if (resp.statusCode == 200) {
+              final dir = await getApplicationDocumentsDirectory();
+              overlayPath = path.join(
+                dir.path,
+                "overlay_${tipo}_${DateTime.now().millisecondsSinceEpoch}.png",
+              );
+              await File(overlayPath).writeAsBytes(resp.bodyBytes);
+              debugPrint("✅ Overlay $tipo salvato in locale: $overlayPath");
+            } else {
+              debugPrint("⚠️ Overlay non scaricabile (HTTP ${resp.statusCode})");
+            }
+          } catch (e) {
+            debugPrint("⚠️ Errore download overlay: $e");
+          }
+        }
+
+        Navigator.pop(context, {
+          "completed": true,
+          "result": result,
+          "overlay_path": overlayPath,
+          "filename": result["filename"] ?? path.basename(widget.imagePath),
+          "analysis_type": tipo,
+        });
+
+        debugPrint("🔙 Ritorno automatico con overlay locale: $overlayPath");
+        return;
+      }
+    }
+  } catch (e) {
+    debugPrint("❌ Errore nel resumeJob ($tipo): $e");
+  } finally {
+    if (mounted) setState(() => _loading = false);
+  }
+}
 
 
   // === Parsers ===
