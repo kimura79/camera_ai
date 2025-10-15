@@ -26,7 +26,7 @@ class CameraSplashPage extends StatelessWidget {
 
           // Testo EPIDERMYS
           const Text(
-            "EPIDERMYS",
+            "EPIDERMYS AI",
             style: TextStyle(
               fontFamily: 'Helvetica',
               fontSize: 28,
