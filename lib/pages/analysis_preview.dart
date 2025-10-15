@@ -394,6 +394,7 @@ Future<void> _callAnalysisAsync(String tipo) async {
     debugPrint("✅ Ritorno automatico a PrePost con overlay=$overlayPath e file=$filename");
   }
 }
+}
 
   // ✅ Versione migliorata di _resumeJob che usa waitForResult()
   Future<void> _resumeJob(String tipo, String jobId) async {
