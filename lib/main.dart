@@ -12,11 +12,11 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👉 Splash test
+// 👉 Splash test (Farmacia e Utente)
 import 'pages/splash/splash_farmacia.dart';
 import 'pages/splash/splash_user.dart';
 
-// 👉 Splash originale (produzione medici)
+// 👉 Splash originale (produzione Medici)
 import 'pages/camera_splash/camera_splash_page.dart';
 
 void main() async {
@@ -124,7 +124,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 }
 
 /// ============================================================
-/// 🔹 Schermata di scelta tipo utente (mostrata sempre all’avvio)
+/// 🔹 Schermata di scelta tipo utente (stile Lovable uniforme)
 /// ============================================================
 class UserTypeSelectorPage extends StatelessWidget {
   const UserTypeSelectorPage({super.key});
@@ -148,18 +148,19 @@ class UserTypeSelectorPage extends StatelessWidget {
               children: [
                 // 🔹 Logo Epidermys
                 SizedBox(
-                  width: 160,
-                  height: 160,
+                  width: 140,
+                  height: 140,
                   child: Image.asset(
-                    'assets/images/epidermys_logo.png', // assicurati del path esatto
+                    'assets/images/epidermys_logo.png',
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 30),
 
-                Text(
+                // 🔹 Titolo
+                const Text(
                   "Scegli la modalità di utilizzo",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A97F3),
@@ -168,11 +169,10 @@ class UserTypeSelectorPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
 
-                // 🔹 Pulsante Medico
-                _buildButton(
+                // 🔹 Pulsanti uniformi (stessa misura e stile Lovable)
+                _buildGradientButton(
                   context,
-                  label: "👨‍⚕️ Modalità Medico",
-                  color: Colors.indigo,
+                  label: "Modalità Medico",
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
@@ -182,14 +182,11 @@ class UserTypeSelectorPage extends StatelessWidget {
                     );
                   },
                 ),
+                const SizedBox(height: 20),
 
-                const SizedBox(height: 16),
-
-                // 🔹 Pulsante Farmacia
-                _buildButton(
+                _buildGradientButton(
                   context,
-                  label: "💊 Modalità Farmacia",
-                  color: Colors.blueAccent,
+                  label: "Modalità Farmacia",
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
@@ -199,14 +196,11 @@ class UserTypeSelectorPage extends StatelessWidget {
                     );
                   },
                 ),
+                const SizedBox(height: 20),
 
-                const SizedBox(height: 16),
-
-                // 🔹 Pulsante User
-                _buildButton(
+                _buildGradientButton(
                   context,
-                  label: "👤 Modalità Utente Privato",
-                  color: Colors.teal,
+                  label: "Modalità Utente Privato",
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
@@ -224,24 +218,45 @@ class UserTypeSelectorPage extends StatelessWidget {
     );
   }
 
-  Widget _buildButton(BuildContext context,
-      {required String label,
-      required Color color,
-      required VoidCallback onPressed}) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
-        shape: RoundedRectangleBorder(
+  Widget _buildGradientButton(BuildContext context,
+      {required String label, required VoidCallback onPressed}) {
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: Container(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A97F3), Color(0xFF38BDF8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        elevation: 5,
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-            fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }
