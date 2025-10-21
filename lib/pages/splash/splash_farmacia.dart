@@ -12,7 +12,7 @@ class SplashFarmacia extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFE9F6FF), Color(0xFFCDEBFA)],
+            color: Colors.white,
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
