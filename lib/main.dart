@@ -12,15 +12,16 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 
-// 👉 Pagina camera aggiornata
-import 'pages/home_page/home_page_widget.dart';
-// 👉 Splash page Epidermys
+// 👉 Splash test
+import 'pages/splash/splash_farmacia.dart';
+import 'pages/splash/splash_user.dart';
+
+// 👉 Splash originale (produzione medici)
 import 'pages/camera_splash/camera_splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Richiesto da FlutterFlow + Web
   GoRouter.optionURLReflectsImperativeAPIs = true;
   usePathUrlStrategy();
 
@@ -39,24 +40,16 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-
-  // FlutterFlow si aspetta questo metodo statico
   static _MyAppState of(BuildContext context) =>
       context.findAncestorStateOfType<_MyAppState>()!;
-
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = FlutterFlowTheme.themeMode;
-
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
-
-  /// TRUE = avvia direttamente la splash (Epidermys)
-  /// FALSE = usa il router FlutterFlow (produzione)
-  static const bool kLaunchDirectHome = true;
 
   @override
   void initState() {
@@ -64,8 +57,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _appStateNotifier = AppStateNotifier.instance;
     _router = createRouter(_appStateNotifier);
-
-    // 👇 reset jobs lato server allo startup
     _resetJobsOnStartup();
   }
 
@@ -94,7 +85,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         FlutterFlowTheme.saveThemeMode(mode);
       });
 
-  // ==== Richiesti da flutter_flow_util.dart ====
   String getRoute([RouteMatch? routeMatch]) {
     final RouteMatch lastMatch =
         routeMatch ?? _router.routerDelegate.currentConfiguration.last;
@@ -108,35 +98,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       .routerDelegate.currentConfiguration.matches
       .map((e) => getRoute(e))
       .toList();
-  // =============================================
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Avvio diretto della pagina splash (non più camera)
-    if (kLaunchDirectHome) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Custom Camera Component',
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [
-          Locale('en', ''),
-          Locale('it', ''),
-        ],
-        theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
-        darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
-        themeMode: _themeMode,
-        home: const CameraSplashPage(), // 👈 Splash come entry point
-      );
-    }
-
-    // 👉 Versione con router FlutterFlow
-    return MaterialApp.router(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Custom Camera Component',
+      title: 'Epidermys',
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -146,10 +113,127 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         Locale('en', ''),
         Locale('it', ''),
       ],
-      theme: ThemeData(brightness: Brightness.light, useMaterial3: false),
-      darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: false),
-      themeMode: _themeMode,
-      routerConfig: _router,
+      theme: ThemeData(
+        brightness: Brightness.light,
+        useMaterial3: false,
+        fontFamily: 'Montserrat',
+      ),
+      home: const UserTypeSelectorPage(), // 👈 schermata iniziale di scelta
+    );
+  }
+}
+
+/// ============================================================
+/// 🔹 Schermata di scelta tipo utente (mostrata sempre all’avvio)
+/// ============================================================
+class UserTypeSelectorPage extends StatelessWidget {
+  const UserTypeSelectorPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFE9F6FF), Color(0xFFCDEBFA)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.spa, size: 80, color: Color(0xFF1A97F3)),
+                const SizedBox(height: 20),
+                Text(
+                  "Scegli la modalità di utilizzo",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+
+                // 🔹 Pulsante Medico
+                _buildButton(
+                  context,
+                  label: "👨‍⚕️ Modalità Medico",
+                  color: Colors.indigo,
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CameraSplashPage(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🔹 Pulsante Farmacia
+                _buildButton(
+                  context,
+                  label: "💊 Modalità Farmacia",
+                  color: Colors.blueAccent,
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SplashFarmacia(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🔹 Pulsante User
+                _buildButton(
+                  context,
+                  label: "👤 Modalità Utente Privato",
+                  color: Colors.teal,
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SplashUser(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildButton(BuildContext context,
+      {required String label,
+      required Color color,
+      required VoidCallback onPressed}) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+        elevation: 5,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+      ),
     );
   }
 }
