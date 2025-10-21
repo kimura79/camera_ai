@@ -146,18 +146,27 @@ class UserTypeSelectorPage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.spa, size: 80, color: Color(0xFF1A97F3)),
+                // 🔹 Logo Epidermys
+                SizedBox(
+                  width: 160,
+                  height: 160,
+                  child: Image.asset(
+                    'assets/images/epidermys_logo.png', // assicurati del path esatto
+                    fit: BoxFit.contain,
+                  ),
+                ),
                 const SizedBox(height: 20),
+
                 Text(
                   "Scegli la modalità di utilizzo",
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[800],
+                    color: Color(0xFF1A97F3),
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
 
                 // 🔹 Pulsante Medico
                 _buildButton(
