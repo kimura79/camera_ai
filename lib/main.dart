@@ -124,7 +124,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 }
 
 /// ============================================================
-/// 🔹 Schermata di scelta tipo utente (stile Lovable uniforme)
+/// 🔹 Schermata di scelta tipo utente (sfondo bianco)
 /// ============================================================
 class UserTypeSelectorPage extends StatelessWidget {
   const UserTypeSelectorPage({super.key});
@@ -132,86 +132,78 @@ class UserTypeSelectorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            color: Colors.white,
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 🔹 Logo Epidermys
-                SizedBox(
-                  width: 140,
-                  height: 140,
-                  child: Image.asset(
-                    'assets/images/epidermys_logo.PNG',
-                    fit: BoxFit.contain,
-                  ),
+      backgroundColor: Colors.white, // ✅ Sfondo bianco puro
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🔹 Logo Epidermys
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: Image.asset(
+                  'assets/images/epidermys_logo.PNG',
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 30),
+              ),
+              const SizedBox(height: 30),
 
-                // 🔹 Titolo
-                const Text(
-                  "Scegli la modalità di utilizzo",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A97F3),
-                  ),
-                  textAlign: TextAlign.center,
+              // 🔹 Titolo
+              const Text(
+                "Scegli la modalità di utilizzo",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A97F3),
                 ),
-                const SizedBox(height: 40),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
 
-                // 🔹 Pulsanti uniformi (stessa misura e stile Lovable)
-                _buildGradientButton(
-                  context,
-                  label: "Modalità Medico",
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CameraSplashPage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
+              // 🔹 Pulsanti uniformi (stessa misura e stile Lovable)
+              _buildGradientButton(
+                context,
+                label: "Modalità Medico",
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CameraSplashPage(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
 
-                _buildGradientButton(
-                  context,
-                  label: "Modalità Farmacia",
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SplashFarmacia(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
+              _buildGradientButton(
+                context,
+                label: "Modalità Farmacia",
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SplashFarmacia(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
 
-                _buildGradientButton(
-                  context,
-                  label: "Modalità Utente Privato",
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SplashUser(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+              _buildGradientButton(
+                context,
+                label: "Modalità Utente Privato",
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SplashUser(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
