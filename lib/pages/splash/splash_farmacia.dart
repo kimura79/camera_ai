@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../home/home_farmacia.dart';
+import '../home_page/home_farmacia.dart';
 
 /// 💊 Splash Farmacia (stile Lovable)
 class SplashFarmacia extends StatefulWidget {
@@ -37,8 +37,8 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.local_pharmacy,
-                  color: const Color(0xFF1A97F3), size: 90),
+              const Icon(Icons.local_pharmacy,
+                  color: Color(0xFF1A97F3), size: 90),
               const SizedBox(height: 30),
               Text(
                 "Epidermys – Test Farmacie",
@@ -65,4 +65,3 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
     );
   }
 }
-
