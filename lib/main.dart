@@ -151,7 +151,7 @@ class UserTypeSelectorPage extends StatelessWidget {
                   width: 140,
                   height: 140,
                   child: Image.asset(
-                    'assets/images/epidermys_logo.png',
+                    'assets/images/epidermys_logo.PNG',
                     fit: BoxFit.contain,
                   ),
                 ),
