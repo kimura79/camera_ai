@@ -1,15 +1,18 @@
-// 📄 lib/pages/analysis_pharma.dart
+// 📄 lib/pages/analisi/analisi_farmacia.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class AnalysisPharmaPage extends StatelessWidget {
+class AnalisiFarmaciaPage extends StatelessWidget {
+  final String imagePath; // 👈 aggiungilo per ricevere il percorso immagine
   final double score;
   final Map<String, double> indici;
   final List<String> consigli;
   final String tipoPelle;
 
-  const AnalysisPharmaPage({
+  const AnalisiFarmaciaPage({
     super.key,
+    required this.imagePath, // 👈 parametro obbligatorio
     this.score = 82,
     this.indici = const {
       "Idratazione": 0.82,
