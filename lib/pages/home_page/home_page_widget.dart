@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
-import 'package:custom_camera_component/pages/analisi/analisi_farmacia.dart';
+import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -286,8 +286,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Navigator.of(context).push(
   MaterialPageRoute(
     builder: (_) => FFAppState().modalita == "farmacia"
-        ? AnalysisPharmaPage(imagePath: newPath) // ✅ apre la pagina score farmacia
-        : AnalysisPreview(imagePath: newPath, mode: "fullface"),
+    ? AnalysisPharmaPreview(imagePath: newPath, mode: "fullface")
+    : AnalysisPreview(imagePath: newPath, mode: "fullface"),
   ),
 ).then((analyzed) {
   if (analyzed != null) {
