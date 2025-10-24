@@ -87,26 +87,27 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 
       // ✅ Mostra direttamente la pagina score
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AnalysisPharmaPage(
-            score: (result["percentuale"] ?? 0).toDouble(),
-            indici: {
-              "Idratazione": 0.84,
-              "Texture": 0.88,
-              "Chiarezza": 0.82,
-              "Elasticità": 0.80,
-            },
-            consigli: [
-              "Applica una crema idratante giorno e notte.",
-              "Usa siero alla vitamina C per migliorare la luminosità.",
-              "Applica sempre protezione solare SPF 50+.",
-              "Considera booster con niacinamide per uniformare il tono.",
-            ],
-            tipoPelle: "Normale",
-          ),
-        ),
-      );
+  context,
+  MaterialPageRoute(
+    builder: (_) => AnalysisPharmaPage(
+      imagePath: widget.imagePath, // ✅ AGGIUNTO parametro obbligatorio
+      score: (result["percentuale"] ?? 0).toDouble(),
+      indici: {
+        "Idratazione": 0.84,
+        "Texture": 0.88,
+        "Chiarezza": 0.82,
+        "Elasticità": 0.80,
+      },
+      consigli: [
+        "Applica una crema idratante giorno e notte.",
+        "Usa siero alla vitamina C per migliorare la luminosità.",
+        "Applica sempre protezione solare SPF 50+.",
+        "Considera booster con niacinamide per uniformare il tono.",
+      ],
+      tipoPelle: "Normale",
+    ),
+  ),
+);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Errore: $e")));
