@@ -1,4 +1,3 @@
-
 // 📄 lib/pages/analysis_pharma_preview.dart
 import 'dart:convert';
 import 'dart:io';
@@ -87,33 +86,76 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 
       // ✅ Mostra direttamente la pagina score
       Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (_) => AnalysisPharmaPage(
-      imagePath: widget.imagePath, // ✅ AGGIUNTO parametro obbligatorio
-      score: (result["percentuale"] ?? 0).toDouble(),
-      indici: {
-        "Idratazione": 0.84,
-        "Texture": 0.88,
-        "Chiarezza": 0.82,
-        "Elasticità": 0.80,
-      },
-      consigli: [
-        "Applica una crema idratante giorno e notte.",
-        "Usa siero alla vitamina C per migliorare la luminosità.",
-        "Applica sempre protezione solare SPF 50+.",
-        "Considera booster con niacinamide per uniformare il tono.",
-      ],
-      tipoPelle: "Normale",
-    ),
-  ),
-);
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnalysisPharmaPage(
+            imagePath: widget.imagePath, // ✅ parametro obbligatorio
+            score: (result["percentuale"] ?? 0).toDouble(),
+            indici: {
+              "Idratazione": 0.84,
+              "Texture": 0.88,
+              "Chiarezza": 0.82,
+              "Elasticità": 0.80,
+            },
+            consigli: [
+              "Applica una crema idratante giorno e notte.",
+              "Usa siero alla vitamina C per migliorare la luminosità.",
+              "Applica sempre protezione solare SPF 50+.",
+              "Considera booster con niacinamide per uniformare il tono.",
+            ],
+            tipoPelle: "Normale",
+          ),
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Errore: $e")));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // 🔹 Pulsante gradiente arrotondato (stile main.dart)
+  Widget _buildGradientButton(String label, VoidCallback onPressed) {
+    return SizedBox(
+      width: 150,
+      height: 55,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A97F3), Color(0xFF38BDF8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: _loading ? null : onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -149,22 +191,23 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
                         "Seleziona il tipo di analisi da eseguire:",
                         style: TextStyle(fontSize: 16),
                       ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _loading ? null : () => _callAnalysisAsync("rughe"),
-                        child: const Text("Rughe"),
-                      ),
-                      ElevatedButton(
-                        onPressed: _loading ? null : () => _callAnalysisAsync("macchie"),
-                        child: const Text("Macchie"),
-                      ),
-                      ElevatedButton(
-                        onPressed: _loading ? null : () => _callAnalysisAsync("melasma"),
-                        child: const Text("Melasma"),
-                      ),
-                      ElevatedButton(
-                        onPressed: _loading ? null : () => _callAnalysisAsync("pori"),
-                        child: const Text("Pori"),
+                      const SizedBox(height: 24),
+
+                      // 🔹 Pulsanti in griglia 2x2, stile gradient
+                      Wrap(
+                        spacing: 20,
+                        runSpacing: 20,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          _buildGradientButton(
+                              "Rughe", () => _callAnalysisAsync("rughe")),
+                          _buildGradientButton(
+                              "Macchie", () => _callAnalysisAsync("macchie")),
+                          _buildGradientButton(
+                              "Melasma", () => _callAnalysisAsync("melasma")),
+                          _buildGradientButton(
+                              "Pori", () => _callAnalysisAsync("pori")),
+                        ],
                       ),
                     ],
                   ),
