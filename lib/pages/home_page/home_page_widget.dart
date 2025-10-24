@@ -286,7 +286,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
   Navigator.of(context).push(
   MaterialPageRoute(
     builder: (_) => FFAppState().modalita == "farmacia"
-        ? AnalisiFarmaciaPage(imagePath: newPath) // ✅ apre la pagina score farmacia
+        ? AnalysisPharmaPage(imagePath: newPath) // ✅ apre la pagina score farmacia
         : AnalysisPreview(imagePath: newPath, mode: "fullface"),
   ),
 ).then((analyzed) {
