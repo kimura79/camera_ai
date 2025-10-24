@@ -1,7 +1,6 @@
 // 📄 lib/flutter_flow/ff_app_state.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'flutter_flow_util.dart';
 
 class FFAppState extends ChangeNotifier {
   // ======================================================
