@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:custom_camera_component/pages/distanza_cm_overlay.dart';
+import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -276,25 +277,27 @@ class _HomePageWidgetState extends State<HomePageWidget>
           '✅ Foto salvata — risoluzione: ${original.width}x${original.height} (match preview)');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Foto salvata identica alla preview fullscreen')),
-        );
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('✅ Foto salvata identica alla preview fullscreen'),
+    ),
+  );
 
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AnalysisPreview(
-              imagePath: newPath,
-              mode: "fullface",
-            ),
-          ),
-        ).then((analyzed) {
-          if (analyzed != null) {
-            Navigator.pop(context);
-            Navigator.pop(context, analyzed);
-          }
-        });
-      }
+  Navigator.of(context)
+      .push(
+    MaterialPageRoute(
+      builder: (_) => FFAppState().modalita == "farmacia"
+          ? AnalysisPharmaPreview(imagePath: newPath, mode: "fullface")
+          : AnalysisPreview(imagePath: newPath, mode: "fullface"),
+    ),
+  )
+      .then((analyzed) {
+    if (analyzed != null) {
+      Navigator.pop(context);
+      Navigator.pop(context, analyzed);
+    }
+  });
+}
     } catch (e) {
       debugPrint('Take/save error: $e');
       if (mounted) {
