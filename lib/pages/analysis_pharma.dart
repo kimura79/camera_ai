@@ -3,27 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AnalysisPharmaPage extends StatelessWidget {
-  const AnalysisPharmaPage({super.key});
+  final double score;
+  final Map<String, double> indici;
+  final List<String> consigli;
+  final String tipoPelle;
 
-  @override
-  Widget build(BuildContext context) {
-    // === PLACEHOLDER DATI ===
-    const double scoreComplessivo = 92;
-    final Map<String, double> indici = {
-      "Idratazione": 0.80,
-      "Texture": 0.80,
-      "Chiarezza": 0.88,
-      "Elasticità": 0.83,
-    };
-
-    final List<String> consigli = [
+  const AnalysisPharmaPage({
+    super.key,
+    this.score = 82,
+    this.indici = const {
+      "Idratazione": 0.82,
+      "Texture": 0.90,
+      "Chiarezza": 0.82,
+      "Elasticità": 0.81,
+    },
+    this.consigli = const [
       "Usa un siero con acido ialuronico per aumentare l’idratazione",
       "Applica una crema con vitamina C per migliorare la luminosità",
       "Utilizza un prodotto con retinolo per migliorare la texture",
       "Non dimenticare la protezione solare SPF 50+ ogni giorno",
       "Considera l’uso di niacinamide per uniformare il tono della pelle",
-    ];
+    ],
+    this.tipoPelle = "Grassa",
+  });
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
@@ -47,7 +52,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              scoreComplessivo.toStringAsFixed(0),
+              score.toStringAsFixed(0),
               style: GoogleFonts.montserrat(
                 fontSize: 64,
                 fontWeight: FontWeight.bold,
@@ -70,7 +75,7 @@ class AnalysisPharmaPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                "Grassa",
+                tipoPelle,
                 style: GoogleFonts.montserrat(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -80,7 +85,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // === Analisi dettagliata ===
+            // === Analisi Dettagliata ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -152,7 +157,7 @@ class AnalysisPharmaPage extends StatelessWidget {
                   ],
                 ),
               );
-            }),
+            }).toList(),
 
             const SizedBox(height: 30),
 
@@ -219,23 +224,50 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
 
             const SizedBox(height: 40),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A73E8),
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      side: const BorderSide(color: Color(0xFF1A73E8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "Nuova Analisi",
+                      style: GoogleFonts.montserrat(
+                        color: const Color(0xFF1A73E8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "Torna alla Home",
-                style: GoogleFonts.montserrat(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A73E8),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "Torna alla Home",
+                      style: GoogleFonts.montserrat(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 20),
           ],
