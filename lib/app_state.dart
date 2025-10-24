@@ -15,13 +15,22 @@ class FFAppState extends ChangeNotifier {
     _instance = FFAppState._internal();
   }
 
-  Future initializePersistedState() async {}
+  /// ======================================================
+  /// 🔹 INIZIALIZZAZIONE PERSISTENTE
+  /// ======================================================
+  Future initializePersistedState() async {
+    final prefs = await SharedPreferences.getInstance();
+    _modalita = prefs.getString('modalita') ?? 'utente';
+  }
 
   void update(VoidCallback callback) {
     callback();
     notifyListeners();
   }
 
+  /// ======================================================
+  /// 🔹 VARIABILI ESISTENTI (non toccate)
+  /// ======================================================
   bool _makePhoto = false;
   bool get makePhoto => _makePhoto;
   set makePhoto(bool value) {
@@ -32,5 +41,18 @@ class FFAppState extends ChangeNotifier {
   String get fileBase64 => _fileBase64;
   set fileBase64(String value) {
     _fileBase64 = value;
+  }
+
+  /// ======================================================
+  /// 🔹 NUOVA VARIABILE: MODALITÀ UTENTE
+  /// ======================================================
+  String _modalita = 'utente'; // può essere: 'medico', 'farmacia', 'utente'
+  String get modalita => _modalita;
+
+  Future<void> setModalita(String nuovaModalita) async {
+    _modalita = nuovaModalita;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('modalita', nuovaModalita);
+    notifyListeners();
   }
 }
