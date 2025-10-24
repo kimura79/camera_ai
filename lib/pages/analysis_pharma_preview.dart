@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'analysis_pharma.dart';
+import 'package:custom_camera_component/pages/analysis_pharma.dart';
 
 class AnalysisPharmaPreview extends StatefulWidget {
   final String imagePath;
