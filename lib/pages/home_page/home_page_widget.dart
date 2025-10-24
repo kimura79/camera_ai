@@ -19,7 +19,7 @@ import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/app_state.dart';
+import '/app_state.dart';
 import '/index.dart';
 import 'home_page_model.dart';
 export 'home_page_model.dart';
