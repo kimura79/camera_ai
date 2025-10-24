@@ -164,45 +164,42 @@ class UserTypeSelectorPage extends StatelessWidget {
 
               // 🔹 Pulsanti uniformi (stessa misura e stile Lovable)
               _buildGradientButton(
-                context,
-                label: "Modalità Medico",
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CameraSplashPage(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
+  context,
+  label: "Modalità Medico",
+  onPressed: () async {
+    await FFAppState().setModalita("medico"); // ✅ salva modalità
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const CameraSplashPage()),
+    );
+  },
+),
+const SizedBox(height: 20),
 
-              _buildGradientButton(
-                context,
-                label: "Modalità Farmacia",
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SplashFarmacia(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
+_buildGradientButton(
+  context,
+  label: "Modalità Farmacia",
+  onPressed: () async {
+    await FFAppState().setModalita("farmacia"); // ✅ salva modalità
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const SplashFarmacia()),
+    );
+  },
+),
+const SizedBox(height: 20),
 
-              _buildGradientButton(
-                context,
-                label: "Modalità Utente Privato",
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SplashUser(),
-                    ),
-                  );
-                },
-              ),
+_buildGradientButton(
+  context,
+  label: "Modalità Utente Privato",
+  onPressed: () async {
+    await FFAppState().setModalita("utente"); // ✅ salva modalità
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const SplashUser()),
+    );
+  },
+),
             ],
           ),
         ),
