@@ -1,3 +1,4 @@
+// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,6 +39,7 @@ class AnalysisPharmaPage extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
 
+            // 🔹 Immagine analizzata
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
@@ -75,6 +77,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
+            // 🔹 Tipo pelle
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               decoration: BoxDecoration(
@@ -93,14 +96,17 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 30),
 
+            // === Radar Chart ===
             _buildRadarChart(indici),
 
             const SizedBox(height: 30),
 
+            // === Cerchi giudizi sintetici ===
             _buildCerchiGiudizi(score),
 
             const SizedBox(height: 40),
 
+            // === Analisi Dettagliata ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -175,6 +181,7 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 40),
 
+            // === Raccomandazioni / Referti ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -199,6 +206,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             _buildRefertiCard(consigli),
 
             const SizedBox(height: 40),
+
             Row(
               children: [
                 Expanded(
@@ -252,7 +260,7 @@ class AnalysisPharmaPage extends StatelessWidget {
   }
 
   // =============================================================
-  // 🟢 WIDGETS SECONDARI
+  // 🟢 RADAR CHART COMPATIBILE
   // =============================================================
 
   Widget _buildRadarChart(Map<String, double> indici) {
@@ -268,7 +276,11 @@ class AnalysisPharmaPage extends StatelessWidget {
           ticksTextStyle: const TextStyle(color: Colors.transparent),
           radarBorderData: const BorderSide(color: Color(0xFF1A73E8), width: 2),
           gridBorderData: const BorderSide(color: Colors.grey, width: 0.5),
-
+          titleTextStyle: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
           dataSets: [
             RadarDataSet(
               fillColor: const Color(0xFF1A73E8).withOpacity(0.3),
@@ -278,22 +290,18 @@ class AnalysisPharmaPage extends StatelessWidget {
               dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
             ),
           ],
-
-          getTitle: (index, angle) {
-            return RadarChartTitle(
-              text: labels[index],
-              positionPercentageOffset: 1.2,
-              style: GoogleFonts.montserrat(
-                fontSize: 13,
-                color: Colors.black87,
-                fontWeight: FontWeight.w500,
-              ),
-            );
-          },
+          getTitle: (index, angle) => RadarChartTitle(
+            text: labels[index],
+            positionPercentageOffset: 1.2,
+          ),
         ),
       ),
     );
   }
+
+  // =============================================================
+  // 🟢 CERCHI GIUDIZI
+  // =============================================================
 
   Widget _buildCerchiGiudizi(double score) {
     final giudizio = _valutaGiudizio(score);
@@ -340,6 +348,10 @@ class AnalysisPharmaPage extends StatelessWidget {
     );
   }
 
+  // =============================================================
+  // 🟢 CARD CONSIGLI / REFERTI
+  // =============================================================
+
   Widget _buildRefertiCard(List<String> consigli) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -385,6 +397,10 @@ class AnalysisPharmaPage extends StatelessWidget {
       ),
     );
   }
+
+  // =============================================================
+  // 🟢 LOGICA GIUDIZIO
+  // =============================================================
 
   String _valutaGiudizio(double score) {
     if (score < 0.45) return "Scarso";
