@@ -7,10 +7,18 @@ import 'package:http/http.dart' as http;
 
 class AnalysisPharmaPage extends StatefulWidget {
   final String imagePath;
+  final double? score;
+  final Map<String, double>? indici;
+  final List<String>? consigli;
+  final String? tipoPelle;
 
   const AnalysisPharmaPage({
     super.key,
     required this.imagePath,
+    this.score,
+    this.indici,
+    this.consigli,
+    this.tipoPelle,
   });
 
   @override
@@ -19,42 +27,68 @@ class AnalysisPharmaPage extends StatefulWidget {
 
 class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   bool _loading = false;
-  Map<String, dynamic>? _result;
+  double? score;
+  Map<String, double>? indici;
+  List<String>? consigli;
+  String? tipoPelle;
 
-  // 🔹 URL del server farmacie (aggiorna con il tuo dominio reale)
-  final String apiUrl = "https://tuo-server.it/analyze_farmacie";
+  final String apiUrl = "http://localhost:5005/analyze_farmacia"; // 🔹 aggiorna con dominio reale
 
+  @override
+  void initState() {
+    super.initState();
+    score = widget.score;
+    indici = widget.indici;
+    consigli = widget.consigli;
+    tipoPelle = widget.tipoPelle;
+  }
+
+  // ======================================================
+  // 🔹 Invio immagine al server Flask
+  // ======================================================
   Future<void> _analizzaPelle() async {
-    setState(() {
-      _loading = true;
-      _result = null;
-    });
+    setState(() => _loading = true);
 
     try {
-      final uri = Uri.parse(apiUrl);
-      final request = http.MultipartRequest('POST', uri);
-
-      request.files.add(await http.MultipartFile.fromPath('image', widget.imagePath));
+      final request = http.MultipartRequest("POST", Uri.parse(apiUrl));
+      request.files.add(await http.MultipartFile.fromPath("file", widget.imagePath));
 
       final response = await request.send();
-      final respStr = await response.stream.bytesToString();
+      final body = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(respStr);
-        setState(() => _result = data);
+        final data = jsonDecode(body);
+
+        if (data["success"] == true) {
+          setState(() {
+            score = (data["score_generale"] ?? 0).toDouble();
+            tipoPelle = data["tipo_pelle"] ?? "-";
+            consigli = (data["consigli"] as List?)?.cast<String>() ?? [];
+            indici = (data["indici"] as Map?)
+                ?.map((k, v) => MapEntry(k, (v as num).toDouble()));
+          });
+        } else {
+          _showError("Errore: ${data["error"] ?? "Risposta non valida"}");
+        }
       } else {
-        setState(() => _result = {
-              "errore": "Errore server ${response.statusCode}",
-              "dettagli": respStr,
-            });
+        _showError("Errore server: ${response.statusCode}");
       }
     } catch (e) {
-      setState(() => _result = {"errore": e.toString()});
+      _showError("Errore di rete: $e");
     } finally {
       setState(() => _loading = false);
     }
   }
 
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg, style: const TextStyle(color: Colors.white))),
+    );
+  }
+
+  // ======================================================
+  // 🔹 Costruzione interfaccia
+  // ======================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,9 +102,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const SizedBox(height: 10),
-
-            // 🔹 Immagine
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
@@ -82,7 +113,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
 
             const SizedBox(height: 30),
 
-            // 🔹 Pulsante unico
+            // 🔹 Pulsante Analizza Pelle
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1A73E8),
@@ -113,182 +144,181 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
 
             const SizedBox(height: 40),
 
-            if (_result != null)
-              _result!.containsKey("errore")
-                  ? _buildErrorBox(_result!)
-                  : _buildResultBox(_result!),
+            if (score != null && indici != null) _buildResultsSection(),
           ],
         ),
       ),
     );
   }
 
-  // ===========================================================
-  // 🔴 BOX ERRORE
-  // ===========================================================
-  Widget _buildErrorBox(Map<String, dynamic> err) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFE4E9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        "❌ Errore: ${err["errore"]}\n${err["dettagli"] ?? ""}",
-        style: GoogleFonts.montserrat(color: Colors.red.shade700),
-      ),
-    );
-  }
-
-  // ===========================================================
-  // 🟢 BOX RISULTATO
-  // ===========================================================
-  Widget _buildResultBox(Map<String, dynamic> data) {
-    final double? score = (data["score"] is num) ? data["score"].toDouble() : null;
-    final Map<String, dynamic> indici = (data["indici"] ?? {}).cast<String, dynamic>();
-    final tipoPelle = data["tipo_pelle"] ?? "—";
-    final consigli = (data["consigli"] as List?)?.cast<String>() ?? [];
+  // ======================================================
+  // 🔹 Risultati e visualizzazione
+  // ======================================================
+  Widget _buildResultsSection() {
+    final giudizio = _valutaGiudizio(score!);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Titolo
         Text(
-          "Risultato Analisi",
+          "Punteggio Complessivo",
+          style: GoogleFonts.montserrat(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "${(score! * 100).toStringAsFixed(0)}",
           style: GoogleFonts.montserrat(
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
+            fontSize: 64,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1A73E8),
           ),
         ),
-        const SizedBox(height: 16),
+        Text(
+          giudizio,
+          style: GoogleFonts.montserrat(
+            fontSize: 18,
+            color: Colors.black54,
+          ),
+        ),
+        const SizedBox(height: 20),
 
-        // 🔹 Punteggio complessivo
-        if (score != null)
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  "${(score * 100).toStringAsFixed(0)}",
-                  style: GoogleFonts.montserrat(
-                    fontSize: 68,
-                    color: const Color(0xFF1A73E8),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "Salute complessiva della pelle",
-                  style: GoogleFonts.montserrat(
-                    fontSize: 16,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
+        if (tipoPelle != null)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE4E9),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              tipoPelle!,
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFE91E63),
+              ),
             ),
           ),
 
         const SizedBox(height: 30),
 
-        // 🔹 Tipo di pelle
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 18),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFE4E9),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                tipoPelle,
-                style: GoogleFonts.montserrat(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFFE91E63),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 30),
-
-        // 🔹 Indici singoli
-        if (indici.isNotEmpty)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: indici.entries.map((entry) {
-              final nome = entry.key;
-              final valore =
-                  (entry.value is num) ? (entry.value as num).clamp(0, 1).toDouble() : 0.0;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nome,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Stack(
-                      children: [
-                        Container(
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: Colors.pink.shade100,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: valore,
-                          child: Container(
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A73E8),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "${(valore * 100).toStringAsFixed(0)}%",
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
+        // 🔹 Indici
+        ...indici!.entries.map((e) => _buildIndice(e.key, e.value)),
 
         const SizedBox(height: 40),
 
         // 🔹 Consigli personalizzati
-        Text(
-          "Raccomandazioni Personalizzate",
-          style: GoogleFonts.montserrat(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Raccomandazioni Personalizzate",
+            style: GoogleFonts.montserrat(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        ...consigli.map((c) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                "• $c",
-                style: GoogleFonts.montserrat(fontSize: 15, color: Colors.black87),
-              ),
-            )),
+        _buildRefertiCard(consigli ?? []),
       ],
     );
+  }
+
+  Widget _buildIndice(String nome, double valore) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            nome,
+            style: GoogleFonts.montserrat(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Stack(
+            children: [
+              Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.pink.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: valore,
+                child: Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A73E8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "${(valore * 100).toStringAsFixed(0)}%",
+            style: GoogleFonts.montserrat(
+              fontSize: 13,
+              color: Colors.green,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefertiCard(List<String> consigli) {
+    if (consigli.isEmpty) {
+      return Text(
+        "Nessun consiglio disponibile.",
+        style: GoogleFonts.montserrat(color: Colors.black54),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: consigli.map((txt) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("• ", style: TextStyle(fontSize: 18)),
+                Expanded(
+                  child: Text(
+                    txt,
+                    style: GoogleFonts.montserrat(fontSize: 15),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  String _valutaGiudizio(double score) {
+    if (score < 0.45) return "Scarso";
+    if (score < 0.7) return "Sufficiente";
+    return "Buono";
   }
 }
