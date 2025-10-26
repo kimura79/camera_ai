@@ -1,100 +1,61 @@
-// 📄 lib/pages/analysis_pharma_preview.dart
-import 'dart:convert';
+// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'analysis_pharma.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 
-class AnalysisPharmaPreview extends StatefulWidget {
+class AnalysisPharmaPage extends StatefulWidget {
   final String imagePath;
 
-  const AnalysisPharmaPreview({super.key, required this.imagePath});
+  const AnalysisPharmaPage({super.key, required this.imagePath});
 
   @override
-  State<AnalysisPharmaPreview> createState() => _AnalysisPharmaPreviewState();
+  State<AnalysisPharmaPage> createState() => _AnalysisPharmaPageState();
 }
 
-class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
-  bool _loading = false;
-  bool _serverReady = false;
-
-  final String serverUrl = "http://<IP_SERVER>:5005/status"; // 🔧 aggiorna IP del tuo server
+class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
+  Map<String, dynamic>? resultData;
 
   @override
   void initState() {
     super.initState();
-    _checkServer();
+    _loadResultData();
   }
 
-  // 🔹 Verifica se il server è raggiungibile
-  Future<void> _checkServer() async {
+  Future<void> _loadResultData() async {
     try {
-      final resp = await http.get(Uri.parse(serverUrl)).timeout(const Duration(seconds: 4));
-      if (resp.statusCode == 200) {
-        setState(() => _serverReady = true);
-      } else {
-        setState(() => _serverReady = false);
-      }
-    } catch (_) {
-      setState(() => _serverReady = false);
-    }
-  }
-
-  // 🔹 Esegue la chiamata all’endpoint Flask
-  Future<void> _analyzeImage() async {
-    if (!_serverReady) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Server non disponibile")),
-      );
-      return;
-    }
-
-    setState(() => _loading = true);
-
-    try {
-      final uri = Uri.parse("http://<IP_SERVER>:5005/analyze_farmacia"); // 🔧 aggiorna IP
-      final request = http.MultipartRequest('POST', uri);
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
-
-      final response = await request.send();
-      final respStr = await response.stream.bytesToString();
-      final data = jsonDecode(respStr);
-
-      if (response.statusCode == 200 && data["success"] == true) {
-        // Salva risultato in file temporaneo (opzionale)
-        final dir = await getTemporaryDirectory();
-        final resultFile = File("${dir.path}/result_farmacia.json");
-        await resultFile.writeAsString(jsonEncode(data));
-
-        // Vai alla pagina risultati
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AnalysisPharmaPage(
-                imagePath: widget.imagePath,
-              ),
-            ),
-          );
-        }
-      } else {
-        _showError("Errore nell'elaborazione dell'immagine");
+      final dir = await getTemporaryDirectory();
+      final file = File("${dir.path}/result_farmacia.json");
+      if (await file.exists()) {
+        final data = jsonDecode(await file.readAsString());
+        setState(() => resultData = data);
       }
     } catch (e) {
-      _showError("Errore di connessione: $e");
-    } finally {
-      setState(() => _loading = false);
+      debugPrint("Errore caricamento JSON farmacia: $e");
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
+    if (resultData == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FBFF),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF1A73E8)),
+        ),
+      );
+    }
+
+    final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
+    final Map<String, dynamic> indici = Map<String, dynamic>.from(resultData!["indici"] ?? {});
+    final String tipoPelle = resultData!["tipo_pelle"] ?? "Normale";
+    final List<String> consigli = List<String>.from(resultData!["consigli"] ?? []);
+
+    final double scorePercent = (score * 100).clamp(0, 100);
+    final giudizioGlobale = _valutaGiudizio(score);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
@@ -102,58 +63,301 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
         title: const Text("Analisi Farmacia"),
         centerTitle: true,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  File(widget.imagePath),
-                  height: 260,
-                  fit: BoxFit.cover,
-                ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(widget.imagePath),
+                height: 220,
+                fit: BoxFit.cover,
               ),
-              const SizedBox(height: 40),
-              if (_loading)
-                const CircularProgressIndicator(color: Color(0xFF1A73E8))
-              else
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A73E8),
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.analytics, color: Colors.white),
-                  label: Text(
-                    "Analizza Pelle",
-                    style: GoogleFonts.montserrat(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: _serverReady ? _analyzeImage : null,
-                ),
-              const SizedBox(height: 20),
-              Text(
-                _serverReady
-                    ? "Server pronto per l’analisi"
-                    : "Connessione al server in corso...",
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              "Punteggio Complessivo",
+              style: GoogleFonts.montserrat(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "${scorePercent.toStringAsFixed(0)}",
+              style: GoogleFonts.montserrat(
+                fontSize: 64,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1A73E8),
+              ),
+            ),
+            Text(
+              giudizioGlobale,
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.black54,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE4E9),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                tipoPelle,
                 style: GoogleFonts.montserrat(
                   fontSize: 14,
-                  color: _serverReady ? Colors.green : Colors.orange,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFE91E63),
                 ),
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 30),
+            _buildRadarChart(indici),
+            const SizedBox(height: 30),
+
+            _buildCerchiGiudizi(score),
+            const SizedBox(height: 40),
+
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Domini Cutanei",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...indici.entries.map((entry) {
+              final nome = entry.key;
+              final valore = (entry.value as num).toDouble();
+              final giudizio = _valutaGiudizio(valore);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "$nome – $giudizio",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Stack(
+                      children: [
+                        Container(
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: valore.toDouble(), // ✅ fix iOS build
+                          child: Container(
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A73E8),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${(valore * 100).toStringAsFixed(0)}%",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+
+            const SizedBox(height: 40),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Raccomandazioni Personalizzate",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildRefertiCard(consigli),
+
+            const SizedBox(height: 30),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A73E8),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Torna alla Home",
+                style: GoogleFonts.montserrat(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
+  }
+
+  // =============================================================
+  // 🟢 WIDGETS SECONDARI
+  // =============================================================
+
+  Widget _buildRadarChart(Map<String, dynamic> indici) {
+    final labels = indici.keys.toList();
+    final values = indici.values.map((v) => (v as num).toDouble()).toList();
+
+    return SizedBox(
+      height: 260,
+      child: RadarChart(
+        RadarChartData(
+          radarShape: RadarShape.polygon,
+          tickCount: 4,
+          ticksTextStyle: const TextStyle(color: Colors.transparent),
+          radarBorderData: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+          gridBorderData: const BorderSide(color: Colors.grey, width: 0.5),
+          getTitle: (index, angle) => RadarChartTitle(
+            text: labels[index],
+            positionPercentageOffset: 1.2,
+            textStyle: GoogleFonts.montserrat(
+              fontSize: 13,
+              color: Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          dataSets: [
+            RadarDataSet(
+              fillColor: const Color(0xFF1A73E8).withOpacity(0.3),
+              borderColor: const Color(0xFF1A73E8),
+              entryRadius: 3,
+              borderWidth: 2,
+              dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCerchiGiudizi(double score) {
+    final giudizio = _valutaGiudizio(score);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _cerchioGiudizio("Scarso", giudizio == "Scarso"),
+        _cerchioGiudizio("Sufficiente", giudizio == "Sufficiente"),
+        _cerchioGiudizio("Buono", giudizio == "Buono"),
+      ],
+    );
+  }
+
+  Widget _cerchioGiudizio(String label, bool attivo) {
+    return Column(
+      children: [
+        Container(
+          width: 70,
+          height: 70,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
+          ),
+          child: Center(
+            child: Text(
+              label.substring(0, 1),
+              style: GoogleFonts.montserrat(
+                color: attivo ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 28,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRefertiCard(List<String> consigli) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: consigli.map((txt) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("❗ ", style: TextStyle(color: Colors.redAccent, fontSize: 18)),
+                Expanded(
+                  child: Text(
+                    txt,
+                    style: GoogleFonts.montserrat(fontSize: 15, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  String _valutaGiudizio(double score) {
+    if (score < 0.45) return "Scarso";
+    if (score < 0.7) return "Sufficiente";
+    return "Buono";
   }
 }
