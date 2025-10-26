@@ -25,6 +25,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   Timer? _retryTimer;
 
+  // ✅ IP DEFINITIVO DEL SERVER FARMACIA
   final String _serverBaseUrl = "http://46.101.223.88:5005";
 
   @override
@@ -39,7 +40,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     super.dispose();
   }
 
-  // 🔍 Controllo stato server e retry automatico
+  // 🔹 Verifica server e tenta ogni 5s
   Future<void> _checkServer() async {
     try {
       final resp = await http
@@ -61,12 +62,12 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  // 🔹 Chiamata all’endpoint unificato
+  // 🔹 Invio immagine al server
   Future<void> _uploadAndAnalyze() async {
     setState(() => _loading = true);
     try {
-      final uri =
-          Uri.parse("$_serverBaseUrl/analyze_pharma/${widget.mode.toLowerCase()}");
+      final uri = Uri.parse(
+          "$_serverBaseUrl/analyze_pharma/${widget.mode.toLowerCase()}");
       final request = http.MultipartRequest('POST', uri);
       request.files
           .add(await http.MultipartFile.fromPath('image', widget.imagePath));
@@ -100,7 +101,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     }
   }
 
-  // 🔹 Pulsante stile principale
+  // 🔹 Pulsante stile principale (gradient blu)
   Widget _buildGradientButton(String label,
       {required VoidCallback onPressed, bool disabled = false}) {
     return SizedBox(
@@ -153,23 +154,30 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     );
   }
 
-  // 🔹 Messaggio server non raggiungibile
-  Widget _buildServerError() {
-    return Column(
-      children: const [
-        SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 22),
-            SizedBox(width: 8),
-            Text(
-              "Server non raggiungibile",
-              style: TextStyle(fontSize: 16, color: Colors.red),
+  Widget _buildServerStatus() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _serverReady ? Icons.check_circle : Icons.error_outline,
+            color: _serverReady ? Colors.green : Colors.red,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _serverReady
+                ? "Server connesso e pronto"
+                : "Server non raggiungibile",
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: _serverReady ? Colors.green : Colors.red,
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -195,10 +203,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
               ),
             ),
             const SizedBox(height: 24),
-            if (!_serverReady) _buildServerError(),
-            const SizedBox(height: 24),
-
-            // 🔹 Mostra sempre il pulsante (disattivo se server offline)
+            _buildServerStatus(),
+            const SizedBox(height: 30),
             _buildGradientButton(
               _serverReady ? "Analizza Pelle" : "Attesa server...",
               onPressed: _uploadAndAnalyze,
