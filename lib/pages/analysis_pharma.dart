@@ -1,7 +1,7 @@
-// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class AnalysisPharmaPage extends StatelessWidget {
   final String imagePath; // 👈 parametro obbligatorio
@@ -13,25 +13,17 @@ class AnalysisPharmaPage extends StatelessWidget {
   const AnalysisPharmaPage({
     super.key,
     required this.imagePath, // 👈 necessario
-    this.score = 82,
-    this.indici = const {
-      "Idratazione": 0.82,
-      "Texture": 0.90,
-      "Chiarezza": 0.82,
-      "Elasticità": 0.81,
-    },
-    this.consigli = const [
-      "Usa un siero con acido ialuronico per aumentare l’idratazione",
-      "Applica una crema con vitamina C per migliorare la luminosità",
-      "Utilizza un prodotto con retinolo per migliorare la texture",
-      "Non dimenticare la protezione solare SPF 50+ ogni giorno",
-      "Considera l’uso di niacinamide per uniformare il tono della pelle",
-    ],
-    this.tipoPelle = "Grassa",
+    required this.score,
+    required this.indici,
+    required this.consigli,
+    required this.tipoPelle,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double scorePercent = (score * 100).clamp(0, 100);
+    final giudizioGlobale = _valutaGiudizio(score);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
@@ -55,8 +47,9 @@ class AnalysisPharmaPage extends StatelessWidget {
                 fit: BoxFit.cover,
               ),
             ),
-
             const SizedBox(height: 20),
+
+            // 🔹 Punteggio generale
             Text(
               "Punteggio Complessivo",
               style: GoogleFonts.montserrat(
@@ -67,7 +60,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              score.toStringAsFixed(0),
+              "${scorePercent.toStringAsFixed(0)}",
               style: GoogleFonts.montserrat(
                 fontSize: 64,
                 fontWeight: FontWeight.bold,
@@ -84,6 +77,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
+            // 🔹 Tipo pelle
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               decoration: BoxDecoration(
@@ -100,6 +94,16 @@ class AnalysisPharmaPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
+
+            // === Radar chart ===
+            _buildRadarChart(indici),
+
+            const SizedBox(height: 30),
+
+            // === Cerchi giudizi ===
+            _buildCerchiGiudizi(score),
+
+            const SizedBox(height: 40),
 
             // === Analisi Dettagliata ===
             Align(
@@ -174,7 +178,7 @@ class AnalysisPharmaPage extends StatelessWidget {
               );
             }).toList(),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 40),
 
             // === Raccomandazioni ===
             Align(
@@ -198,49 +202,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: consigli.map((txt) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "❗ ",
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            txt,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 15,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
+            _buildRefertiCard(consigli),
 
             const SizedBox(height: 40),
             Row(
@@ -293,5 +255,138 @@ class AnalysisPharmaPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // =============================================================
+  // 🟢 WIDGETS SECONDARI
+  // =============================================================
+
+  Widget _buildRadarChart(Map<String, double> indici) {
+    final labels = indici.keys.toList();
+    final values = indici.values.map((v) => (v * 100).clamp(0, 100)).toList();
+
+    return SizedBox(
+      height: 250,
+      child: RadarChart(
+        RadarChartData(
+          radarShape: RadarShape.polygon,
+          dataSets: [
+            RadarDataSet(
+              fillColor: const Color(0xFF1A73E8).withOpacity(0.4),
+              borderColor: const Color(0xFF1A73E8),
+              entryRadius: 3,
+              dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
+            ),
+          ],
+          titleTextStyle: GoogleFonts.montserrat(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          getTitle: (index) => labels[index],
+          radarBorderData: const BorderSide(color: Colors.transparent),
+          gridBorderData: const BorderSide(color: Colors.black12),
+          tickCount: 3,
+          ticksTextStyle: const TextStyle(fontSize: 10, color: Colors.black38),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCerchiGiudizi(double score) {
+    String giudizio = _valutaGiudizio(score);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _cerchioGiudizio("Scarso", giudizio == "Scarso"),
+        _cerchioGiudizio("Sufficiente", giudizio == "Sufficiente"),
+        _cerchioGiudizio("Buono", giudizio == "Buono"),
+      ],
+    );
+  }
+
+  Widget _cerchioGiudizio(String label, bool attivo) {
+    return Column(
+      children: [
+        Container(
+          width: 70,
+          height: 70,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
+          ),
+          child: Center(
+            child: Text(
+              label.substring(0, 1),
+              style: GoogleFonts.montserrat(
+                color: attivo ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 28,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRefertiCard(List<String> consigli) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: consigli.map((txt) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "❗ ",
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 18,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    txt,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  String _valutaGiudizio(double score) {
+    if (score < 0.45) return "Scarso";
+    if (score < 0.7) return "Sufficiente";
+    return "Buono";
   }
 }
