@@ -12,7 +12,7 @@ class AnalysisPharmaPage extends StatelessWidget {
 
   const AnalysisPharmaPage({
     super.key,
-    required this.imagePath, // 👈 necessario
+    required this.imagePath,
     required this.score,
     required this.indici,
     required this.consigli,
@@ -38,7 +38,7 @@ class AnalysisPharmaPage extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
 
-            // 🔹 Immagine di riferimento
+            // 🔹 Immagine analizzata
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
@@ -47,9 +47,8 @@ class AnalysisPharmaPage extends StatelessWidget {
                 fit: BoxFit.cover,
               ),
             ),
-            const SizedBox(height: 20),
 
-            // 🔹 Punteggio generale
+            const SizedBox(height: 20),
             Text(
               "Punteggio Complessivo",
               style: GoogleFonts.montserrat(
@@ -93,14 +92,15 @@ class AnalysisPharmaPage extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(height: 30),
 
-            // === Radar chart ===
+            // === Radar Chart ===
             _buildRadarChart(indici),
 
             const SizedBox(height: 30),
 
-            // === Cerchi giudizi ===
+            // === Cerchi giudizi sintetici ===
             _buildCerchiGiudizi(score),
 
             const SizedBox(height: 40),
@@ -180,7 +180,7 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            // === Raccomandazioni ===
+            // === Referti / Consigli ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -263,31 +263,40 @@ class AnalysisPharmaPage extends StatelessWidget {
 
   Widget _buildRadarChart(Map<String, double> indici) {
     final labels = indici.keys.toList();
-    final values = indici.values.map((v) => (v * 100).clamp(0, 100)).toList();
+    final values = indici.values.map((v) => v.toDouble()).toList();
 
     return SizedBox(
-      height: 250,
+      height: 260,
       child: RadarChart(
         RadarChartData(
           radarShape: RadarShape.polygon,
+          tickCount: 4,
+          ticksTextStyle: const TextStyle(color: Colors.transparent),
+          radarBorderData: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+          gridBorderData: const BorderSide(color: Colors.grey, width: 0.5),
+          titleTextStyle: GoogleFonts.montserrat(fontSize: 12, color: Colors.black87),
+
           dataSets: [
             RadarDataSet(
-              fillColor: const Color(0xFF1A73E8).withOpacity(0.4),
+              fillColor: const Color(0xFF1A73E8).withOpacity(0.3),
               borderColor: const Color(0xFF1A73E8),
               entryRadius: 3,
-              dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
+              borderWidth: 2,
+              dataEntries: values.map((v) => RadarEntry(value: v.toDouble())).toList(),
             ),
           ],
-          titleTextStyle: GoogleFonts.montserrat(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-          getTitle: (index) => labels[index],
-          radarBorderData: const BorderSide(color: Colors.transparent),
-          gridBorderData: const BorderSide(color: Colors.black12),
-          tickCount: 3,
-          ticksTextStyle: const TextStyle(fontSize: 10, color: Colors.black38),
+
+          getTitle: (index, angle) {
+            return RadarChartTitle(
+              text: labels[index],
+              positionPercentageOffset: 1.2,
+              textStyle: GoogleFonts.montserrat(
+                fontSize: 13,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          },
         ),
       ),
     );
