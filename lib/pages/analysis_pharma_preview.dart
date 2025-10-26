@@ -27,11 +27,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 
   // ✅ IP server farmacia
   final List<String> _serverUrls = [
-    "http://46.101.223.88:5005",
-    "http://46.101.223.88:5000",
-    "http://localhost:5005",
-    "http://localhost:5000",
-  ];
+  "http://46.101.223.88:5005",
+];
   String _activeServer = "";
 
   @override
