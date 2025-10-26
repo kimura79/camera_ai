@@ -1,10 +1,8 @@
-// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 class AnalysisPharmaPage extends StatefulWidget {
   final String imagePath;
@@ -70,6 +68,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // 📸 Immagine del volto
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
@@ -80,6 +79,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
             ),
             const SizedBox(height: 20),
 
+            // 🔹 Score complessivo
             Text(
               "Punteggio Complessivo",
               style: GoogleFonts.montserrat(
@@ -105,8 +105,9 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
                 color: Colors.black54,
               ),
             ),
-
             const SizedBox(height: 20),
+
+            // 🔹 Tipo di pelle
             Container(
               padding:
                   const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -125,12 +126,12 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
             ),
 
             const SizedBox(height: 30),
-            _buildRadarChart(indici),
-            const SizedBox(height: 30),
 
+            // 🔹 Cerchi di giudizio visivo
             _buildCerchiGiudizi(score),
             const SizedBox(height: 40),
 
+            // 🔹 Domini cutanei
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -196,6 +197,8 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
             }).toList(),
 
             const SizedBox(height: 40),
+
+            // 🔹 Raccomandazioni
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -240,47 +243,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   // 🟢 WIDGETS SECONDARI
   // =============================================================
 
-  Widget _buildRadarChart(Map<String, dynamic> indici) {
-    final labels = indici.keys.toList();
-    final values = indici.values.map((v) => (v as num).toDouble()).toList();
-
-    return SizedBox(
-      height: 260,
-      child: RadarChart(
-        RadarChartData(
-          radarShape: RadarShape.polygon,
-          tickCount: 4,
-          ticksTextStyle: const TextStyle(color: Colors.transparent),
-          radarBorderData:
-              const BorderSide(color: Color(0xFF1A73E8), width: 2),
-          gridBorderData:
-              const BorderSide(color: Colors.grey, width: 0.5),
-          getTitle: (index, angle) => RadarChartTitle(
-            titleText: labels[index], // ✅ nuovo parametro
-            titleTextAnchor: TextAnchor.middle, // ✅ compatibile iOS
-            positionPercentageOffset: 1.2,
-            titleTextStyle: GoogleFonts.montserrat(
-              fontSize: 13,
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          dataSets: [
-            RadarDataSet(
-              fillColor:
-                  const Color(0xFF1A73E8).withOpacity(0.3),
-              borderColor: const Color(0xFF1A73E8),
-              entryRadius: 3,
-              borderWidth: 2,
-              dataEntries:
-                  values.map((v) => RadarEntry(value: v)).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildCerchiGiudizi(double score) {
     final giudizio = _valutaGiudizio(score);
     return Row(
@@ -301,8 +263,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           height: 70,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color:
-                attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
           ),
           child: Center(
             child: Text(
@@ -320,8 +281,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           label,
           style: GoogleFonts.montserrat(
             fontSize: 13,
-            color:
-                attivo ? const Color(0xFF1A73E8) : Colors.black54,
+            color: attivo ? const Color(0xFF1A73E8) : Colors.black54,
           ),
         ),
       ],
@@ -351,8 +311,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("❗ ",
-                    style:
-                        TextStyle(color: Colors.redAccent, fontSize: 18)),
+                    style: TextStyle(color: Colors.redAccent, fontSize: 18)),
                 Expanded(
                   child: Text(
                     txt,
