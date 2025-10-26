@@ -1,3 +1,4 @@
+// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -48,9 +49,11 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     }
 
     final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
-    final Map<String, dynamic> indici = Map<String, dynamic>.from(resultData!["indici"] ?? {});
+    final Map<String, dynamic> indici =
+        Map<String, dynamic>.from(resultData!["indici"] ?? {});
     final String tipoPelle = resultData!["tipo_pelle"] ?? "Normale";
-    final List<String> consigli = List<String>.from(resultData!["consigli"] ?? []);
+    final List<String> consigli =
+        List<String>.from(resultData!["consigli"] ?? []);
 
     final double scorePercent = (score * 100).clamp(0, 100);
     final giudizioGlobale = _valutaGiudizio(score);
@@ -105,7 +108,8 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
 
             const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFE4E9),
                 borderRadius: BorderRadius.circular(20),
@@ -166,7 +170,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
                           ),
                         ),
                         FractionallySizedBox(
-                          widthFactor: valore.toDouble(), // ✅ fix iOS build
+                          widthFactor: valore.toDouble(),
                           child: Container(
                             height: 10,
                             decoration: BoxDecoration(
@@ -247,12 +251,14 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           radarShape: RadarShape.polygon,
           tickCount: 4,
           ticksTextStyle: const TextStyle(color: Colors.transparent),
-          radarBorderData: const BorderSide(color: Color(0xFF1A73E8), width: 2),
-          gridBorderData: const BorderSide(color: Colors.grey, width: 0.5),
+          radarBorderData:
+              const BorderSide(color: Color(0xFF1A73E8), width: 2),
+          gridBorderData:
+              const BorderSide(color: Colors.grey, width: 0.5),
           getTitle: (index, angle) => RadarChartTitle(
             text: labels[index],
             positionPercentageOffset: 1.2,
-            titleTextStyle: GoogleFonts.montserrat( // ✅ FIX per fl_chart 0.68.0
+            textStyle: GoogleFonts.montserrat( // ✅ compatibile fl_chart 0.68.0
               fontSize: 13,
               color: Colors.black87,
               fontWeight: FontWeight.w500,
@@ -260,11 +266,13 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           ),
           dataSets: [
             RadarDataSet(
-              fillColor: const Color(0xFF1A73E8).withOpacity(0.3),
+              fillColor:
+                  const Color(0xFF1A73E8).withOpacity(0.3),
               borderColor: const Color(0xFF1A73E8),
               entryRadius: 3,
               borderWidth: 2,
-              dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
+              dataEntries:
+                  values.map((v) => RadarEntry(value: v)).toList(),
             ),
           ],
         ),
@@ -292,7 +300,8 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           height: 70,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
+            color:
+                attivo ? const Color(0xFF1A73E8) : Colors.grey.shade300,
           ),
           child: Center(
             child: Text(
@@ -310,7 +319,8 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           label,
           style: GoogleFonts.montserrat(
             fontSize: 13,
-            color: attivo ? const Color(0xFF1A73E8) : Colors.black54,
+            color:
+                attivo ? const Color(0xFF1A73E8) : Colors.black54,
           ),
         ),
       ],
@@ -339,11 +349,14 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("❗ ", style: TextStyle(color: Colors.redAccent, fontSize: 18)),
+                const Text("❗ ",
+                    style:
+                        TextStyle(color: Colors.redAccent, fontSize: 18)),
                 Expanded(
                   child: Text(
                     txt,
-                    style: GoogleFonts.montserrat(fontSize: 15, color: Colors.black87),
+                    style: GoogleFonts.montserrat(
+                        fontSize: 15, color: Colors.black87),
                   ),
                 ),
               ],
