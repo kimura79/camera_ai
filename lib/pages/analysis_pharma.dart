@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class AnalysisPharmaPage extends StatelessWidget {
-  final String imagePath; // 👈 parametro obbligatorio
+  final String imagePath;
   final double score;
   final Map<String, double> indici;
   final List<String> consigli;
@@ -38,7 +38,6 @@ class AnalysisPharmaPage extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
 
-            // 🔹 Immagine analizzata
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
@@ -76,7 +75,6 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // 🔹 Tipo pelle
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               decoration: BoxDecoration(
@@ -95,17 +93,14 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // === Radar Chart ===
             _buildRadarChart(indici),
 
             const SizedBox(height: 30),
 
-            // === Cerchi giudizi sintetici ===
             _buildCerchiGiudizi(score),
 
             const SizedBox(height: 40),
 
-            // === Analisi Dettagliata ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -128,8 +123,8 @@ class AnalysisPharmaPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             ...indici.entries.map((entry) {
-              final String nome = entry.key;
-              final double valore = entry.value;
+              final nome = entry.key;
+              final valore = entry.value;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Column(
@@ -180,7 +175,6 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            // === Referti / Consigli ===
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -274,7 +268,6 @@ class AnalysisPharmaPage extends StatelessWidget {
           ticksTextStyle: const TextStyle(color: Colors.transparent),
           radarBorderData: const BorderSide(color: Color(0xFF1A73E8), width: 2),
           gridBorderData: const BorderSide(color: Colors.grey, width: 0.5),
-          titleTextStyle: GoogleFonts.montserrat(fontSize: 12, color: Colors.black87),
 
           dataSets: [
             RadarDataSet(
@@ -282,7 +275,7 @@ class AnalysisPharmaPage extends StatelessWidget {
               borderColor: const Color(0xFF1A73E8),
               entryRadius: 3,
               borderWidth: 2,
-              dataEntries: values.map((v) => RadarEntry(value: v.toDouble())).toList(),
+              dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
             ),
           ],
 
@@ -290,7 +283,7 @@ class AnalysisPharmaPage extends StatelessWidget {
             return RadarChartTitle(
               text: labels[index],
               positionPercentageOffset: 1.2,
-              textStyle: GoogleFonts.montserrat(
+              style: GoogleFonts.montserrat(
                 fontSize: 13,
                 color: Colors.black87,
                 fontWeight: FontWeight.w500,
@@ -303,7 +296,7 @@ class AnalysisPharmaPage extends StatelessWidget {
   }
 
   Widget _buildCerchiGiudizi(double score) {
-    String giudizio = _valutaGiudizio(score);
+    final giudizio = _valutaGiudizio(score);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
