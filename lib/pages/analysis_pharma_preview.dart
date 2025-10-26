@@ -1,10 +1,9 @@
-// 📄 lib/pages/analysis_pharma_preview.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:custom_camera_component/pages/analysis_pharma.dart';
 
 class AnalysisPharmaPreview extends StatefulWidget {
@@ -24,8 +23,10 @@ class AnalysisPharmaPreview extends StatefulWidget {
 class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _loading = false;
   bool _serverReady = false;
+  Timer? _retryTimer;
 
-  final String serverBase = "http://46.101.223.88:5005"; // 🔧 IP server farmacie
+  // 🔹 aggiorna se cambi porta o dominio
+  final String _serverBaseUrl = "http://46.101.223.88:5005";
 
   @override
   void initState() {
@@ -33,80 +34,79 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _checkServer();
   }
 
-  // 🔹 Verifica connessione con server Flask
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _checkServer() async {
     try {
-      final resp =
-          await http.get(Uri.parse("$serverBase/status")).timeout(const Duration(seconds: 4));
-      if (resp.statusCode == 200) {
+      final resp = await http
+          .get(Uri.parse("$_serverBaseUrl/status"))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200 && jsonDecode(resp.body)["status"] == "ok") {
         setState(() => _serverReady = true);
       } else {
-        setState(() => _serverReady = false);
+        _startRetry();
       }
     } catch (_) {
-      setState(() => _serverReady = false);
+      _startRetry();
     }
   }
 
-  // 🔹 Copia sicura immagine in documenti app
-  Future<String> _copyToSafePath(String originalPath) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final safePath = "${dir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg";
-    await File(originalPath).copy(safePath);
-    return safePath;
+  void _startRetry() {
+    if (_serverReady) return;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  // 🔹 Chiamata all’unico endpoint /analyze_farmacia
-  Future<void> _callFarmaciaAnalysis() async {
+  Future<void> _uploadAndAnalyze() async {
     setState(() => _loading = true);
-
     try {
-      final safePath = await _copyToSafePath(widget.imagePath);
-      final uri = Uri.parse("$serverBase/analyze_farmacia");
+      final tipo = widget.mode;
+      final uri = Uri.parse("$_serverBaseUrl/analyze_pharma/$tipo");
+      final request = http.MultipartRequest('POST', uri);
+      request.files
+          .add(await http.MultipartFile.fromPath('image', widget.imagePath));
 
-      final req = http.MultipartRequest("POST", uri);
-      req.files.add(await http.MultipartFile.fromPath("file", safePath));
+      final response = await request.send();
+      final respStr = await response.stream.bytesToString();
 
-      final resp = await req.send();
-      final body = await resp.stream.bytesToString();
-      final data = jsonDecode(body);
-
-      if (resp.statusCode == 200 && data["success"] == true) {
-        // Salva JSON temporaneo per la pagina successiva
+      if (response.statusCode == 200) {
+        final jsonResp = jsonDecode(respStr);
         final dir = await getTemporaryDirectory();
-        final resultFile = File("${dir.path}/result_farmacia.json");
-        await resultFile.writeAsString(jsonEncode(data));
+        final file = File("${dir.path}/result_farmacia.json");
+        await file.writeAsString(jsonEncode(jsonResp));
 
-        if (!mounted) return;
-
-        // ✅ Vai alla pagina risultati
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisPharmaPage(
-              imagePath: widget.imagePath,
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
             ),
-          ),
-        );
+          );
+        }
       } else {
-        _showError("Errore analisi: ${data["error"] ?? "Risposta non valida"}");
+        throw Exception("Errore analisi: ${response.statusCode}");
       }
     } catch (e) {
-      _showError("Errore di connessione: $e");
+      debugPrint("Errore analisi: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Errore durante l’analisi: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  // 🔹 Pulsante principale “Analizza Pelle”
   Widget _buildGradientButton(String label, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: 60,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
@@ -128,9 +128,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
           ),
           child: Text(
             label,
@@ -145,48 +144,63 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     );
   }
 
+  Widget _buildServerError() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.error_outline, color: Colors.red, size: 22),
+              SizedBox(width: 8),
+              Text(
+                "Server non raggiungibile",
+                style: TextStyle(fontSize: 16, color: Colors.red),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildGradientButton("Riprova connessione", _checkServer),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalyzeButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: _buildGradientButton("Analizza Pelle", _uploadAndAnalyze),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
-        title: const Text("Analisi Farmacia"),
         backgroundColor: const Color(0xFF1A73E8),
+        title: const Text("Analisi Farmacia"),
         centerTitle: true,
       ),
-      body: Stack(
+      body: Column(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(File(widget.imagePath), fit: BoxFit.cover),
-                ),
-                const SizedBox(height: 40),
-                if (!_serverReady)
-                  Column(
-                    children: [
-                      const Text("🔴 Server non raggiungibile"),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _checkServer,
-                        child: const Text("Riprova connessione"),
-                      ),
-                    ],
-                  )
-                else
-                  _buildGradientButton("Analizza Pelle", _callFarmaciaAnalysis),
-              ],
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(widget.imagePath),
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
           ),
+          const SizedBox(height: 20),
+          if (!_serverReady) _buildServerError(),
+          if (_serverReady) _buildAnalyzeButton(),
           if (_loading)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
+            const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: CircularProgressIndicator(color: Color(0xFF1A73E8)),
             ),
         ],
       ),
