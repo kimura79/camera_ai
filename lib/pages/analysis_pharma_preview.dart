@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:custom_camera_component/pages/analysis_pharma.dart';
 
 class AnalysisPharmaPreview extends StatefulWidget {
@@ -24,17 +25,19 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _loading = false;
   bool _serverReady = false;
 
+  final String serverBase = "http://46.101.223.88:5005"; // 🔧 IP server farmacie
+
   @override
   void initState() {
     super.initState();
     _checkServer();
   }
 
+  // 🔹 Verifica connessione con server Flask
   Future<void> _checkServer() async {
     try {
-      final resp = await http
-          .get(Uri.parse("http://46.101.223.88:5000/status"))
-          .timeout(const Duration(seconds: 4));
+      final resp =
+          await http.get(Uri.parse("$serverBase/status")).timeout(const Duration(seconds: 4));
       if (resp.statusCode == 200) {
         setState(() => _serverReady = true);
       } else {
@@ -45,80 +48,64 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     }
   }
 
+  // 🔹 Copia sicura immagine in documenti app
   Future<String> _copyToSafePath(String originalPath) async {
     final dir = await getApplicationDocumentsDirectory();
-    final safePath =
-        "${dir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg";
+    final safePath = "${dir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg";
     await File(originalPath).copy(safePath);
     return safePath;
   }
 
-  Future<Map<String, dynamic>> _waitForResult(String jobId) async {
-    final url = Uri.parse("http://46.101.223.88:5000/status/$jobId");
-    for (int i = 0; i < 180; i++) {
-      final resp = await http.get(url);
-      final data = jsonDecode(resp.body);
-      if (data["status"] == "done") return data["result"];
-      if (data["status"] == "error") throw Exception(data["result"]["error"]);
-      await Future.delayed(const Duration(seconds: 3));
-    }
-    throw Exception("Timeout analisi");
-  }
-
-  Future<void> _callAnalysisAsync(String tipo) async {
+  // 🔹 Chiamata all’unico endpoint /analyze_farmacia
+  Future<void> _callFarmaciaAnalysis() async {
     setState(() => _loading = true);
+
     try {
       final safePath = await _copyToSafePath(widget.imagePath);
-      final uri = Uri.parse("http://46.101.223.88:5000/upload_async/$tipo");
+      final uri = Uri.parse("$serverBase/analyze_farmacia");
 
       final req = http.MultipartRequest("POST", uri);
       req.files.add(await http.MultipartFile.fromPath("file", safePath));
-      req.fields["mode"] = widget.mode;
 
       final resp = await req.send();
       final body = await resp.stream.bytesToString();
-      final decoded = jsonDecode(body);
-      final String jobId = decoded["job_id"];
+      final data = jsonDecode(body);
 
-      final result = await _waitForResult(jobId);
+      if (resp.statusCode == 200 && data["success"] == true) {
+        // Salva JSON temporaneo per la pagina successiva
+        final dir = await getTemporaryDirectory();
+        final resultFile = File("${dir.path}/result_farmacia.json");
+        await resultFile.writeAsString(jsonEncode(data));
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      // ✅ Mostra direttamente la pagina score
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AnalysisPharmaPage(
-            imagePath: widget.imagePath, // ✅ parametro obbligatorio
-            score: (result["percentuale"] ?? 0).toDouble(),
-            indici: {
-              "Idratazione": 0.84,
-              "Texture": 0.88,
-              "Chiarezza": 0.82,
-              "Elasticità": 0.80,
-            },
-            consigli: [
-              "Applica una crema idratante giorno e notte.",
-              "Usa siero alla vitamina C per migliorare la luminosità.",
-              "Applica sempre protezione solare SPF 50+.",
-              "Considera booster con niacinamide per uniformare il tono.",
-            ],
-            tipoPelle: "Normale",
+        // ✅ Vai alla pagina risultati
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisPharmaPage(
+              imagePath: widget.imagePath,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        _showError("Errore analisi: ${data["error"] ?? "Risposta non valida"}");
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Errore: $e")));
+      _showError("Errore di connessione: $e");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  // 🔹 Pulsante gradiente arrotondato (stile main.dart)
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // 🔹 Pulsante principale “Analizza Pelle”
   Widget _buildGradientButton(String label, VoidCallback onPressed) {
     return SizedBox(
-      width: 150,
+      width: double.infinity,
       height: 55,
       child: Container(
         decoration: BoxDecoration(
@@ -149,7 +136,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
             label,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -161,18 +148,23 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
         title: const Text("Analisi Farmacia"),
         backgroundColor: const Color(0xFF1A73E8),
+        centerTitle: true,
       ),
       body: Stack(
         children: [
           SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                Image.file(File(widget.imagePath)),
-                const SizedBox(height: 24),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(File(widget.imagePath), fit: BoxFit.cover),
+                ),
+                const SizedBox(height: 40),
                 if (!_serverReady)
                   Column(
                     children: [
@@ -185,32 +177,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
                     ],
                   )
                 else
-                  Column(
-                    children: [
-                      const Text(
-                        "Seleziona il tipo di analisi da eseguire:",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // 🔹 Pulsanti in griglia 2x2, stile gradient
-                      Wrap(
-                        spacing: 20,
-                        runSpacing: 20,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          _buildGradientButton(
-                              "Rughe", () => _callAnalysisAsync("rughe")),
-                          _buildGradientButton(
-                              "Macchie", () => _callAnalysisAsync("macchie")),
-                          _buildGradientButton(
-                              "Melasma", () => _callAnalysisAsync("melasma")),
-                          _buildGradientButton(
-                              "Pori", () => _callAnalysisAsync("pori")),
-                        ],
-                      ),
-                    ],
-                  ),
+                  _buildGradientButton("Analizza Pelle", _callFarmaciaAnalysis),
               ],
             ),
           ),
