@@ -25,8 +25,14 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   Timer? _retryTimer;
 
-  // ✅ IP DEFINITIVO DEL SERVER FARMACIA
-  final String _serverBaseUrl = "http://46.101.223.88:5005";
+  // ✅ IP server farmacia
+  final List<String> _serverUrls = [
+    "http://46.101.223.88:5005",
+    "http://46.101.223.88:5000",
+    "http://localhost:5005",
+    "http://localhost:5000",
+  ];
+  String _activeServer = "";
 
   @override
   void initState() {
@@ -40,21 +46,24 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     super.dispose();
   }
 
-  // 🔹 Verifica server e tenta ogni 5s
+  // 🔹 Controllo server (con fallback)
   Future<void> _checkServer() async {
-    try {
-      final resp = await http
-          .get(Uri.parse("$_serverBaseUrl/status"))
-          .timeout(const Duration(seconds: 5));
-      if (resp.statusCode == 200 &&
-          jsonDecode(resp.body)["status"].toString().toLowerCase() == "ok") {
-        setState(() => _serverReady = true);
-      } else {
-        _startRetry();
-      }
-    } catch (_) {
-      _startRetry();
+    for (final url in _serverUrls) {
+      try {
+        final resp = await http
+            .get(Uri.parse("$url/status"))
+            .timeout(const Duration(seconds: 4));
+        if (resp.statusCode == 200 &&
+            jsonDecode(resp.body)["status"].toString().toLowerCase() == "ok") {
+          setState(() {
+            _serverReady = true;
+            _activeServer = url;
+          });
+          return;
+        }
+      } catch (_) {}
     }
+    _startRetry();
   }
 
   void _startRetry() {
@@ -62,15 +71,17 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  // 🔹 Invio immagine al server
+  // 🔹 Invio immagine
   Future<void> _uploadAndAnalyze() async {
+    if (!_serverReady || _activeServer.isEmpty) return;
     setState(() => _loading = true);
+
     try {
-      final uri = Uri.parse(
-          "$_serverBaseUrl/analyze_pharma/${widget.mode.toLowerCase()}");
+      final uri = Uri.parse("$_activeServer/analyze_farmacia");
       final request = http.MultipartRequest('POST', uri);
       request.files
-          .add(await http.MultipartFile.fromPath('image', widget.imagePath));
+          .add(await http.MultipartFile.fromPath('file', widget.imagePath));
+      request.fields['mode'] = widget.mode;
 
       final response = await request.send();
       final respStr = await response.stream.bytesToString();
@@ -101,7 +112,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     }
   }
 
-  // 🔹 Pulsante stile principale (gradient blu)
+  // 🔹 Pulsante gradient stile principale
   Widget _buildGradientButton(String label,
       {required VoidCallback onPressed, bool disabled = false}) {
     return SizedBox(
@@ -180,6 +191,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
       ),
     );
   }
+
+  // =============================================================
 
   @override
   Widget build(BuildContext context) {
