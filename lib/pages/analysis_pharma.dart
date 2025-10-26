@@ -1,9 +1,11 @@
 // 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
-class AnalysisPharmaPage extends StatelessWidget {
+class AnalysisPharmaPage extends StatefulWidget {
   final String imagePath;
   final double score;
   final Map<String, double> indici;
@@ -20,8 +22,41 @@ class AnalysisPharmaPage extends StatelessWidget {
   });
 
   @override
+  State<AnalysisPharmaPage> createState() => _AnalysisPharmaPageState();
+}
+
+class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
+  bool _loading = false;
+  String? _response;
+
+  Future<void> _callAnalysisEndpoint() async {
+    setState(() => _loading = true);
+
+    try {
+      final url = Uri.parse("https://tuo-server/analisi_pelle"); // 🔹 <-- metti qui il tuo endpoint
+      final request = http.MultipartRequest('POST', url);
+
+      request.files.add(await http.MultipartFile.fromPath('image', widget.imagePath));
+      request.fields['tipo_pelle'] = widget.tipoPelle;
+
+      final response = await request.send();
+      final body = await response.stream.bytesToString();
+
+      if (response.statusCode == 200) {
+        setState(() => _response = body);
+      } else {
+        setState(() => _response = "Errore: ${response.statusCode}");
+      }
+    } catch (e) {
+      setState(() => _response = "Errore: $e");
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final double scorePercent = (score * 100).clamp(0, 100);
+    final double scorePercent = (widget.score * 100).clamp(0, 100);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
@@ -40,7 +75,7 @@ class AnalysisPharmaPage extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.file(
-                  File(imagePath),
+                  File(widget.imagePath),
                   height: 220,
                   fit: BoxFit.cover,
                 ),
@@ -85,9 +120,9 @@ class AnalysisPharmaPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            ...indici.entries.map((entry) {
+            ...widget.indici.entries.map((entry) {
               final nome = entry.key;
-              final valore = entry.value.clamp(0, 1.0).toDouble(); // ✅ fix
+              final valore = entry.value.clamp(0, 1.0).toDouble();
               final percent = (valore * 100).toStringAsFixed(0);
 
               return Padding(
@@ -114,7 +149,7 @@ class AnalysisPharmaPage extends StatelessWidget {
                           ),
                         ),
                         FractionallySizedBox(
-                          widthFactor: valore, // ✅ ora double
+                          widthFactor: valore,
                           child: Container(
                             height: 10,
                             decoration: BoxDecoration(
@@ -176,7 +211,7 @@ class AnalysisPharmaPage extends StatelessWidget {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: consigli.map((txt) {
+                children: widget.consigli.map((txt) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Row(
@@ -208,53 +243,50 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            // 🔹 Pulsanti in fondo
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      side: const BorderSide(color: Color(0xFF1A73E8)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      "Nuova Analisi",
-                      style: GoogleFonts.montserrat(
-                        color: const Color(0xFF1A73E8),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            // 🔹 Pulsante singolo “Analisi Pelle”
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A73E8),
+                  minimumSize: const Size(220, 52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A73E8),
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                onPressed: _loading ? null : _callAnalysisEndpoint,
+                child: _loading
+                    ? const SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Text(
+                        "Analisi Pelle",
+                        style: GoogleFonts.montserrat(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      "Torna alla Home",
-                      style: GoogleFonts.montserrat(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
+
             const SizedBox(height: 20),
+
+            if (_response != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  "📩 Risposta server: $_response",
+                  style: GoogleFonts.montserrat(
+                    fontSize: 13,
+                    color: Colors.black54,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
