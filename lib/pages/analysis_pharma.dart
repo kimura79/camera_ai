@@ -87,7 +87,7 @@ class AnalysisPharmaPage extends StatelessWidget {
 
             ...indici.entries.map((entry) {
               final nome = entry.key;
-              final valore = entry.value.clamp(0, 1.0);
+              final valore = entry.value.clamp(0, 1.0).toDouble(); // ✅ fix
               final percent = (valore * 100).toStringAsFixed(0);
 
               return Padding(
@@ -114,7 +114,7 @@ class AnalysisPharmaPage extends StatelessWidget {
                           ),
                         ),
                         FractionallySizedBox(
-                          widthFactor: valore,
+                          widthFactor: valore, // ✅ ora double
                           child: Container(
                             height: 10,
                             decoration: BoxDecoration(
