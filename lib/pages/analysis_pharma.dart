@@ -256,9 +256,10 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           gridBorderData:
               const BorderSide(color: Colors.grey, width: 0.5),
           getTitle: (index, angle) => RadarChartTitle(
-            text: labels[index],
+            titleText: labels[index], // ✅ nuovo parametro
+            titleTextAnchor: TextAnchor.middle, // ✅ compatibile iOS
             positionPercentageOffset: 1.2,
-            textStyle: GoogleFonts.montserrat( // ✅ compatibile fl_chart 0.68.0
+            titleTextStyle: GoogleFonts.montserrat(
               fontSize: 13,
               color: Colors.black87,
               fontWeight: FontWeight.w500,
