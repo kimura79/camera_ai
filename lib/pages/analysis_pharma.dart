@@ -1,4 +1,3 @@
-// 📄 lib/pages/analysis_pharma.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -253,7 +252,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           getTitle: (index, angle) => RadarChartTitle(
             text: labels[index],
             positionPercentageOffset: 1.2,
-            textStyle: GoogleFonts.montserrat(
+            titleTextStyle: GoogleFonts.montserrat( // ✅ FIX per fl_chart 0.68.0
               fontSize: 13,
               color: Colors.black87,
               fontWeight: FontWeight.w500,
