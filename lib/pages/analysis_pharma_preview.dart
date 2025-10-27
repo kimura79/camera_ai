@@ -39,6 +39,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     super.dispose();
   }
 
+  // 🔹 Controllo server
   Future<void> _checkServer() async {
     for (final url in _serverUrls) {
       try {
@@ -55,14 +56,22 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
+  // 🔹 Invio immagine e analisi
   Future<void> _uploadAndAnalyze() async {
     if (!_serverReady || _activeServer.isEmpty) return;
     setState(() => _loading = true);
 
     try {
+      // ✅ Copia immagine in percorso sicuro (evita "Bad file descriptor")
+      final tmpDir = await getTemporaryDirectory();
+      final safePath = "${tmpDir.path}/image_farmacia.jpg";
+      await File(widget.imagePath).copy(safePath);
+
+      debugPrint("📸 Percorso file inviato: $safePath");
+
       final uri = Uri.parse("$_activeServer/analyze_farmacia");
       final request = http.MultipartRequest('POST', uri);
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
+      request.files.add(await http.MultipartFile.fromPath('file', safePath));
       request.fields['mode'] = widget.mode;
 
       final response = await request.send();
@@ -72,22 +81,24 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
         final jsonResp = jsonDecode(respStr);
         final dir = await getTemporaryDirectory();
 
-        // salva JSON
+        // 📂 Salva JSON
         final jsonFile = File("${dir.path}/result_farmacia.json");
         await jsonFile.writeAsString(jsonEncode(jsonResp));
 
-        // scarica overlay PNG
+        // 📂 Scarica overlay PNG se presente
         if (jsonResp["overlay_url"] != null) {
           final overlayResp = await http.get(Uri.parse(jsonResp["overlay_url"]));
           final overlayFile = File("${dir.path}/overlay_farmacia.png");
           await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+          debugPrint("🖼️ Overlay scaricato: ${overlayFile.path}");
         }
 
+        // 🔄 Passa alla pagina dei risultati
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
+              builder: (_) => AnalysisPharmaPage(imagePath: safePath),
             ),
           );
         }
@@ -95,6 +106,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
         throw Exception("Errore analisi: ${response.statusCode}");
       }
     } catch (e) {
+      debugPrint("❌ Errore durante analisi: $e");
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Errore durante l’analisi: $e")));
     } finally {
@@ -102,6 +114,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     }
   }
 
+  // 🔹 Pulsante gradient principale
   Widget _buildGradientButton(String label, {required VoidCallback onPressed, bool disabled = false}) {
     return SizedBox(
       width: double.infinity,
