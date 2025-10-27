@@ -96,57 +96,61 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   }
 
   // ============================================================
-  // 🔹 Polling periodico su /job/<id> fino a completamento
-  // ============================================================
-  Future<void> _pollJob(String jobId) async {
-    final dir = await getTemporaryDirectory();
-    const pollingInterval = Duration(seconds: 2);
-    const maxAttempts = 60; // 2 minuti di attesa
+// 🔹 Polling periodico su /job/<id> senza limite di tempo
+// ============================================================
+Future<void> _pollJob(String jobId) async {
+  final dir = await getTemporaryDirectory();
+  const pollingInterval = Duration(seconds: 2);
+  int attempts = 0;
 
-    for (int i = 0; i < maxAttempts; i++) {
-      await Future.delayed(pollingInterval);
-      final url = Uri.parse("$_activeServer/job/$jobId");
-      final resp = await http.get(url);
+  while (mounted) {
+    await Future.delayed(pollingInterval);
+    final url = Uri.parse("$_activeServer/job/$jobId");
+    final resp = await http.get(url);
 
-      if (resp.statusCode != 200) continue;
+    if (resp.statusCode != 200) continue;
 
-      final data = jsonDecode(resp.body);
-      final status = data["status"];
-      debugPrint("⏱️ Stato job $jobId: $status");
+    final data = jsonDecode(resp.body);
+    final status = data["status"];
+    debugPrint("⏱️ Stato job $jobId: $status");
 
-      if (status == "ready") {
-        final result = data["result"];
-        if (result == null) throw Exception("Risultato non trovato");
+    if (status == "ready") {
+      final result = data["result"];
+      if (result == null) throw Exception("Risultato non trovato");
 
-        // Salva JSON in locale
-        final jsonFile = File("${dir.path}/result_farmacia.json");
-        await jsonFile.writeAsString(jsonEncode(result));
+      // Salva JSON in locale
+      final jsonFile = File("${dir.path}/result_farmacia.json");
+      await jsonFile.writeAsString(jsonEncode(result));
 
-        // Scarica overlay se presente
-        if (result["overlay_url"] != null) {
-          final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
-          final overlayFile = File("${dir.path}/overlay_farmacia.png");
-          await overlayFile.writeAsBytes(overlayResp.bodyBytes);
-          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
-        }
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
-          ),
-        );
-        return;
+      // Scarica overlay se presente
+      if (result["overlay_url"] != null) {
+        final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
+        final overlayFile = File("${dir.path}/overlay_farmacia.png");
+        await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+        debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
       }
 
-      if (status == "failed") {
-        throw Exception(data["error"] ?? "Analisi fallita");
-      }
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
+        ),
+      );
+      return;
     }
 
-    throw Exception("Timeout analisi dopo 2 minuti");
+    if (status == "failed") {
+      throw Exception(data["error"] ?? "Analisi fallita");
+    }
+
+    attempts++;
+    if (attempts % 30 == 0) {
+      debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
+    }
   }
+}
+
 
   // ============================================================
   // 🔹 UI
