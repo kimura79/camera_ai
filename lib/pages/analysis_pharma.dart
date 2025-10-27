@@ -15,6 +15,7 @@ class AnalysisPharmaPage extends StatefulWidget {
 
 class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   Map<String, dynamic>? resultData;
+  File? overlayFile;
 
   @override
   void initState() {
@@ -25,13 +26,19 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   Future<void> _loadResultData() async {
     try {
       final dir = await getTemporaryDirectory();
-      final file = File("${dir.path}/result_farmacia.json");
-      if (await file.exists()) {
-        final data = jsonDecode(await file.readAsString());
+      final jsonFile = File("${dir.path}/result_farmacia.json");
+      final overlay = File("${dir.path}/overlay_farmacia.png");
+
+      if (await jsonFile.exists()) {
+        final data = jsonDecode(await jsonFile.readAsString());
         setState(() => resultData = data);
       }
+
+      if (await overlay.exists()) {
+        setState(() => overlayFile = overlay);
+      }
     } catch (e) {
-      debugPrint("Errore caricamento JSON farmacia: $e");
+      debugPrint("❌ Errore caricamento dati farmacia: $e");
     }
   }
 
@@ -54,13 +61,12 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
         List<String>.from(resultData!["consigli"] ?? []);
 
     final double scorePercent = (score * 100).clamp(0, 100);
-    final giudizioGlobale = _valutaGiudizio(score);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A73E8),
-        title: const Text("Analisi Farmacia"),
+        title: const Text("Analisi della Pelle"),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -68,113 +74,219 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(File(widget.imagePath),
-                  height: 220, fit: BoxFit.cover),
+            // 🔹 Doppia immagine: Originale + Overlay
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      File(widget.imagePath),
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: overlayFile != null
+                        ? Image.file(
+                            overlayFile!,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            height: 200,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Text("Nessun overlay"),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            Text("Punteggio Complessivo",
-                style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87)),
+
+            const SizedBox(height: 25),
+
+            // 🔹 Score
+            Text(
+              "Punteggio Complessivo",
+              style: GoogleFonts.montserrat(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              scorePercent.toStringAsFixed(0),
+              style: GoogleFonts.montserrat(
+                fontSize: 64,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1A73E8),
+              ),
+            ),
+            Text(
+              "Salute della pelle",
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.black54,
+              ),
+            ),
             const SizedBox(height: 10),
-            Text("${scorePercent.toStringAsFixed(0)}",
-                style: GoogleFonts.montserrat(
-                    fontSize: 64,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1A73E8))),
-            Text(giudizioGlobale,
-                style: GoogleFonts.montserrat(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black54)),
-            const SizedBox(height: 20),
             Container(
               padding:
-                  const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  const EdgeInsets.symmetric(vertical: 6, horizontal: 18),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFE4E9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(tipoPelle,
-                  style: GoogleFonts.montserrat(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFE91E63))),
+              child: Text(
+                tipoPelle,
+                style: GoogleFonts.montserrat(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFE91E63),
+                ),
+              ),
             ),
+
             const SizedBox(height: 30),
-            _buildCerchiGiudizi(score),
-            const SizedBox(height: 40),
+
+            // 🔹 Analisi dei domini cutanei
             Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Domini Cutanei",
-                    style: GoogleFonts.montserrat(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87))),
-            const SizedBox(height: 8),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Analisi dei Domini Cutanei",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
             ...indici.entries.map((entry) {
               final nome = entry.key;
               final valore = (entry.value as num).toDouble();
-              final giudizio = _valutaGiudizio(valore);
               return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("$nome – $giudizio",
-                            style: GoogleFonts.montserrat(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500)),
-                        const SizedBox(height: 6),
-                        Stack(children: [
-                          Container(
-                              height: 10,
-                              decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(10))),
-                          FractionallySizedBox(
-                              widthFactor: valore.toDouble(),
-                              child: Container(
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                      color: const Color(0xFF1A73E8),
-                                      borderRadius:
-                                          BorderRadius.circular(10)))),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text("${(valore * 100).toStringAsFixed(0)}%",
-                            style: GoogleFonts.montserrat(
-                                fontSize: 13,
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600)),
-                      ]));
+                        Text(
+                          nome,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          "${(valore * 100).toStringAsFixed(0)}%",
+                          style: GoogleFonts.montserrat(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: valore,
+                      minHeight: 10,
+                      borderRadius: BorderRadius.circular(10),
+                      backgroundColor: Colors.grey.shade300,
+                      color: const Color(0xFF1A73E8),
+                    ),
+                  ],
+                ),
+              );
             }).toList(),
+
             const SizedBox(height: 40),
+
+            // 🔹 Raccomandazioni personalizzate
             Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Raccomandazioni Personalizzate",
-                    style: GoogleFonts.montserrat(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87))),
-            const SizedBox(height: 8),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Raccomandazioni Personalizzate",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Formula skincare suggerita per te",
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 12),
             _buildRefertiCard(consigli),
-            const SizedBox(height: 30),
-            ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A73E8),
-                    minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-                onPressed: () => Navigator.pop(context),
-                child: Text("Torna alla Home",
-                    style: GoogleFonts.montserrat(
+
+            const SizedBox(height: 40),
+
+            // 🔹 Pulsanti finali
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF1A73E8)),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "Nuova Analisi",
+                      style: GoogleFonts.montserrat(
+                        color: const Color(0xFF1A73E8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A73E8),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "Torna alla Home",
+                      style: GoogleFonts.montserrat(
                         color: Colors.white,
                         fontSize: 16,
-                        fontWeight: FontWeight.w600))),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
             const SizedBox(height: 20),
           ],
         ),
@@ -182,79 +294,45 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     );
   }
 
-  Widget _buildCerchiGiudizi(double score) {
-    final giudizio = _valutaGiudizio(score);
-    return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _cerchioGiudizio("Scarso", giudizio == "Scarso"),
-          _cerchioGiudizio("Sufficiente", giudizio == "Sufficiente"),
-          _cerchioGiudizio("Buono", giudizio == "Buono"),
-        ]);
-  }
-
-  Widget _cerchioGiudizio(String label, bool attivo) => Column(children: [
-        Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: attivo
-                    ? const Color(0xFF1A73E8)
-                    : Colors.grey.shade300),
-            child: Center(
-                child: Text(label.substring(0, 1),
+  Widget _buildRefertiCard(List<String> consigli) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: consigli.map((txt) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("❗ ",
+                    style: TextStyle(
+                        color: Colors.redAccent, fontSize: 18)),
+                Expanded(
+                  child: Text(
+                    txt,
                     style: GoogleFonts.montserrat(
-                        color: attivo
-                            ? Colors.white
-                            : Colors.black54,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 28)))),
-        const SizedBox(height: 6),
-        Text(label,
-            style: GoogleFonts.montserrat(
-                fontSize: 13,
-                color:
-                    attivo ? const Color(0xFF1A73E8) : Colors.black54))
-      ]);
-
-  Widget _buildRefertiCard(List<String> consigli) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
-            ]),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: consigli
-                .map((txt) => Padding(
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text("❗ ",
-                                style: TextStyle(
-                                    color: Colors.redAccent,
-                                    fontSize: 18)),
-                            Expanded(
-                                child: Text(txt,
-                                    style: GoogleFonts.montserrat(
-                                        fontSize: 15,
-                                        color: Colors.black87)))
-                          ]),
-                    ))
-                .toList()),
-      );
-
-  String _valutaGiudizio(double score) {
-    if (score < 0.45) return "Scarso";
-    if (score < 0.7) return "Sufficiente";
-    return "Buono";
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
