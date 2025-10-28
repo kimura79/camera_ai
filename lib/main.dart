@@ -118,7 +118,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         useMaterial3: false,
         fontFamily: 'Montserrat',
       ),
-      home: const CameraSplashPage(), // 🔹 Avvio diretto modalità medico
+      home: const UserTypeSelectorPage(), // 👈 schermata iniziale di scelta
     );
   }
 }
