@@ -25,6 +25,7 @@ class AnalysisPharmaPreview extends StatefulWidget {
 class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _loading = false;
   bool _serverReady = false;
+  bool _showServerStatus = true;
   Timer? _retryTimer;
   final List<String> _serverUrls = ["http://46.101.223.88:5005"];
   String _activeServer = "";
@@ -54,11 +55,28 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
           setState(() {
             _serverReady = true;
             _activeServer = url;
+            _showServerStatus = true;
+          });
+          // Nasconde il messaggio dopo 1 secondo
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) {
+              setState(() => _showServerStatus = false);
+            }
           });
           return;
         }
       } catch (_) {}
     }
+    setState(() {
+      _serverReady = false;
+      _showServerStatus = true;
+    });
+    // Nasconde il messaggio dopo 1 secondo anche in caso di errore
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() => _showServerStatus = false);
+      }
+    });
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
@@ -96,61 +114,60 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   }
 
   // ============================================================
-// 🔹 Polling periodico su /job/<id> senza limite di tempo
-// ============================================================
-Future<void> _pollJob(String jobId) async {
-  final dir = await getTemporaryDirectory();
-  const pollingInterval = Duration(seconds: 2);
-  int attempts = 0;
+  // 🔹 Polling periodico su /job/<id> senza limite di tempo
+  // ============================================================
+  Future<void> _pollJob(String jobId) async {
+    final dir = await getTemporaryDirectory();
+    const pollingInterval = Duration(seconds: 2);
+    int attempts = 0;
 
-  while (mounted) {
-    await Future.delayed(pollingInterval);
-    final url = Uri.parse("$_activeServer/job/$jobId");
-    final resp = await http.get(url);
+    while (mounted) {
+      await Future.delayed(pollingInterval);
+      final url = Uri.parse("$_activeServer/job/$jobId");
+      final resp = await http.get(url);
 
-    if (resp.statusCode != 200) continue;
+      if (resp.statusCode != 200) continue;
 
-    final data = jsonDecode(resp.body);
-    final status = data["status"];
-    debugPrint("⏱️ Stato job $jobId: $status");
+      final data = jsonDecode(resp.body);
+      final status = data["status"];
+      debugPrint("⏱️ Stato job $jobId: $status");
 
-    if (status == "ready") {
-      final result = data["result"];
-      if (result == null) throw Exception("Risultato non trovato");
+      if (status == "ready") {
+        final result = data["result"];
+        if (result == null) throw Exception("Risultato non trovato");
 
-      // Salva JSON in locale
-      final jsonFile = File("${dir.path}/result_farmacia.json");
-      await jsonFile.writeAsString(jsonEncode(result));
+        // Salva JSON in locale
+        final jsonFile = File("${dir.path}/result_farmacia.json");
+        await jsonFile.writeAsString(jsonEncode(result));
 
-      // Scarica overlay se presente
-      if (result["overlay_url"] != null) {
-        final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
-        final overlayFile = File("${dir.path}/overlay_farmacia.png");
-        await overlayFile.writeAsBytes(overlayResp.bodyBytes);
-        debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+        // Scarica overlay se presente
+        if (result["overlay_url"] != null) {
+          final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
+          final overlayFile = File("${dir.path}/overlay_farmacia.png");
+          await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+        }
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
+          ),
+        );
+        return;
       }
 
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AnalysisPharmaPage(imagePath: widget.imagePath),
-        ),
-      );
-      return;
-    }
+      if (status == "failed") {
+        throw Exception(data["error"] ?? "Analisi fallita");
+      }
 
-    if (status == "failed") {
-      throw Exception(data["error"] ?? "Analisi fallita");
-    }
-
-    attempts++;
-    if (attempts % 30 == 0) {
-      debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
+      attempts++;
+      if (attempts % 30 == 0) {
+        debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
+      }
     }
   }
-}
-
 
   // ============================================================
   // 🔹 UI
@@ -177,26 +194,43 @@ Future<void> _pollJob(String jobId) async {
               ),
             ),
             const SizedBox(height: 24),
-            _serverReady
-                ? const Text("✅ Server connesso e pronto",
-                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600))
-                : const Text("❌ Server non raggiungibile",
-                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+
+            // ✅ Mostra messaggio solo per 1 secondo, poi scompare
+            if (_showServerStatus)
+              (_serverReady
+                  ? const Text(
+                      "✅ Server connesso e pronto",
+                      style: TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.w600),
+                    )
+                  : const Text(
+                      "❌ Server non raggiungibile",
+                      style: TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.w600),
+                    )),
+
             const SizedBox(height: 30),
+
             SizedBox(
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1A73E8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
                 onPressed: _serverReady ? _uploadAndAnalyze : null,
                 child: _loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
                         "Analizza Pelle",
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
             ),
