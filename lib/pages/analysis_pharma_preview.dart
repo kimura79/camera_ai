@@ -209,7 +209,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
                           color: Colors.red, fontWeight: FontWeight.w600),
                     )),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 10),
 
             SizedBox(
               width: double.infinity,
