@@ -77,7 +77,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   // ==========================================================
   Future<void> _showSendMailDialog() async {
     final TextEditingController nomeCtrl = TextEditingController();
-    final TextEditingController cognomeCtrl = TextEditingController();
     final TextEditingController emailCtrl = TextEditingController();
     bool autorizzazioneGDPR = false;
     bool autorizzazioneCommerciale = false;
@@ -102,10 +101,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
                   TextField(
                     controller: nomeCtrl,
                     decoration: const InputDecoration(labelText: "Nome"),
-                  ),
-                  TextField(
-                    controller: cognomeCtrl,
-                    decoration: const InputDecoration(labelText: "Cognome"),
                   ),
                   TextField(
                     controller: emailCtrl,
@@ -140,26 +135,24 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
               ElevatedButton(
                 onPressed: () async {
                   if (nomeCtrl.text.isEmpty ||
-                      cognomeCtrl.text.isEmpty ||
-                      emailCtrl.text.isEmpty ||
-                      !autorizzazioneGDPR) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            "Compila tutti i campi e accetta il consenso GDPR."),
-                      ),
-                    );
-                    return;
-                  }
+    emailCtrl.text.isEmpty ||
+    !autorizzazioneGDPR) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("Compila tutti i campi e accetta il consenso GDPR."),
+    ),
+  );
+  return;
+}
 
-                  Navigator.pop(context);
-                  await _sendResultsByEmail(
-                    nomeCtrl.text,
-                    cognomeCtrl.text,
-                    emailCtrl.text,
-                    autorizzazioneGDPR,
-                    autorizzazioneCommerciale,
-                  );
+Navigator.pop(context);
+await _sendResultsByEmail(
+  nomeCtrl.text,
+  emailCtrl.text,
+  autorizzazioneGDPR,
+  autorizzazioneCommerciale,
+);
+
                 },
                 child: const Text("Invia"),
               ),
@@ -172,7 +165,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
 
   Future<void> _sendResultsByEmail(
     String nome,
-    String cognome,
     String email,
     bool gdpr,
     bool commerciale,
@@ -181,7 +173,6 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
       final req = http.MultipartRequest(
           'POST', Uri.parse('$serverUrl/send_mail_farmacia'));
       req.fields['nome'] = nome;
-      req.fields['cognome'] = cognome;
       req.fields['email'] = email;
       req.fields['gdpr'] = gdpr.toString();
       req.fields['commerciale'] = commerciale.toString();
