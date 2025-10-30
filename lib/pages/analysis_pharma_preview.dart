@@ -83,8 +83,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  // ============================================================
-// 🔹 Invia immagine al server (nuovo endpoint asincrono, con retry libero)
+ // ============================================================
+// 🔹 Invia immagine al server (con timeout e retry automatico robusto)
 // ============================================================
 Future<void> _uploadAndAnalyze() async {
   if (!_serverReady || _activeServer.isEmpty) {
@@ -108,17 +108,28 @@ Future<void> _uploadAndAnalyze() async {
       await http.MultipartFile.fromPath('file', widget.imagePath),
     );
 
-    final response = await request.send();
-    final respStr = await response.stream.bytesToString();
+    // ✅ Timeout lungo e retry automatico se la connessione cade
+    http.StreamedResponse streamedResponse;
+    try {
+      streamedResponse =
+          await request.send().timeout(const Duration(seconds: 90));
+    } on TimeoutException {
+      debugPrint("⏰ Timeout durante l’upload — nuovo tentativo...");
+      await Future.delayed(const Duration(seconds: 2));
+      return _uploadAndAnalyze(); // 🔁 retry automatico
+    }
 
-    if (response.statusCode == 200) {
+    final respStr = await streamedResponse.stream.bytesToString();
+
+    if (streamedResponse.statusCode == 200) {
       final jsonResp = jsonDecode(respStr);
       final jobId = jsonResp["job_id"];
       if (jobId == null) throw Exception("job_id non ricevuto dal server");
       await _pollJob(jobId);
       debugPrint("🚀 Job inviato con ID: $jobId");
     } else {
-      throw Exception("Errore server (${response.statusCode}): $respStr");
+      throw Exception(
+          "Errore server (${streamedResponse.statusCode}): $respStr");
     }
   } catch (e) {
     debugPrint("❌ Errore analisi farmacia: $e");
@@ -132,12 +143,11 @@ Future<void> _uploadAndAnalyze() async {
       );
     }
   } finally {
-    // ✅ Sempre ripristina stato per permettere di riprovare
     if (mounted) {
       setState(() {
         _loading = false;
         _progress = 0.0;
-        _serverReady = true; // abilita di nuovo il tasto Analizza
+        _serverReady = true;
       });
     }
   }
