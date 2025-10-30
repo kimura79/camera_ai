@@ -4,11 +4,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:custom_camera_component/pages/analysis_pharma.dart';
 
 /// ============================================================
-/// 📸 ANALISI FARMACIA — analisi in background su schermo spento / cambio app
+/// 📸 ANALISI FARMACIA (versione asincrona con job polling e gestione corretta chiusura)
 /// ============================================================
 class AnalysisPharmaPreview extends StatefulWidget {
   final String imagePath;
@@ -33,50 +32,49 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
   String _activeServer = "";
   double _progress = 0.0;
   String? _currentJobId;
-  bool _isInBackground = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkServer();
-    _checkPendingJob(); // 🔹 Se c’è un job in corso, lo riprende dopo cambio app
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (!_isInBackground) {
-      _cancelAllJobs(); // ✅ cancella solo se l’utente chiude app o torna indietro
-    }
     _retryTimer?.cancel();
     super.dispose();
   }
 
-  // ============================================================
-  // 🔹 Gestione cicli vita app (screen off / app in background)
-  // ============================================================
+  /// ============================================================
+  /// 🔹 Gestione chiusura app o freccia indietro → cancella tutto
+  /// ============================================================
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _isInBackground = true;
-      debugPrint("🌙 App in background → analisi continua sul server");
-    } else if (state == AppLifecycleState.resumed) {
-      _isInBackground = false;
-      debugPrint("☀️ App ripresa → controllo job in corso...");
-      _checkPendingJob();
+    if (state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      _cancelAllJobs();
     }
   }
 
-  // ============================================================
-  // 🔹 Controlla che il server farmacia sia online
-  // ============================================================
+  Future<void> _cancelAllJobs() async {
+    try {
+      if (_activeServer.isEmpty) return;
+      final url = Uri.parse("$_activeServer/cancel_all_jobs");
+      await http.post(url).timeout(const Duration(seconds: 4));
+      debugPrint("🛑 Tutti i job cancellati correttamente");
+    } catch (_) {}
+  }
+
+  /// ============================================================
+  /// 🔹 Controlla che il server farmacia sia online
+  /// ============================================================
   Future<void> _checkServer() async {
     for (final url in _serverUrls) {
       try {
-        final resp = await http
-            .get(Uri.parse("$url/status"))
-            .timeout(const Duration(seconds: 4));
+        final resp =
+            await http.get(Uri.parse("$url/status")).timeout(const Duration(seconds: 4));
         if (resp.statusCode == 200 &&
             jsonDecode(resp.body)["status"].toString().toLowerCase() == "ok") {
           setState(() {
@@ -101,35 +99,13 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  // ============================================================
-  // 🔹 Cancella job lato server e locale
-  // ============================================================
-  Future<void> _cancelAllJobs() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jobId = _currentJobId ?? prefs.getString("last_job_id_farmacia");
-      if (jobId != null && jobId.isNotEmpty && _activeServer.isNotEmpty) {
-        final url = Uri.parse("$_activeServer/cancel_job/$jobId");
-        await http.post(url).timeout(const Duration(seconds: 5));
-        debugPrint("🛑 Job $jobId cancellato lato server");
-      }
-      await prefs.remove("last_job_id_farmacia");
-      debugPrint("🧹 Pulizia job locale completata");
-    } catch (e) {
-      debugPrint("⚠️ Errore cancellazione job: $e");
-    }
-  }
-
-  // ============================================================
-  // 🔹 Invia immagine al server
-  // ============================================================
+  /// ============================================================
+  /// 🔹 Invia immagine al server e gestisce job asincrono
+  /// ============================================================
   Future<void> _uploadAndAnalyze() async {
     if (!_serverReady || _activeServer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("⚠️ Server non pronto. Riprova tra pochi secondi."),
-          duration: Duration(seconds: 3),
-        ),
+        const SnackBar(content: Text("⚠️ Server non pronto. Riprova tra pochi secondi.")),
       );
       return;
     }
@@ -142,11 +118,16 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     try {
       final uri = Uri.parse("$_activeServer/upload_async/farmacia");
       final request = http.MultipartRequest('POST', uri);
+
       request.headers['Connection'] = 'keep-alive';
       request.headers['Accept'] = 'application/json';
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
+
+      request.files.add(
+        await http.MultipartFile.fromPath('file', widget.imagePath),
+      );
 
       debugPrint("📤 Upload in corso verso $_activeServer...");
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -156,7 +137,16 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
         );
       }
 
-      final streamedResponse = await request.send();
+      http.StreamedResponse streamedResponse;
+      try {
+        streamedResponse =
+            await request.send().timeout(const Duration(seconds: 90));
+      } on TimeoutException {
+        debugPrint("⏰ Timeout durante upload — retry automatico...");
+        await Future.delayed(const Duration(seconds: 2));
+        return _uploadAndAnalyze();
+      }
+
       final respStr = await streamedResponse.stream.bytesToString();
 
       if (streamedResponse.statusCode == 200) {
@@ -164,14 +154,11 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
         final jobId = jsonResp["job_id"];
         if (jobId == null) throw Exception("job_id non ricevuto dal server");
         _currentJobId = jobId;
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString("last_job_id_farmacia", jobId);
-
         await _pollJob(jobId);
         debugPrint("🚀 Job inviato con ID: $jobId");
       } else {
-        throw Exception("Errore server (${streamedResponse.statusCode}): $respStr");
+        throw Exception(
+            "Errore server (${streamedResponse.statusCode}): $respStr");
       }
     } catch (e) {
       debugPrint("❌ Errore analisi farmacia: $e");
@@ -195,34 +182,40 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     }
   }
 
-  // ============================================================
-  // 🔹 Polling continuo (no timeout)
-  // ============================================================
+  /// ============================================================
+  /// 🔹 Polling periodico su /job/<id> (senza timeout, continuo)
+  /// ============================================================
   Future<void> _pollJob(String jobId) async {
     final dir = await getTemporaryDirectory();
     const pollingInterval = Duration(seconds: 2);
     int attempts = 0;
 
-    while (mounted && !_isInBackground) {
+    while (mounted) {
       await Future.delayed(pollingInterval);
       final url = Uri.parse("$_activeServer/job/$jobId");
-      http.Response resp;
-
+      http.Response? resp;
       try {
-        resp = await http.get(url);
+        resp = await http.get(url).timeout(const Duration(seconds: 10));
       } catch (_) {
+        debugPrint("🌐 Polling temporaneamente interrotto, retry...");
         continue;
       }
 
       if (resp.statusCode != 200) continue;
+
       final data = jsonDecode(resp.body);
       final status = data["status"];
       final progress = (data["progress"] ?? 0).toDouble();
       setState(() => _progress = progress / 100);
 
+      debugPrint("⏱️ Stato job $jobId: $status");
+
       if (status == "ready" || status == "done") {
         final result = data["result"];
         if (result == null) throw Exception("Risultato non trovato");
+
+        setState(() => _progress = 1.0);
+        await Future.delayed(const Duration(milliseconds: 800));
 
         final jsonFile = File("${dir.path}/result_farmacia.json");
         await jsonFile.writeAsString(jsonEncode(result));
@@ -231,11 +224,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
           final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
           final overlayFile = File("${dir.path}/overlay_farmacia.png");
           await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
         }
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove("last_job_id_farmacia");
-        _currentJobId = null;
 
         if (!mounted) return;
         Navigator.pushReplacement(
@@ -250,34 +240,32 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
         return;
       }
 
-      if (status == "failed") throw Exception("Analisi fallita");
+      if (status == "failed") {
+        throw Exception(data["error"] ?? "Analisi fallita");
+      }
+
       attempts++;
+      if (attempts % 30 == 0) {
+        debugPrint("⏳ Analisi ancora in corso (${attempts * 2}s)...");
+      }
     }
   }
 
-  // ============================================================
-  // 🔹 Riprende job se riapri app dopo schermo spento
-  // ============================================================
-  Future<void> _checkPendingJob() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jobId = prefs.getString("last_job_id_farmacia");
-    if (jobId != null && jobId.isNotEmpty && !_loading) {
-      debugPrint("♻️ Riprendo polling per job: $jobId");
-      _currentJobId = jobId;
-      await _pollJob(jobId);
-    }
+  /// ============================================================
+  /// 🔹 Intercetta “freccia indietro” e cancella job attivi
+  /// ============================================================
+  Future<bool> _onWillPop() async {
+    await _cancelAllJobs();
+    return true; // consente la chiusura
   }
 
-  // ============================================================
-  // 🔹 UI con back che cancella job
-  // ============================================================
+  /// ============================================================
+  /// 🔹 UI COMPLETA
+  /// ============================================================
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async {
-        await _cancelAllJobs(); // 🔥 Cancella tutto se back manuale
-        return true;
-      },
+      onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FBFF),
         appBar: AppBar(
@@ -287,7 +275,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
-              await _cancelAllJobs(); // 🔥 Cancella tutto se back manuale
+              await _cancelAllJobs();
               Navigator.pop(context);
             },
           ),
@@ -305,6 +293,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
                 ),
               ),
               const SizedBox(height: 24),
+
               if (_showServerStatus)
                 (_serverReady
                     ? const Text(
@@ -317,7 +306,9 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
                         style: TextStyle(
                             color: Colors.red, fontWeight: FontWeight.w600),
                       )),
+
               const SizedBox(height: 10),
+
               GestureDetector(
                 onTap: _serverReady && !_loading ? _uploadAndAnalyze : null,
                 child: AnimatedContainer(
@@ -326,9 +317,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
                   height: 60,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
-                    color: _loading
-                        ? const Color(0xFFB3D5FF)
-                        : const Color(0xFF1A73E8),
+                    color:
+                        _loading ? const Color(0xFFB3D5FF) : const Color(0xFF1A73E8),
                   ),
                   child: Stack(
                     children: [
