@@ -372,6 +372,30 @@ Row(
                 );
               }).toList(),
 
+              // ============================================================
+// 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
+// ============================================================
+if (resultData!["aree_specifiche"] != null) ...[
+  const SizedBox(height: 30),
+  Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      "Estensioni Aree Specifiche",
+      style: GoogleFonts.montserrat(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.black87,
+      ),
+    ),
+  ),
+  const SizedBox(height: 10),
+  _buildAreaRow("Pori", "${(resultData!["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %"),
+  _buildAreaRow("Rughe", "${(resultData!["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm"),
+  _buildAreaRow("Macchie pigmentarie", "${(resultData!["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %"),
+  _buildAreaRow("Aree vascolari (Red Areas)", "${(resultData!["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %"),
+],
+
+
               const SizedBox(height: 40),
               Align(
                 alignment: Alignment.centerLeft,
@@ -483,6 +507,31 @@ Row(
       ),
     );
   }
+
+  // ============================================================
+// 🔹 RIGA VALORI “AREE SPECIFICHE”
+// ============================================================
+Widget _buildAreaRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: GoogleFonts.montserrat(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87)),
+        Text(value,
+            style: GoogleFonts.montserrat(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A73E8))),
+      ],
+    ),
+  );
+}
+
 
   // ============================================================
   // 🖼️ VIEWER FULL-SCREEN CON SWIPE, ZOOM E CHIUSURA
