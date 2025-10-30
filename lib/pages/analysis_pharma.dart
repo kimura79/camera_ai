@@ -254,36 +254,49 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 🔹 immagini
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(widget.imagePath),
-                        height: 200,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: overlayFile != null
-                          ? Image.file(overlayFile!,
-                              height: 200, fit: BoxFit.cover)
-                          : Container(
-                              height: 200,
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                  child: Text("Nessun overlay")),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
+              // ============================================================
+// 🔹 Immagini cliccabili → apertura full-screen con swipe
+// ============================================================
+Row(
+  children: [
+    Expanded(
+      child: GestureDetector(
+        onTap: () {
+          _showFullScreenImage(File(widget.imagePath), "Immagine originale");
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            File(widget.imagePath),
+            height: 200,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (overlayFile != null) {
+            _showFullScreenImage(overlayFile!, "Overlay analisi");
+          }
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: overlayFile != null
+              ? Image.file(overlayFile!, height: 200, fit: BoxFit.cover)
+              : Container(
+                  height: 200,
+                  color: Colors.grey.shade200,
+                  child: const Center(child: Text("Nessun overlay")),
+                ),
+        ),
+      ),
+    ),
+  ],
+),
+
 
               const SizedBox(height: 25),
               Text(
@@ -434,6 +447,9 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     );
   }
 
+    // ============================================================
+  // 🔹 CARD CON I CONSIGLI (REFERTI)
+  // ============================================================
   Widget _buildRefertiCard(List<String> consigli) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -442,9 +458,10 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -453,19 +470,116 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("❗ ",
-                      style: TextStyle(
-                          color: Colors.redAccent, fontSize: 18)),
-                  Expanded(
-                      child: Text(txt,
-                          style: GoogleFonts.montserrat(
-                              fontSize: 15, color: Colors.black87)))
-                ]),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "❗ ",
+                  style: TextStyle(color: Colors.redAccent, fontSize: 18),
+                ),
+                Expanded(
+                  child: Text(
+                    txt,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         }).toList(),
       ),
+    );
+  }
+
+  // ============================================================
+  // 🖼️ VIEWER FULL-SCREEN CON SWIPE, ZOOM E CHIUSURA
+  // ============================================================
+  void _showFullScreenImage(File imageFile, String titolo) {
+    final List<Map<String, dynamic>> immagini = [
+      {"file": File(widget.imagePath), "titolo": "Immagine originale"},
+      if (overlayFile != null)
+        {"file": overlayFile!, "titolo": "Overlay analisi"},
+    ];
+
+    int initialPage =
+        immagini.indexWhere((img) => img["file"].path == imageFile.path);
+    if (initialPage < 0) initialPage = 0;
+
+    final PageController controller = PageController(initialPage: initialPage);
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                // 🔹 Swipe destra/sinistra
+                PageView.builder(
+                  controller: controller,
+                  itemCount: immagini.length,
+                  itemBuilder: (context, index) {
+                    final current = immagini[index];
+                    return Center(
+                      child: InteractiveViewer(
+                        minScale: 1.0,
+                        maxScale: 5.0,
+                        child:
+                            Image.file(current["file"], fit: BoxFit.contain),
+                      ),
+                    );
+                  },
+                ),
+
+                // 🔹 Titolo dinamico
+                Positioned(
+                  top: 20,
+                  left: 20,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      int index = controller.hasClients
+                          ? controller.page?.round() ?? initialPage
+                          : initialPage;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          immagini[index]["titolo"],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // 🔹 Bottone chiudi
+                Positioned(
+                  top: 20,
+                  right: 20,
+                  child: IconButton(
+                    icon: const Icon(Icons.close,
+                        color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
