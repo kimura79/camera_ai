@@ -103,10 +103,19 @@ Future<void> _uploadAndAnalyze() async {
 
   try {
     final uri = Uri.parse("$_activeServer/upload_async/farmacia");
-    final request = http.MultipartRequest('POST', uri);
-    request.files.add(
-      await http.MultipartFile.fromPath('file', widget.imagePath),
-    );
+final request = http.MultipartRequest('POST', uri);
+
+// 🔹 Aggiungi queste 2 righe:
+request.headers['Connection'] = 'keep-alive';
+request.headers['Accept'] = 'application/json';
+
+// 🔹 Allegato principale
+request.files.add(
+  await http.MultipartFile.fromPath('file', widget.imagePath),
+);
+
+debugPrint("📤 Upload in corso verso $_activeServer...");
+
 
     // ✅ Timeout lungo e retry automatico se la connessione cade
     http.StreamedResponse streamedResponse;
