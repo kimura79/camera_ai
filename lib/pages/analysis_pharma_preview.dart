@@ -116,6 +116,15 @@ request.files.add(
 
 debugPrint("📤 Upload in corso verso $_activeServer...");
 
+    if (mounted) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("🔍 Analisi avviata, attendere qualche secondo..."),
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
 
     // ✅ Timeout lungo e retry automatico se la connessione cade
     http.StreamedResponse streamedResponse;
