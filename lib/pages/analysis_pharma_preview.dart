@@ -172,68 +172,69 @@ debugPrint("📤 Upload in corso verso $_activeServer...");
 }
 
 
-  // ============================================================
-  // 🔹 Polling periodico su /job/<id> senza limite di tempo
-  // ============================================================
-  Future<void> _pollJob(String jobId) async {
-    final dir = await getTemporaryDirectory();
-    const pollingInterval = Duration(seconds: 2);
-    int attempts = 0;
+// ============================================================
+// 🔹 Polling periodico su /job/<id> senza limite di tempo
+// ============================================================
+Future<void> _pollJob(String jobId) async {
+  final dir = await getTemporaryDirectory();
+  const pollingInterval = Duration(seconds: 2);
+  int attempts = 0;
 
-    while (mounted) {
-      await Future.delayed(pollingInterval);
-      final url = Uri.parse("$_activeServer/job/$jobId");
-      final resp = await http.get(url).timeout(const Duration(seconds: 10));
+  while (mounted) {
+    await Future.delayed(pollingInterval);
+    final url = Uri.parse("$_activeServer/job/$jobId");
+    final resp = await http.get(url); // ✅ Nessun timeout
 
-      if (resp.statusCode != 200) continue;
+    if (resp.statusCode != 200) continue;
 
-      final data = jsonDecode(resp.body);
-      final status = data["status"];
-      final progress = (data["progress"] ?? 0).toDouble();
-      setState(() => _progress = progress / 100);
+    final data = jsonDecode(resp.body);
+    final status = data["status"];
+    final progress = (data["progress"] ?? 0).toDouble();
+    setState(() => _progress = progress / 100);
 
-      debugPrint("⏱️ Stato job $jobId: $status");
+    debugPrint("⏱️ Stato job $jobId: $status");
 
-      if (status == "ready" || status == "done") {
-        final result = data["result"];
-        if (result == null) throw Exception("Risultato non trovato");
+    if (status == "ready" || status == "done") {
+      final result = data["result"];
+      if (result == null) throw Exception("Risultato non trovato");
 
-        setState(() => _progress = 1.0);
-        await Future.delayed(const Duration(milliseconds: 800));
+      setState(() => _progress = 1.0);
+      await Future.delayed(const Duration(milliseconds: 800));
 
-        final jsonFile = File("${dir.path}/result_farmacia.json");
-        await jsonFile.writeAsString(jsonEncode(result));
+      final jsonFile = File("${dir.path}/result_farmacia.json");
+      await jsonFile.writeAsString(jsonEncode(result));
 
-        if (result["overlay_url"] != null) {
-          final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
-          final overlayFile = File("${dir.path}/overlay_farmacia.png");
-          await overlayFile.writeAsBytes(overlayResp.bodyBytes);
-          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
-        }
+      if (result["overlay_url"] != null) {
+        final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
+        final overlayFile = File("${dir.path}/overlay_farmacia.png");
+        await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+        debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+      }
 
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisPharmaPage(
-              imagePath: widget.imagePath,
-              jobId: jobId,
-            ),
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnalysisPharmaPage(
+            imagePath: widget.imagePath,
+            jobId: jobId,
           ),
-        );
-        return;
-      }
+        ),
+      );
+      return;
+    }
 
-      if (status == "failed") {
-        throw Exception(data["error"] ?? "Analisi fallita");
-      }
+    if (status == "failed") {
+      throw Exception(data["error"] ?? "Analisi fallita");
+    }
 
-      attempts++;
-      if (attempts % 30 == 0) {
-        debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
-      }
+    attempts++;
+    if (attempts % 30 == 0) {
+      debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
     }
   }
+}
+
 
   // ============================================================
   // 🔹 UI
