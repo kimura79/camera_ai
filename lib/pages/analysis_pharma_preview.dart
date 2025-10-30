@@ -84,39 +84,65 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   }
 
   // ============================================================
-  // 🔹 Invia immagine al server (nuovo endpoint asincrono)
-  // ============================================================
-  Future<void> _uploadAndAnalyze() async {
-    if (!_serverReady || _activeServer.isEmpty) return;
-    setState(() {
-      _loading = true;
-      _progress = 0.02;
-    });
+// 🔹 Invia immagine al server (nuovo endpoint asincrono, con retry libero)
+// ============================================================
+Future<void> _uploadAndAnalyze() async {
+  if (!_serverReady || _activeServer.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("⚠️ Server non pronto. Riprova tra pochi secondi."),
+      ),
+    );
+    return;
+  }
 
-    try {
-      final uri = Uri.parse("$_activeServer/upload_async/farmacia");
-      final request = http.MultipartRequest('POST', uri);
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
+  setState(() {
+    _loading = true;
+    _progress = 0.02;
+  });
 
-      final response = await request.send();
-      final respStr = await response.stream.bytesToString();
+  try {
+    final uri = Uri.parse("$_activeServer/upload_async/farmacia");
+    final request = http.MultipartRequest('POST', uri);
+    request.files.add(
+      await http.MultipartFile.fromPath('file', widget.imagePath),
+    );
 
-      if (response.statusCode == 200) {
-        final jsonResp = jsonDecode(respStr);
-        final jobId = jsonResp["job_id"];
-        if (jobId == null) throw Exception("job_id non ricevuto");
-        await _pollJob(jobId);
-      } else {
-        throw Exception("Errore analisi: ${response.statusCode}");
-      }
-    } catch (e) {
+    final response = await request.send();
+    final respStr = await response.stream.bytesToString();
+
+    if (response.statusCode == 200) {
+      final jsonResp = jsonDecode(respStr);
+      final jobId = jsonResp["job_id"];
+      if (jobId == null) throw Exception("job_id non ricevuto dal server");
+      await _pollJob(jobId);
+      debugPrint("🚀 Job inviato con ID: $jobId");
+    } else {
+      throw Exception("Errore server (${response.statusCode}): $respStr");
+    }
+  } catch (e) {
+    debugPrint("❌ Errore analisi farmacia: $e");
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Errore durante l’analisi: $e")),
+        SnackBar(
+          content: Text("Errore durante l’analisi: $e"),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 3),
+        ),
       );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    }
+  } finally {
+    // ✅ Sempre ripristina stato per permettere di riprovare
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _progress = 0.0;
+        _serverReady = true; // abilita di nuovo il tasto Analizza
+      });
     }
   }
+}
+
 
   // ============================================================
   // 🔹 Polling periodico su /job/<id> senza limite di tempo
@@ -245,7 +271,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
                         duration: const Duration(milliseconds: 200),
                         width: MediaQuery.of(context).size.width * _progress,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF90C8FF), // azzurro chiaro che avanza
+                          color: const Color(0xFF1A73E8), // 🔵 blu scuro identico al pulsante
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
