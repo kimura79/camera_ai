@@ -535,35 +535,35 @@ Row(
                   },
                 ),
 
-                // 🔹 Titolo dinamico
-                Positioned(
-                  top: 20,
-                  left: 20,
-                  child: ValueListenableBuilder<double>(
-                    valueListenable: controller,
-                    builder: (context, value, _) {
-                      int index = controller.hasClients
-                          ? controller.page?.round() ?? initialPage
-                          : initialPage;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          immagini[index]["titolo"],
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+              // 🔹 Titolo dinamico
+Positioned(
+  top: 20,
+  left: 20,
+  child: AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) {
+      int index = controller.hasClients
+          ? controller.page?.round() ?? initialPage
+          : initialPage;
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          immagini[index]["titolo"],
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    },
+  ),
+),
+
 
                 // 🔹 Bottone chiudi
                 Positioned(
