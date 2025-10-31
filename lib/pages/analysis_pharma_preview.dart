@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:custom_camera_component/pages/analysis_pharma.dart';
 
 /// ============================================================
-/// 📸 ANALISI FARMACIA (versione asincrona con job polling e gestione chiusura corretta)
+/// 📸 ANALISI FARMACIA (asincrona con job polling + barra fluida dinamica)
 /// ============================================================
 class AnalysisPharmaPreview extends StatefulWidget {
   final String imagePath;
@@ -23,64 +23,57 @@ class AnalysisPharmaPreview extends StatefulWidget {
 }
 
 class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
-    with WidgetsBindingObserver {
+    with TickerProviderStateMixin {
   bool _loading = false;
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
   final List<String> _serverUrls = ["http://46.101.223.88:5005"];
   String _activeServer = "";
+
+  // 🔹 Barra di avanzamento
   double _progress = 0.0;
-  String? _currentJobId;
+
+  // 🔹 Controller animazione fluida e pulsazione
+  late AnimationController _animController;
+  late Animation<double> _animProgress;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _checkServer();
+
+    // ✅ Barra di avanzamento fluida
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+    _animProgress = Tween<double>(begin: 0.0, end: 0.0).animate(_animController)
+      ..addListener(() {
+        if (mounted) setState(() => _progress = _animProgress.value);
+      });
+
+    // 💡 Effetto pulsazione sul pulsante durante l’analisi
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+      lowerBound: 0.9,
+      upperBound: 1.05,
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    // 🔹 Cancella job solo se l’app viene chiusa completamente (swipe-up)
-    _cancelAllJobs();
-    WidgetsBinding.instance.removeObserver(this);
     _retryTimer?.cancel();
+    _animController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
-  /// ============================================================
-  /// 🔹 Gestione stato app (background/foreground)
-  /// ============================================================
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // ✅ NON cancelliamo i job se lo schermo si spegne o app in background
-    // ✅ Se viene riaperta, riprende polling
-    if (state == AppLifecycleState.resumed) {
-      if (_currentJobId != null && _loading) {
-        debugPrint("🔄 App riattivata — riprendo polling per job $_currentJobId");
-        _pollJob(_currentJobId!);
-      }
-    }
-  }
-
-  /// ============================================================
-  /// 🔹 Cancella tutti i job (solo su back o chiusura app)
-  /// ============================================================
-  Future<void> _cancelAllJobs() async {
-    try {
-      if (_activeServer.isEmpty) return;
-      final url = Uri.parse("$_activeServer/cancel_all_jobs");
-      await http.post(url).timeout(const Duration(seconds: 4));
-      debugPrint("🛑 Tutti i job cancellati correttamente");
-    } catch (e) {
-      debugPrint("⚠️ Errore cancellazione job: $e");
-    }
-  }
-
-  /// ============================================================
-  /// 🔹 Controlla che il server farmacia sia online
-  /// ============================================================
+  // ============================================================
+  // 🔹 Controlla che il server farmacia sia online
+  // ============================================================
   Future<void> _checkServer() async {
     for (final url in _serverUrls) {
       try {
@@ -111,14 +104,16 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
   }
 
-  /// ============================================================
-  /// 🔹 Invia immagine al server e gestisce job asincrono
-  /// ============================================================
+  // ============================================================
+  // 🔹 Invia immagine al server (timeout + messaggi visivi)
+  // ============================================================
   Future<void> _uploadAndAnalyze() async {
     if (!_serverReady || _activeServer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text("⚠️ Server non pronto. Riprova tra pochi secondi.")),
+          content: Text("⚠️ Server non pronto. Riprova tra pochi secondi."),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
@@ -131,26 +126,16 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     try {
       final uri = Uri.parse("$_activeServer/upload_async/farmacia");
       final request = http.MultipartRequest('POST', uri);
-
-      request.headers['Connection'] = 'keep-alive';
-      request.headers['Accept'] = 'application/json';
-      request.files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
-
-      debugPrint("📤 Upload in corso verso $_activeServer...");
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("🔍 Analisi avviata, attendere qualche secondo..."),
-          duration: Duration(seconds: 3),
-        ));
-      }
+      request.files.add(
+        await http.MultipartFile.fromPath('file', widget.imagePath),
+      );
 
       http.StreamedResponse streamedResponse;
       try {
         streamedResponse =
             await request.send().timeout(const Duration(seconds: 90));
       } on TimeoutException {
-        debugPrint("⏰ Timeout durante upload — retry automatico...");
+        debugPrint("⏰ Timeout durante l’upload — nuovo tentativo...");
         await Future.delayed(const Duration(seconds: 2));
         return _uploadAndAnalyze();
       }
@@ -161,20 +146,33 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
         final jsonResp = jsonDecode(respStr);
         final jobId = jsonResp["job_id"];
         if (jobId == null) throw Exception("job_id non ricevuto dal server");
-        _currentJobId = jobId;
-        await _pollJob(jobId);
+
+        // 🔍 Mostra messaggio all’avvio analisi
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🔍 Analisi avviata, attendere qualche secondo..."),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+
         debugPrint("🚀 Job inviato con ID: $jobId");
+        await _pollJob(jobId);
       } else {
-        throw Exception("Errore server (${streamedResponse.statusCode}): $respStr");
+        throw Exception(
+            "Errore server (${streamedResponse.statusCode}): $respStr");
       }
     } catch (e) {
       debugPrint("❌ Errore analisi farmacia: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Errore durante l’analisi: $e"),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 3),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Errore durante l’analisi: $e"),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -187,9 +185,9 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     }
   }
 
-  /// ============================================================
-  /// 🔹 Polling periodico su /job/<id> (senza timeout, continuo)
-  /// ============================================================
+  // ============================================================
+  // 🔹 Polling su /job/<id> con barra fluida
+  // ============================================================
   Future<void> _pollJob(String jobId) async {
     final dir = await getTemporaryDirectory();
     const pollingInterval = Duration(seconds: 2);
@@ -198,11 +196,12 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     while (mounted) {
       await Future.delayed(pollingInterval);
       final url = Uri.parse("$_activeServer/job/$jobId");
-      http.Response? resp;
+
+      http.Response resp;
       try {
         resp = await http.get(url).timeout(const Duration(seconds: 10));
-      } catch (_) {
-        debugPrint("🌐 Polling temporaneamente interrotto, retry...");
+      } catch (e) {
+        debugPrint("⚠️ Errore polling: $e");
         continue;
       }
 
@@ -211,9 +210,22 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
       final data = jsonDecode(resp.body);
       final status = data["status"];
       final progress = (data["progress"] ?? 0).toDouble();
-      setState(() => _progress = progress / 100);
 
-      debugPrint("⏱️ Stato job $jobId: $status");
+      // 🔹 Animazione fluida
+      if (mounted) {
+        _animController.stop();
+        _animController.reset();
+        _animProgress = Tween<double>(
+          begin: _progress,
+          end: (progress / 100).clamp(0.0, 1.0),
+        ).animate(CurvedAnimation(
+          parent: _animController,
+          curve: Curves.easeInOut,
+        ));
+        _animController.forward();
+      }
+
+      debugPrint("⏱️ Stato job $jobId: $status (${progress.toStringAsFixed(1)}%)");
 
       if (status == "ready" || status == "done") {
         final result = data["result"];
@@ -222,16 +234,33 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
         setState(() => _progress = 1.0);
         await Future.delayed(const Duration(milliseconds: 800));
 
+        // 💾 Salva JSON risultato
         final jsonFile = File("${dir.path}/result_farmacia.json");
         await jsonFile.writeAsString(jsonEncode(result));
 
+        // 💾 Scarica overlay
         if (result["overlay_url"] != null) {
-          final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
-          final overlayFile = File("${dir.path}/overlay_farmacia.png");
-          await overlayFile.writeAsBytes(overlayResp.bodyBytes);
-          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+          try {
+            final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
+            final overlayFile = File("${dir.path}/overlay_farmacia.png");
+            await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+            debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+          } catch (e) {
+            debugPrint("⚠️ Errore download overlay: $e");
+          }
         }
 
+        // ✅ Messaggio completamento
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("✅ Analisi completata!"),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // 🔁 Vai alla pagina risultati
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -246,7 +275,18 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
       }
 
       if (status == "failed") {
-        throw Exception(data["error"] ?? "Analisi fallita");
+        final errorMsg = data["error"] ?? "Analisi fallita";
+        debugPrint("❌ Job fallito: $errorMsg");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("❌ Analisi fallita: $errorMsg"),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
       }
 
       attempts++;
@@ -256,62 +296,55 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
     }
   }
 
-  /// ============================================================
-  /// 🔹 Intercetta “freccia indietro” e cancella job attivi
-  /// ============================================================
-  Future<bool> _onWillPop() async {
-    await _cancelAllJobs();
-    return true;
-  }
-
-  /// ============================================================
-  /// 🔹 UI COMPLETA
-  /// ============================================================
+  // ============================================================
+  // 🔹 UI
+  // ============================================================
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FBFF),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF1A73E8),
-          title: const Text("Analisi Farmacia"),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              await _cancelAllJobs();
-              Navigator.pop(context);
-            },
-          ),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  File(widget.imagePath),
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FBFF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1A73E8),
+        title: const Text("Analisi Farmacia"),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(widget.imagePath),
+                width: double.infinity,
+                fit: BoxFit.cover,
               ),
-              const SizedBox(height: 24),
-              if (_showServerStatus)
-                (_serverReady
-                    ? const Text(
-                        "✅ Server connesso e pronto",
-                        style: TextStyle(
-                            color: Colors.green, fontWeight: FontWeight.w600),
-                      )
-                    : const Text(
-                        "❌ Server non raggiungibile",
-                        style: TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.w600),
-                      )),
-              const SizedBox(height: 10),
-              GestureDetector(
+            ),
+            const SizedBox(height: 24),
+
+            if (_showServerStatus)
+              (_serverReady
+                  ? const Text(
+                      "✅ Server connesso e pronto",
+                      style: TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.w600),
+                    )
+                  : const Text(
+                      "❌ Server non raggiungibile",
+                      style: TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.w600),
+                    )),
+            const SizedBox(height: 10),
+
+            // ============================================================
+            // 🔹 PULSANTE con barra dinamica e luce pulsante
+            // ============================================================
+            ScaleTransition(
+              scale: _loading
+                  ? Tween(begin: 0.95, end: 1.05)
+                      .animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut))
+                  : const AlwaysStoppedAnimation(1.0),
+              child: GestureDetector(
                 onTap: _serverReady && !_loading ? _uploadAndAnalyze : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
@@ -319,6 +352,15 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
                   height: 60,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
+                    boxShadow: _loading
+                        ? [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.4),
+                              blurRadius: 15,
+                              spreadRadius: 1,
+                            )
+                          ]
+                        : [],
                     color: _loading
                         ? const Color(0xFFB3D5FF)
                         : const Color(0xFF1A73E8),
@@ -350,8 +392,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview>
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
