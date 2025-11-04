@@ -23,7 +23,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   Map<String, dynamic>? resultData;
   File? overlayFile;
 
-  final String serverUrl = "https://eaq1vxxolu5f0z-5005.proxy.runpod.net";
+  final String serverUrl = "http://157.157.221.29:29640";
 
   @override
   void initState() {
