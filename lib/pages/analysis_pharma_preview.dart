@@ -32,6 +32,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 
   // 🔹 per la barra di avanzamento
   double _progress = 0.0;
+  String _statusMessage = "Analisi in corso...";
 
   @override
   void initState() {
