@@ -145,67 +145,107 @@ Future<void> _uploadAndAnalyze() async {
 
 
   // ============================================================
-  // 🔹 Polling periodico su /job/<id> senza limite di tempo
-  // ============================================================
-  Future<void> _pollJob(String jobId) async {
-    final dir = await getTemporaryDirectory();
-    const pollingInterval = Duration(seconds: 2);
-    int attempts = 0;
+// 🔹 Polling robusto e continuo su /job/<id> (fino a 10 minuti)
+//    con messaggi di stato dinamici e barra fluida
+// ============================================================
+Future<void> _pollJob(String jobId) async {
+  final dir = await getTemporaryDirectory();
+  const pollingInterval = Duration(seconds: 3);
+  const maxAttempts = 200; // ≈10 minuti
+  int attempt = 0;
 
-    while (mounted) {
-      await Future.delayed(pollingInterval);
+  while (attempt < maxAttempts && mounted) {
+    attempt++;
+
+    try {
       final url = Uri.parse("$_activeServer/job/$jobId");
-      final resp = await http.get(url).timeout(const Duration(seconds: 10));
+      final resp = await http.get(url).timeout(const Duration(seconds: 15));
 
-      if (resp.statusCode != 200) continue;
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        final status = data["status"] ?? "";
+        final progress = (data["progress"] ?? 0).toDouble();
+        final message = (data["message"] ?? "").toString();
 
-      final data = jsonDecode(resp.body);
-      final status = data["status"];
-      final progress = (data["progress"] ?? 0).toDouble();
-      setState(() => _progress = progress / 100);
+        // 🔹 Aggiorna barra e messaggio visivo
+        setState(() {
+          _progress = progress / 100;
+          _statusMessage = message.isNotEmpty ? message : "Analisi in corso...";
+        });
 
-      debugPrint("⏱️ Stato job $jobId: $status");
+        debugPrint("⏱️ Stato job $jobId: $status — $_statusMessage ($_progress)");
 
-      if (status == "ready" || status == "done") {
-        final result = data["result"];
-        if (result == null) throw Exception("Risultato non trovato");
+        // ✅ Job completato con risultato
+        if ((status == "done" || status == "ready") && data["result"] != null) {
+          final result = data["result"];
+          setState(() {
+            _progress = 1.0;
+            _statusMessage = "Analisi completata ✅";
+          });
 
-        setState(() => _progress = 1.0);
-        await Future.delayed(const Duration(milliseconds: 800));
+          await Future.delayed(const Duration(milliseconds: 800));
 
-        final jsonFile = File("${dir.path}/result_farmacia.json");
-        await jsonFile.writeAsString(jsonEncode(result));
+          // Salva JSON risultato
+          final jsonFile = File("${dir.path}/result_farmacia.json");
+          await jsonFile.writeAsString(jsonEncode(result));
 
-        if (result["overlay_url"] != null) {
-          final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
-          final overlayFile = File("${dir.path}/overlay_farmacia.png");
-          await overlayFile.writeAsBytes(overlayResp.bodyBytes);
-          debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+          // Salva overlay se presente
+          if (result["overlay_url"] != null) {
+            final overlayResp = await http.get(Uri.parse(result["overlay_url"]));
+            final overlayFile = File("${dir.path}/overlay_farmacia.png");
+            await overlayFile.writeAsBytes(overlayResp.bodyBytes);
+            debugPrint("🖼️ Overlay salvato: ${overlayFile.path}");
+          }
+
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AnalysisPharmaPage(
+                imagePath: widget.imagePath,
+                jobId: jobId,
+              ),
+            ),
+          );
+          return;
         }
 
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisPharmaPage(
-              imagePath: widget.imagePath,
-              jobId: jobId,
-            ),
-          ),
-        );
-        return;
+        // ❌ Job fallito
+        if (status == "failed") {
+          final errMsg = data["message"] ?? "Analisi fallita";
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("❌ Errore: $errMsg"),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          setState(() => _loading = false);
+          return;
+        }
       }
-
-      if (status == "failed") {
-        throw Exception(data["error"] ?? "Analisi fallita");
-      }
-
-      attempts++;
-      if (attempts % 30 == 0) {
-        debugPrint("⏳ Analisi ancora in corso (${attempts * 2} s)...");
-      }
+    } catch (e) {
+      debugPrint("⚠️ Errore polling: $e");
     }
+
+    await Future.delayed(pollingInterval);
   }
+
+  // ⏰ Timeout totale (dopo 10 minuti)
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("⏰ Timeout: analisi non completata entro 10 minuti."),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+    setState(() {
+      _loading = false;
+      _statusMessage = "Timeout scaduto — riprova l’analisi";
+    });
+  }
+}
 
   // ============================================================
   // 🔹 UI
