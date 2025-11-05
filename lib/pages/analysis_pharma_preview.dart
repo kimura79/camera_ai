@@ -27,7 +27,9 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final List<String> _serverUrls = ["http://46.101.223.88:5005"];
+  final List<String> _serverUrls = [
+  "https://dentists-encouraged-portion-sense.trycloudflare.com"
+];
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
