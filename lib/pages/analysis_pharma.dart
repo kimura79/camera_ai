@@ -213,13 +213,22 @@ await _sendResultsByEmail(
       );
     }
 
-    final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
-    final Map<String, dynamic> indici =
-        Map<String, dynamic>.from(resultData!["indici"] ?? {});
-    final String tipoPelle = resultData!["tipo_pelle"] ?? "Normale";
-    final List<String> consigli =
-        List<String>.from(resultData!["consigli"] ?? []);
-    final double scorePercent = (score * 100).clamp(0, 100);
+final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
+final Map<String, dynamic> indici =
+    Map<String, dynamic>.from(resultData!["indici"] ?? {});
+final double scorePercent = (score * 100).clamp(0, 100);
+
+// 🔹 Lettura blocco "Referti" dal server Python
+final Map<String, dynamic> referti =
+    Map<String, dynamic>.from(resultData!["Referti"] ?? {});
+
+// Estraggo i campi con fallback sicuro
+final String tipoPelle = referti["Tipo_pelle"] ?? "Normale / Equilibrata";
+final String dominante = referti["Dominante"] ?? "-";
+final String secondario = referti["Secondario"] ?? "-";
+final List<String> consigli =
+    List<String>.from(referti["Consigli"] ?? []);
+
 
     return WillPopScope(
       onWillPop: () async {
@@ -245,7 +254,8 @@ await _sendResultsByEmail(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ============================================================
+
+// ============================================================
 // 🔹 Immagini cliccabili → apertura full-screen con swipe
 // ============================================================
 Row(
