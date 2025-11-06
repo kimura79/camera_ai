@@ -472,10 +472,11 @@ if (resultData!["aree_specifiche"] != null) ...[
     );
   }
 
-    // ============================================================
-  // 🔹 CARD CON I CONSIGLI (REFERTI)
-  // ============================================================
-  Widget _buildRefertiCard(List<String> consigli) {
+// ============================================================
+// 🔹 CARD CON I CONSIGLI (REFERTI CLINICI — ❕STILE iOS SOFT)
+// ============================================================
+Widget _buildRefertiCard(List<String> consigli) {
+  if (consigli.isEmpty) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -489,36 +490,99 @@ if (resultData!["aree_specifiche"] != null) ...[
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: consigli.map((txt) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "❗ ",
-                  style: TextStyle(color: Colors.redAccent, fontSize: 18),
-                ),
-                Expanded(
-                  child: Text(
-                    txt,
-                    style: GoogleFonts.montserrat(
-                      fontSize: 15,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+      child: Text(
+        "Nessun referto disponibile per questa analisi.",
+        style: GoogleFonts.montserrat(
+          fontSize: 15,
+          color: Colors.black54,
+          fontStyle: FontStyle.italic,
+        ),
       ),
     );
   }
 
-  // ============================================================
+  // 🔹 Etichette cliniche standard
+  final List<String> etichette = [
+    "Stato generale della pelle",
+    "Analisi dominante e secondaria",
+    "Obiettivi dermocosmetici",
+    "Principi attivi consigliati",
+    "Routine suggerita",
+    "Consigli professionali",
+  ];
+
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 10,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(consigli.length, (i) {
+        final titolo = i < etichette.length ? etichette[i] : "Dettaglio ${i + 1}";
+        final testo = consigli[i]
+            .replaceAll(RegExp(r'^\*\*.*?\*\*\n?'), '') // rimuove eventuali doppie intestazioni "**Titolo**"
+            .trim();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2, right: 8),
+                child: Text(
+                  "❕", // ❕ punto esclamativo cerchiato, stile soft
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titolo,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      testo,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 15,
+                        color: Colors.black87,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    ),
+  );
+}
+
+// ============================================================
 // 🔹 RIGA VALORI “AREE SPECIFICHE”
 // ============================================================
 Widget _buildAreaRow(String label, String value) {
@@ -527,20 +591,27 @@ Widget _buildAreaRow(String label, String value) {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: GoogleFonts.montserrat(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87)),
-        Text(value,
-            style: GoogleFonts.montserrat(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1A73E8))),
+        Text(
+          label,
+          style: GoogleFonts.montserrat(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.montserrat(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1A73E8),
+          ),
+        ),
       ],
     ),
   );
 }
+
 
 
   // ============================================================
