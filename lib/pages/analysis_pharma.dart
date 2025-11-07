@@ -491,7 +491,6 @@ Widget _buildRefertiCard(List<String> consigli) {
   // 🔹 Etichette cliniche standard
   final List<String> etichette = [
     "Stato generale della pelle",
-    "Analisi dominante e secondaria",
     "Obiettivi dermocosmetici",
     "Principi attivi consigliati",
     "Routine suggerita",
