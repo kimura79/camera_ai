@@ -23,7 +23,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   Map<String, dynamic>? resultData;
   File? overlayFile;
 
-  final String serverUrl = "https://poetry-cyber-news-raleigh.trycloudflare.com/";
+  final String serverUrl = "https://poetry-cyber-news-raleigh.trycloudflare.com";
 
   @override
   void initState() {
