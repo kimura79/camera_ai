@@ -27,7 +27,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final List<String> _serverUrls = ["https://poetry-cyber-news-raleigh.trycloudflare.com"];
+  final List<String> _serverUrls = ["https://arnold-cached-horizon-bali.trycloudflare.com"];
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
