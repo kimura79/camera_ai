@@ -256,46 +256,33 @@ final List<String> consigli =
             children: [
 
 // ============================================================
-// 🔹 Immagini cliccabili → apertura full-screen con swipe
+// 🖼️ Overlay a schermo intero (senza immagine originale)
 // ============================================================
-Row(
-  children: [
-    Expanded(
-      child: GestureDetector(
-        onTap: () {
-          _showFullScreenImage(File(widget.imagePath), "Immagine originale");
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.file(
-            File(widget.imagePath),
-            height: 200,
+GestureDetector(
+  onTap: () {
+    if (overlayFile != null) {
+      _showFullScreenImage(overlayFile!, "Overlay analisi");
+    }
+  },
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: overlayFile != null
+        ? Image.file(
+            overlayFile!,
+            width: double.infinity,
             fit: BoxFit.cover,
+          )
+        : Container(
+            height: 250,
+            color: Colors.grey.shade200,
+            child: const Center(
+              child: Text(
+                "Nessun overlay disponibile",
+                style: TextStyle(color: Colors.black54, fontSize: 16),
+              ),
+            ),
           ),
-        ),
-      ),
-    ),
-    const SizedBox(width: 10),
-    Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (overlayFile != null) {
-            _showFullScreenImage(overlayFile!, "Overlay analisi");
-          }
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: overlayFile != null
-              ? Image.file(overlayFile!, height: 200, fit: BoxFit.cover)
-              : Container(
-                  height: 200,
-                  color: Colors.grey.shade200,
-                  child: const Center(child: Text("Nessun overlay")),
-                ),
-        ),
-      ),
-    ),
-  ],
+  ),
 ),
 
 
@@ -504,6 +491,7 @@ Widget _buildRefertiCard(List<String> consigli) {
   // 🔹 Etichette cliniche standard
   final List<String> etichette = [
     "Stato generale della pelle",
+    "Analisi dominante e secondaria",
     "Obiettivi dermocosmetici",
     "Principi attivi consigliati",
     "Routine suggerita",
@@ -533,50 +521,52 @@ Widget _buildRefertiCard(List<String> consigli) {
             .trim();
 
         return Padding(
-  padding: const EdgeInsets.only(bottom: 14),
-  child: Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // 🔴 Punto esclamativo rosso nativo
-      Padding(
-        padding: const EdgeInsets.only(top: 4, right: 8),
-        child: Text(
-          "❗", // Punto esclamativo rosso
-          style: const TextStyle(
-            fontSize: 22,   // ✏️ puoi regolarla (es. 20–24)
-            height: 1.3,    // ✏️ per allineamento verticale
-          ),
-        ),
-      ),
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+               padding: const EdgeInsets.only(top: 4, right: 8),
+               child: Text(
+               "❗", // 🔴 Punto esclamativo rosso
+               style: const TextStyle(
+                fontSize: 22,   // puoi regolare (es. 20–24)
+                height: 1.3,    // allineamento verticale
+                ),
+               ),
+              ),
 
-      // 🩶 Testo del blocco (titolo + contenuto)
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              titolo,
-              style: GoogleFonts.montserrat(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titolo,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      testo,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 15,
+                        color: Colors.black87,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              testo,
-              style: GoogleFonts.montserrat(
-                fontSize: 15,
-                color: Colors.black87,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  ),
-);
+            ],
+          ),
+        );
+      }),
+    ),
+  );
+}
 
 // ============================================================
 // 🔹 RIGA VALORI “AREE SPECIFICHE”
