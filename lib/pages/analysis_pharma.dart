@@ -504,7 +504,6 @@ Widget _buildRefertiCard(List<String> consigli) {
   // 🔹 Etichette cliniche standard
   final List<String> etichette = [
     "Stato generale della pelle",
-    "Analisi dominante e secondaria",
     "Obiettivi dermocosmetici",
     "Principi attivi consigliati",
     "Routine suggerita",
@@ -538,18 +537,17 @@ Widget _buildRefertiCard(List<String> consigli) {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 2, right: 8),
+              cPadding(
+               padding: const EdgeInsets.only(top: 2, right: 8),
                 child: Text(
-                  "❕", // ❕ punto esclamativo cerchiato, stile soft
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    height: 1.4,
+                 "❗", // 🔴 Punto esclamativo rosso nativo
+                  style: const TextStyle(
+                   fontSize: 22,   // ✏️ puoi regolarla (es. 20–24)
+                    height: 1.3,    // ✏️ per allineamento verticale
+                    ),
+                   ),
                   ),
-                ),
-              ),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
