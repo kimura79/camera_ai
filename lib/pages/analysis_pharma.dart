@@ -533,52 +533,50 @@ Widget _buildRefertiCard(List<String> consigli) {
             .trim();
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              cPadding(
-               padding: const EdgeInsets.only(top: 2, right: 8),
-                child: Text(
-                 "❗", // 🔴 Punto esclamativo rosso nativo
-                  style: const TextStyle(
-                   fontSize: 22,   // ✏️ puoi regolarla (es. 20–24)
-                    height: 1.3,    // ✏️ per allineamento verticale
-                    ),
-                   ),
-                  ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titolo,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      testo,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 15,
-                        color: Colors.black87,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+  padding: const EdgeInsets.only(bottom: 14),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // 🔴 Punto esclamativo rosso nativo
+      Padding(
+        padding: const EdgeInsets.only(top: 4, right: 8),
+        child: Text(
+          "❗", // Punto esclamativo rosso
+          style: const TextStyle(
+            fontSize: 22,   // ✏️ puoi regolarla (es. 20–24)
+            height: 1.3,    // ✏️ per allineamento verticale
           ),
-        );
-      }),
-    ),
-  );
-}
+        ),
+      ),
+
+      // 🩶 Testo del blocco (titolo + contenuto)
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              titolo,
+              style: GoogleFonts.montserrat(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              testo,
+              style: GoogleFonts.montserrat(
+                fontSize: 15,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+);
 
 // ============================================================
 // 🔹 RIGA VALORI “AREE SPECIFICHE”
