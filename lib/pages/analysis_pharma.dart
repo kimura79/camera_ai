@@ -23,7 +23,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   Map<String, dynamic>? resultData;
   File? overlayFile;
 
-  final String serverUrl = "https://ai.epidermys.com";
+  final String serverUrl = "https://geo-referring-smile-thing.trycloudflare.com";
 
   @override
   void initState() {
