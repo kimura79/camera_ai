@@ -46,48 +46,60 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     super.dispose();
   }
 
-  // ============================================================
-  // 🔹 Controlla che il server farmacia sia online
-  // ============================================================
-  Future<void> _checkServer() async {
-    for (final url in _serverUrls) {
-      try {
-        final resp = await http
-            .get(Uri.parse("$url/status"))
-            .timeout(const Duration(seconds: 4));
-        if (resp.statusCode == 200 &&
-            jsonDecode(resp.body)["status"].toString().toLowerCase() == "ok") {
-          setState(() {
-            _serverReady = true;
-            _activeServer = url;
-            _showServerStatus = true;
-          });
-          // Nasconde il messaggio dopo 1 secondo
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-              setState(() => _showServerStatus = false);
-            }
-          });
-          return;
-        }
-      } catch (_) {}
+// ============================================================
+// 🔹 Controlla che il server farmacia sia online (VPS ai.epidermys.com)
+// ============================================================
+Future<void> _checkServer() async {
+  const serverUrl = "https://ai.epidermys.com"; // ✅ dominio VPS
+
+  try {
+    final resp = await http
+        .get(Uri.parse("$serverUrl/status"))
+        .timeout(const Duration(seconds: 4));
+
+    if (resp.statusCode == 200 &&
+        jsonDecode(resp.body)["status"].toString().toLowerCase() == "ok") {
+      setState(() {
+        _serverReady = true;
+        _activeServer = serverUrl;
+        _showServerStatus = true;
+      });
+
+      debugPrint("✅ Server online: $serverUrl");
+
+      // Nasconde messaggio dopo 1s
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) setState(() => _showServerStatus = false);
+      });
+      return;
+    } else {
+      debugPrint("⚠️ Server risponde ma non OK: ${resp.statusCode}");
     }
-    setState(() {
-      _serverReady = false;
-      _showServerStatus = true;
-    });
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() => _showServerStatus = false);
-      }
-    });
-    _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
+  } catch (e) {
+    debugPrint("❌ Server non raggiungibile: $e");
   }
 
-  // ============================================================
-// 🔹 Invia immagine al server (nuovo endpoint asincrono, con retry libero)
+  // Se non ha risposto correttamente
+  setState(() {
+    _serverReady = false;
+    _showServerStatus = true;
+  });
+
+  debugPrint("🚨 Server offline, nuovo tentativo tra 5s...");
+
+  Future.delayed(const Duration(seconds: 1), () {
+    if (mounted) setState(() => _showServerStatus = false);
+  });
+
+  // Ritenta dopo 5 secondi
+  _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
+}
+
+// ============================================================
+// 🔹 Invia immagine al server (endpoint asincrono con retry)
 // ============================================================
 Future<void> _uploadAndAnalyze() async {
+  // Verifica che il server sia pronto
   if (!_serverReady || _activeServer.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -99,15 +111,15 @@ Future<void> _uploadAndAnalyze() async {
 
   setState(() {
     _loading = true;
-    _progress = 0.02;
+    _progress = 0.05;
   });
 
   try {
     final uri = Uri.parse("$_activeServer/upload_async/farmacia");
-    final request = http.MultipartRequest('POST', uri);
-    request.files.add(
-      await http.MultipartFile.fromPath('file', widget.imagePath),
-    );
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', widget.imagePath));
+
+    debugPrint("📤 Invio immagine al server: $_activeServer");
 
     final response = await request.send();
     final respStr = await response.stream.bytesToString();
@@ -116,24 +128,25 @@ Future<void> _uploadAndAnalyze() async {
       final jsonResp = jsonDecode(respStr);
       final jobId = jsonResp["job_id"];
       if (jobId == null) throw Exception("job_id non ricevuto dal server");
-      await _pollJob(jobId);
+
       debugPrint("🚀 Job inviato con ID: $jobId");
+      await _pollJob(jobId);
     } else {
       throw Exception("Errore server (${response.statusCode}): $respStr");
     }
   } catch (e) {
-    debugPrint("❌ Errore analisi farmacia: $e");
+    debugPrint("❌ Errore durante l’analisi farmacia: $e");
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Errore durante l’analisi: $e"),
+          content: Text("❌ Errore durante l’analisi: $e"),
           backgroundColor: Colors.redAccent,
           duration: const Duration(seconds: 3),
         ),
       );
     }
   } finally {
-    // ✅ Sempre ripristina stato per permettere di riprovare
+    // ✅ Ripristina sempre lo stato per consentire retry
     if (mounted) {
       setState(() {
         _loading = false;
@@ -143,6 +156,7 @@ Future<void> _uploadAndAnalyze() async {
     }
   }
 }
+
 
 
   // ============================================================
