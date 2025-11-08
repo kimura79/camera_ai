@@ -27,7 +27,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://ai.epidermys.com";
+  final String serverUrl = "https://geo-referring-smile-thing.trycloudflare.com";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -47,10 +47,10 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   }
 
 // ============================================================
-// 🔹 Controlla che il server farmacia sia online (VPS ai.epidermys.com)
+// 🔹 Controlla che il server farmacia sia online 
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://ai.epidermys.com"; // ✅ dominio VPS
+  const serverUrl = "https://geo-referring-smile-thing.trycloudflare.com"; // ✅ Cloudflare Tunnel
 
   try {
     final resp = await http
