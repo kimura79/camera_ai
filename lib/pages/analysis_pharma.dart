@@ -331,6 +331,37 @@ body: SingleChildScrollView(
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
       // ============================================================
+// 🖼️ OVERLAY ANALISI — Anteprima tappabile (Lovable style)
+// ============================================================
+GestureDetector(
+  onTap: () {
+    if (overlayFile != null) {
+      _showFullScreenImage(overlayFile!, "Overlay analisi");
+    }
+  },
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: overlayFile != null
+        ? Image.file(
+            overlayFile!,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          )
+        : Container(
+            height: 250,
+            color: Colors.grey.shade200,
+            child: const Center(
+              child: Text(
+                "Nessun overlay disponibile",
+                style: TextStyle(color: Colors.black54, fontSize: 16),
+              ),
+            ),
+          ),
+  ),
+),
+const SizedBox(height: 25),
+
+      // ============================================================
       // 🟢 RISULTATO COMPLESSIVO — Gauge circolare
       // ============================================================
       Container(
