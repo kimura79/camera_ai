@@ -1,3 +1,7 @@
+// ============================================================
+// 🧠 AnalysisPharmaPage — Sezione iniziale aggiornata
+// ============================================================
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -20,10 +24,16 @@ class AnalysisPharmaPage extends StatefulWidget {
 }
 
 class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
+  // ============================================================
+  // 🔹 VARIABILI PRINCIPALI
+  // ============================================================
   Map<String, dynamic>? resultData;
   File? overlayFile;
 
-  final String serverUrl = "https://primary-electricity-shore-scene.trycloudflare.com";
+  // 🔹 URL del server AI (Cloudflare Tunnel attivo)
+  // puoi sostituire con ai.epidermys.com se usi DNS dedicato
+  final String serverUrl =
+      "https://primary-electricity-shore-scene.trycloudflare.com";
 
   @override
   void initState() {
@@ -37,23 +47,44 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     super.dispose();
   }
 
+  // ============================================================
+  // ❌ CANCELLAZIONE JOB SINGOLO
+  // ============================================================
   Future<void> _cancelJob() async {
     if (widget.jobId == null) return;
     try {
-      await http.post(Uri.parse('$serverUrl/cancel_job/${widget.jobId}'));
+      final uri = Uri.parse('$serverUrl/cancel_job/${widget.jobId}');
+      final res = await http.post(uri);
+      if (res.statusCode == 200) {
+        debugPrint("🧹 Job ${widget.jobId} annullato correttamente.");
+      } else {
+        debugPrint("⚠️ Errore durante cancellazione job (${res.statusCode})");
+      }
     } catch (e) {
-      debugPrint("⚠️ Errore cancellazione job: $e");
+      debugPrint("❌ Errore cancellazione job: $e");
     }
   }
 
+  // ============================================================
+  // ❌ CANCELLAZIONE DI TUTTI I JOB ATTIVI
+  // ============================================================
   Future<void> _cancelAllJobs() async {
     try {
-      await http.post(Uri.parse('$serverUrl/cancel_all_jobs'));
+      final uri = Uri.parse('$serverUrl/cancel_all_jobs');
+      final res = await http.post(uri);
+      if (res.statusCode == 200) {
+        debugPrint("🧹 Tutti i job attivi cancellati correttamente.");
+      } else {
+        debugPrint("⚠️ Errore cancellazione globale job (${res.statusCode})");
+      }
     } catch (e) {
-      debugPrint("⚠️ Errore cancellazione globale job: $e");
+      debugPrint("❌ Errore cancellazione globale job: $e");
     }
   }
 
+  // ============================================================
+  // 📂 CARICAMENTO RISULTATI ANALISI + OVERLAY
+  // ============================================================
   Future<void> _loadResultData() async {
     try {
       final dir = await getTemporaryDirectory();
@@ -61,11 +92,19 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
       final overlay = File("${dir.path}/overlay_farmacia.png");
 
       if (await jsonFile.exists()) {
-        final data = jsonDecode(await jsonFile.readAsString());
+        final jsonContent = await jsonFile.readAsString();
+        final data = jsonDecode(jsonContent);
         setState(() => resultData = data);
+        debugPrint("✅ Dati analisi caricati con successo (${jsonFile.path})");
+      } else {
+        debugPrint("⚠️ Nessun file 'result_farmacia.json' trovato.");
       }
+
       if (await overlay.exists()) {
         setState(() => overlayFile = overlay);
+        debugPrint("🖼️ Overlay caricato correttamente (${overlay.path})");
+      } else {
+        debugPrint("⚠️ Nessun overlay trovato in ${overlay.path}");
       }
     } catch (e) {
       debugPrint("❌ Errore caricamento dati farmacia: $e");
@@ -199,265 +238,528 @@ await _sendResultsByEmail(
     }
   }
 
-  // ==========================================================
-  // UI PRINCIPALE
-  // ==========================================================
-  @override
-  Widget build(BuildContext context) {
-    if (resultData == null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FBFF),
-        body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF1A73E8)),
-        ),
-      );
-    }
+// ==========================================================
+// UI PRINCIPALE — Versione Lovable.dev aggiornata
+// ==========================================================
+@override
+Widget build(BuildContext context) {
+  if (resultData == null) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F8FC),
+      body: const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1A73E8)),
+      ),
+    );
+  }
 
-final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
-final Map<String, dynamic> indici =
-    Map<String, dynamic>.from(resultData!["indici"] ?? {});
-final double scorePercent = (score * 100).clamp(0, 100);
+  final double score = (resultData!["score_generale"] ?? 0.0).toDouble();
+  final Map<String, dynamic> indici =
+      Map<String, dynamic>.from(resultData!["indici"] ?? {});
+  final double scorePercent = (score * 100).clamp(0, 100);
 
-// 🔹 Lettura blocco "Referti" dal server Python
-final Map<String, dynamic> referti =
-    Map<String, dynamic>.from(resultData!["Referti"] ?? {});
+  // 🔹 Lettura blocco "Referti" dal server Python
+  final Map<String, dynamic> referti =
+      Map<String, dynamic>.from(resultData!["Referti"] ?? {});
 
-// Estraggo i campi con fallback sicuro
-final String tipoPelle = referti["Tipo_pelle"] ?? "Normale / Equilibrata";
-final String dominante = referti["Dominante"] ?? "-";
-final String secondario = referti["Secondario"] ?? "-";
-final List<String> consigli =
-    List<String>.from(referti["Consigli"] ?? []);
+  final String tipoPelle = referti["Tipo_pelle"] ?? "Normale / Equilibrata";
+  final String dominante = referti["Dominante"] ?? "-";
+  final String secondario = referti["Secondario"] ?? "-";
+  final List<String> consigli =
+      List<String>.from(referti["Consigli"] ?? []);
 
-
-    return WillPopScope(
-      onWillPop: () async {
-        await _cancelJob();
-        return true;
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FBFF),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF1A73E8),
-          title: const Text("Analisi della Pelle"),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              await _cancelJob();
-              Navigator.pop(context);
-            },
+  return WillPopScope(
+    onWillPop: () async {
+      await _cancelJob();
+      return true;
+    },
+    child: Scaffold(
+      backgroundColor: const Color(0xFFF6F8FC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          "Analisi della Pelle",
+          style: GoogleFonts.montserrat(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () async {
+            await _cancelJob();
+            Navigator.pop(context);
+          },
+        ),
+      ),
 
+ // ============================================================
+// 🩵 BODY — Layout Lovable.dev
 // ============================================================
-// 🖼️ Overlay a schermo intero (senza immagine originale)
-// ============================================================
-GestureDetector(
-  onTap: () {
-    if (overlayFile != null) {
-      _showFullScreenImage(overlayFile!, "Overlay analisi");
-    }
-  },
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(16),
-    child: overlayFile != null
-        ? Image.file(
-            overlayFile!,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          )
-        : Container(
-            height: 250,
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: Text(
-                "Nessun overlay disponibile",
-                style: TextStyle(color: Colors.black54, fontSize: 16),
+body: SingleChildScrollView(
+  padding: const EdgeInsets.all(20),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      // ============================================================
+      // 🟢 RISULTATO COMPLESSIVO — Gauge circolare
+      // ============================================================
+      Container(
+        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "Risultato Complessivo",
+              style: GoogleFonts.montserrat(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
               ),
             ),
+            const SizedBox(height: 20),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 160,
+                  height: 160,
+                  child: CircularProgressIndicator(
+                    value: scorePercent / 100,
+                    strokeWidth: 12,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        _colore(scorePercent / 100)),
+                  ),
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      scorePercent.toStringAsFixed(0),
+                      style: GoogleFonts.montserrat(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w800,
+                        color: _colore(scorePercent / 100),
+                      ),
+                    ),
+                    Text(
+                      "/ 100",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        color: Colors.black45,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Salute della Pelle",
+              style: GoogleFonts.montserrat(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
+              decoration: BoxDecoration(
+                color: _colore(scorePercent / 100).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _giudizio(scorePercent / 100),
+                style: GoogleFonts.montserrat(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: _colore(scorePercent / 100),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              tipoPelle,
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      const SizedBox(height: 25),
+
+      // ============================================================
+      // 📈 PUNTO DI FORZA / DA MIGLIORARE
+      // ============================================================
+      Builder(
+        builder: (context) {
+          if (indici.isEmpty) return const SizedBox.shrink();
+
+          final sorted = indici.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          final best = sorted.first;
+          final worst = sorted.last;
+
+          return Column(
+            children: [
+              _buildInfoCard(
+                titolo: "Punto di Forza",
+                sottotitolo: best.key,
+                descrizione:
+                    "Eccellente con ${(best.value * 100).toStringAsFixed(0)}%",
+                colore: const Color(0xFFB7EFC5),
+                icona: Icons.trending_up,
+                positivo: true,
+              ),
+              const SizedBox(height: 10),
+              _buildInfoCard(
+                titolo: "Da Migliorare",
+                sottotitolo: worst.key,
+                descrizione:
+                    "Richiede attenzione (${(worst.value * 100).toStringAsFixed(0)}%)",
+                colore: const Color(0xFFFAD0D0),
+                icona: Icons.trending_down,
+                positivo: false,
+              ),
+            ],
+          );
+        },
+      ),
+
+      const SizedBox(height: 30),
+
+      // ============================================================
+      // 📊 ANALISI DETTAGLIATA + AREE SPECIFICHE + REFERTI
+      // ============================================================
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          "Analisi Dettagliata per Parametro",
+          style: GoogleFonts.montserrat(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ✅ Contenuti completi (barre, aree, referti, pulsanti)
+      ..._buildContentSection(resultData!, indici, consigli),
+    ],
   ),
 ),
 
 
-              const SizedBox(height: 25),
-              Text(
-                "Punteggio Complessivo",
-                style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                scorePercent.toStringAsFixed(0),
-                style: GoogleFonts.montserrat(
-                    fontSize: 64,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1A73E8)),
-              ),
-              Text("Salute della pelle",
-                  style: GoogleFonts.montserrat(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54)),
-              const SizedBox(height: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 6, horizontal: 18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFE4E9),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  tipoPelle,
-                  style: GoogleFonts.montserrat(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFE91E63)),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Analisi dei Domini Cutanei",
-                    style: GoogleFonts.montserrat(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87)),
-              ),
-              const SizedBox(height: 10),
-              ...indici.entries.map((entry) {
-                final nome = entry.key;
-                final valore = (entry.value as num).toDouble();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(nome,
-                                  style: GoogleFonts.montserrat(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87)),
-                              Text(
-                                  "${(valore * 100).toStringAsFixed(0)}%",
-                                  style: GoogleFonts.montserrat(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.green)),
-                            ]),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                            value: valore,
-                            minHeight: 10,
-                            borderRadius: BorderRadius.circular(10),
-                            backgroundColor: Colors.grey.shade300,
-                            color: const Color(0xFF1A73E8)),
-                      ]),
-                );
-              }).toList(),
-
-              // ============================================================
-// 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
 // ============================================================
-if (resultData!["aree_specifiche"] != null) ...[
-  const SizedBox(height: 30),
-  Align(
-    alignment: Alignment.centerLeft,
-    child: Text(
-      "Estensioni Aree Specifiche",
-      style: GoogleFonts.montserrat(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: Colors.black87,
-      ),
+// 🎨 Giudizio e Colori dinamici (Lovable.dev)
+// ============================================================
+String _giudizio(double v) {
+  if (v < 0.45) return "Scarso";
+  if (v < 0.70) return "Sufficiente";
+  return "Buono";
+}
+
+Color _colore(double v) {
+  if (v < 0.45) return const Color(0xFFE53935);
+  if (v < 0.70) return const Color(0xFFFFB300);
+  return const Color(0xFF43A047);
+}
+
+// ============================================================
+// 🔹 CARD “Punto di Forza” e “Da Migliorare” — Stile Lovable.dev
+// ============================================================
+Widget _buildInfoCard({
+  required String titolo,
+  required String sottotitolo,
+  required String descrizione,
+  required Color colore,
+  required IconData icona,
+  required bool positivo,
+}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 3),
+        ),
+      ],
+      border: Border.all(color: colore.withOpacity(0.4), width: 1.2),
     ),
-  ),
-  const SizedBox(height: 10),
-  _buildAreaRow("Pori", "${(resultData!["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %"),
-  _buildAreaRow("Rughe", "${(resultData!["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm"),
-  _buildAreaRow("Macchie pigmentarie", "${(resultData!["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %"),
-  _buildAreaRow("Aree vascolari (Red Areas)", "${(resultData!["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %"),
-],
-
-
-              const SizedBox(height: 40),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Raccomandazioni Personalizzate",
-                    style: GoogleFonts.montserrat(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87)),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: colore.withOpacity(0.25),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icona,
+            color: positivo ? Colors.green[700] : Colors.red[700],
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titolo,
+                style: GoogleFonts.montserrat(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: positivo ? Colors.green[700] : Colors.red[700],
+                ),
               ),
-              const SizedBox(height: 4),
-              Text("Formula skincare suggerita per te",
-                  style: GoogleFonts.montserrat(
-                      fontSize: 14, color: Colors.black54)),
-              const SizedBox(height: 12),
-              _buildRefertiCard(consigli),
-              const SizedBox(height: 40),
-
-              // 🔹 Pulsanti finali
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF1A73E8)),
-                        minimumSize:
-                            const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(12))),
-                    onPressed: () async {
-                      await _cancelJob();
-                      Navigator.pop(context);
-                    },
-                    child: Text("Nuova Analisi",
-                        style: GoogleFonts.montserrat(
-                            color: const Color(0xFF1A73E8),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600)),
-                  ),
+              const SizedBox(height: 2),
+              Text(
+                sottotitolo,
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A73E8),
-                        minimumSize:
-                            const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(12))),
-                    onPressed: _showSendMailDialog, // ✅ nuovo invio email
-                    child: Text("Invia per Mail",
-                        style: GoogleFonts.montserrat(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600)),
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                descrizione,
+                style: GoogleFonts.montserrat(
+                  fontSize: 14,
+                  color: Colors.black54,
                 ),
-              ]),
-              const SizedBox(height: 20),
+              ),
             ],
           ),
         ),
+      ],
+    ),
+  );
+}
+
+
+// ============================================================
+// 🔹 CARD PARAMETRICA — Barre e giudizio
+// ============================================================
+Widget _buildParamCard(String titolo, double valore) {
+  final colore = _colore(valore);
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: colore.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              titolo,
+              style: GoogleFonts.montserrat(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            Text(
+              "${(valore * 100).toStringAsFixed(0)} / 100",
+              style: GoogleFonts.montserrat(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: colore,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: valore,
+          minHeight: 10,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(colore),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _giudizio(valore),
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: colore,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ============================================================
+// 🔹 BLOCCO CONTENUTO PAGINA RISULTATI (AREE + REFERTI + PULSANTI)
+// ============================================================
+List<Widget> _buildContentSection(
+  Map<String, dynamic> resultData,
+  Map<String, dynamic> indici,
+  List<String> consigli,
+) {
+  return [
+    ...indici.entries
+        .map((e) => _buildParamCard(e.key, (e.value as num).toDouble()))
+        .toList(),
+
+    const SizedBox(height: 40),
+
+    // ============================================================
+    // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
+    // ============================================================
+    if (resultData["aree_specifiche"] != null) ...[
+      const SizedBox(height: 30),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          "Estensioni Aree Specifiche",
+          style: GoogleFonts.montserrat(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
       ),
-    );
-  }
+      const SizedBox(height: 10),
+      _buildAreaRow(
+        "Pori",
+        "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
+      ),
+      _buildAreaRow(
+        "Rughe",
+        "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
+      ),
+      _buildAreaRow(
+        "Macchie pigmentarie",
+        "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
+      ),
+      _buildAreaRow(
+        "Aree vascolari (Red Areas)",
+        "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
+      ),
+    ],
+
+    const SizedBox(height: 40),
+
+    // ============================================================
+    // 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
+    // ============================================================
+    Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        "Raccomandazioni Personalizzate",
+        style: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+    ),
+    const SizedBox(height: 4),
+    Text(
+      "Formula skincare suggerita per te",
+      style: GoogleFonts.montserrat(
+        fontSize: 14,
+        color: Colors.black54,
+      ),
+    ),
+    const SizedBox(height: 12),
+    _buildRefertiCard(consigli),
+
+    const SizedBox(height: 40),
+
+    // ============================================================
+    // 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
+    // ============================================================
+    Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF1A73E8)),
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () async {
+              await _cancelJob();
+              Navigator.pop(context);
+            },
+            child: Text(
+              "Nuova Analisi",
+              style: GoogleFonts.montserrat(
+                color: const Color(0xFF1A73E8),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A73E8),
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _showSendMailDialog, // ✅ nuovo invio email
+            child: Text(
+              "Invia per Mail",
+              style: GoogleFonts.montserrat(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+
+    const SizedBox(height: 20),
+  ];
+}
+
 
 // ============================================================
 // 🔹 CARD CON I CONSIGLI (REFERTI CLINICI — ❕STILE iOS SOFT)
