@@ -497,6 +497,10 @@ body: SingleChildScrollView(
   ),
 ),
 
+    ), // 🔹 chiude Scaffold
+  );   // 🔹 chiude WillPopScope
+}      // 🔹 chiude il metodo build()
+
 
 // ============================================================
 // 🎨 Giudizio e Colori dinamici (Lovable.dev)
