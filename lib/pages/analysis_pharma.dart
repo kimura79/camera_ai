@@ -111,27 +111,31 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     }
   }
 
-  // ==========================================================
-  // 📨 INVIO EMAIL
-  // ==========================================================
-  Future<void> _showSendMailDialog() async {
-    final TextEditingController nomeCtrl = TextEditingController();
-    final TextEditingController emailCtrl = TextEditingController();
-    bool autorizzazioneGDPR = false;
-    bool autorizzazioneCommerciale = false;
+// ==========================================================
+// 📨 INVIO EMAIL
+// ==========================================================
+Future<void> _showSendMailDialog() async {
+  final TextEditingController nomeCtrl = TextEditingController();
+  final TextEditingController emailCtrl = TextEditingController();
+  bool autorizzazioneGDPR = false;
+  bool autorizzazioneCommerciale = false;
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(builder: (context, setStateDialog) {
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setStateDialog) {
           return AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Text(
               "Invia risultati via email",
               style: GoogleFonts.montserrat(
-                  fontSize: 18, fontWeight: FontWeight.w600),
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             content: SingleChildScrollView(
               child: Column(
@@ -149,18 +153,22 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
                   const SizedBox(height: 10),
                   CheckboxListTile(
                     value: autorizzazioneGDPR,
-                    onChanged: (v) =>
-                        setStateDialog(() => autorizzazioneGDPR = v ?? false),
+                    onChanged: (v) => setStateDialog(
+                      () => autorizzazioneGDPR = v ?? false,
+                    ),
                     title: const Text(
-                        "Autorizzo il trattamento dei dati personali ai sensi del GDPR"),
+                      "Autorizzo il trattamento dei dati personali ai sensi del GDPR",
+                    ),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                   CheckboxListTile(
                     value: autorizzazioneCommerciale,
                     onChanged: (v) => setStateDialog(
-                        () => autorizzazioneCommerciale = v ?? false),
+                      () => autorizzazioneCommerciale = v ?? false,
+                    ),
                     title: const Text(
-                        "Acconsento a ricevere comunicazioni informative e commerciali"),
+                      "Acconsento a ricevere comunicazioni informative e commerciali",
+                    ),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                 ],
@@ -174,69 +182,89 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
               ElevatedButton(
                 onPressed: () async {
                   if (nomeCtrl.text.isEmpty ||
-    emailCtrl.text.isEmpty ||
-    !autorizzazioneGDPR) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text("Compila tutti i campi e accetta il consenso GDPR."),
-    ),
-  );
-  return;
-}
+                      emailCtrl.text.isEmpty ||
+                      !autorizzazioneGDPR) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Compila tutti i campi e accetta il consenso GDPR.",
+                        ),
+                      ),
+                    );
+                    return;
+                  }
 
-Navigator.pop(context);
-await _sendResultsByEmail(
-  nomeCtrl.text,
-  emailCtrl.text,
-  autorizzazioneGDPR,
-  autorizzazioneCommerciale,
-);
-
+                  Navigator.pop(context);
+                  await _sendResultsByEmail(
+                    nomeCtrl.text,
+                    emailCtrl.text,
+                    autorizzazioneGDPR,
+                    autorizzazioneCommerciale,
+                  );
                 },
                 child: const Text("Invia"),
               ),
             ],
           );
-        });
-      },
+        },
+      );
+    },
+  );
+}
+
+Future<void> _sendResultsByEmail(
+  String nome,
+  String email,
+  bool gdpr,
+  bool commerciale,
+) async {
+  try {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$serverUrl/send_mail_farmacia'),
+    );
+    req.fields['nome'] = nome;
+    req.fields['email'] = email;
+    req.fields['gdpr'] = gdpr.toString();
+    req.fields['commerciale'] = commerciale.toString();
+
+    if (widget.jobId != null) {
+      req.fields['job_id'] = widget.jobId!;
+    }
+
+    if (resultData != null) {
+      req.fields['result'] = jsonEncode(resultData);
+    }
+
+    if (overlayFile != null) {
+      req.files.add(
+        await http.MultipartFile.fromPath('overlay', overlayFile!.path),
+      );
+    }
+
+    final resp = await req.send();
+    if (resp.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("📧 Email inviata correttamente all’utente."),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ Errore invio email: ${resp.statusCode}"),
+        ),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("❌ Errore durante l’invio: $e"),
+      ),
     );
   }
+}
 
-  Future<void> _sendResultsByEmail(
-    String nome,
-    String email,
-    bool gdpr,
-    bool commerciale,
-  ) async {
-    try {
-      final req = http.MultipartRequest(
-          'POST', Uri.parse('$serverUrl/send_mail_farmacia'));
-      req.fields['nome'] = nome;
-      req.fields['email'] = email;
-      req.fields['gdpr'] = gdpr.toString();
-      req.fields['commerciale'] = commerciale.toString();
-      if (widget.jobId != null) req.fields['job_id'] = widget.jobId!;
-      if (resultData != null) {
-        req.fields['result'] = jsonEncode(resultData);
-      }
-      if (overlayFile != null) {
-        req.files.add(await http.MultipartFile.fromPath(
-            'overlay', overlayFile!.path));
-      }
-
-      final resp = await req.send();
-      if (resp.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("📧 Email inviata correttamente all’utente.")));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text("❌ Errore invio email: ${resp.statusCode}")));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Errore durante l’invio: $e")));
-    }
-  }
 
 // ==========================================================
 // UI PRINCIPALE — Versione Lovable.dev aggiornata
