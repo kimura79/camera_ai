@@ -631,9 +631,9 @@ Widget _buildInfoCard({
 
 
 // ============================================================
-// 🔹 CARD PARAMETRICA — Barre e giudizio
+// 🔹 CARD PARAMETRICA — Barre, giudizio e supporto Età Biologica
 // ============================================================
-Widget _buildParamCard(String titolo, double valore) {
+Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
   final colore = _colore(valore);
   return Container(
     width: double.infinity,
@@ -674,6 +674,20 @@ Widget _buildParamCard(String titolo, double valore) {
           backgroundColor: Colors.grey.shade200,
           valueColor: AlwaysStoppedAnimation<Color>(colore),
         ),
+
+        // 🔹 Età Biologica: mostra gli anni sotto la barra
+        if (etaReale != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            "Età stimata: ${etaReale.toStringAsFixed(0)} anni",
+            style: GoogleFonts.montserrat(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+
         const SizedBox(height: 4),
         Text(
           _giudizio(valore),
@@ -725,25 +739,31 @@ const SizedBox(height: 14),
 // 🔹 Vitalità (energia e ossigenazione)
 _buildParamCard(
   "Vitalità Cutanea",
-  (resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble(),
+  ((resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
 ),
 
 // 🔹 Glow naturale (luminosità percepita)
 _buildParamCard(
   "Glow Naturale",
-  (resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble(),
+  ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
 ),
 
 // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
 _buildParamCard(
   "Stress Cutaneo",
-  (1.0 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()),
+  (1.0 - ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0)),
 ),
 
-// 🔹 Età Biologica (normalizzata 0–1 per barra)
-_buildParamCard(
+// 🔹 Età Biologica (normalizzata su base 25–75)
+final double etaReale =
+    (resultData["marketing"]?["Età Biologica"] ?? 40).toDouble();
+final double etaNorm =
+    (1.0 - ((etaReale - 25.0) / 50.0)).clamp(0.0, 1.0);
+
+_buildParamCardConValore(
   "Età Biologica della Pelle",
-  (1.0 - (((resultData["marketing"]?["Età Biologica"] ?? 60).toDouble() - 25.0) / 75.0)),
+  etaNorm,
+  "${etaReale.toStringAsFixed(0)} anni",
 ),
 
 const SizedBox(height: 40),
