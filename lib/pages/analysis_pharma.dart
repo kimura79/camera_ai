@@ -664,12 +664,13 @@ Widget _buildParamCard(
   double valore, {
   double? etaReale,
   Color? colorePersonalizzato,
-  String Function(double)? giudizioPersonalizzato, // 👈 cambia qui
+  String Function(double)? giudizioPersonalizzato,
 }) {
   final colore = colorePersonalizzato ?? _colore(valore);
-  final giudizio = giudizioPersonalizzato != null
-      ? giudizioPersonalizzato(valore) // 👈 chiama la funzione
+  final String testoGiudizio = giudizioPersonalizzato != null
+      ? giudizioPersonalizzato(valore)
       : giudizio(valore);
+
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -709,8 +710,6 @@ Widget _buildParamCard(
           backgroundColor: Colors.grey.shade200,
           valueColor: AlwaysStoppedAnimation<Color>(colore),
         ),
-
-        // 🔹 Età Biologica: mostra gli anni sotto la barra
         if (etaReale != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -722,10 +721,9 @@ Widget _buildParamCard(
             ),
           ),
         ],
-
         const SizedBox(height: 4),
         Text(
-          giudizio,
+          testoGiudizio,
           style: GoogleFonts.montserrat(
             fontSize: 13,
             color: colore,
@@ -736,6 +734,7 @@ Widget _buildParamCard(
     ),
   );
 }
+
 
 // ============================================================
 // 🔹 SEZIONE INDICI CLINICI (4 BASE) + PARAMETRI AVANZATI (4)
