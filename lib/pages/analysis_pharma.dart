@@ -775,12 +775,11 @@ _buildParamCard(
 ),
 
 
-      // 🔹 Età Biologica (normalizzata su base 25–75)
-      _buildParamCard(
-        "Età Biologica della Pelle",
-        etaNorm,
-        etaReale: etaReale,
-      ),
+// 🔹 Indice di Giovinezza Cutanea (YI)
+_buildParamCard(
+  "Indice di Giovinezza Cutanea",
+  etaNorm,
+),
 
       const SizedBox(height: 40),
 
