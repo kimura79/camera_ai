@@ -752,7 +752,7 @@ Widget _buildDetailedSection(
             .clamp(0.0, 1.0),
       ),
 
-      // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
+      // 🔹 Stress Cutaneo (valore alto = pelle più stressata → barra bassa)
       _buildParamCard(
         "Stress Cutaneo",
         (1.0 -
@@ -764,8 +764,7 @@ Widget _buildDetailedSection(
       // 🔹 Indice di Giovinezza Cutanea (nuovo parametro)
       _buildParamCard(
         "Indice di Giovinezza Cutanea",
-        ((resultData["marketing"]?["Indice di Giovinezza Cutanea"] ??
-                    0.0)
+        ((resultData["marketing"]?["Indice di Giovinezza Cutanea"] ?? 0.0)
                 .toDouble())
             .clamp(0.0, 1.0),
       ),
