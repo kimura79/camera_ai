@@ -766,7 +766,7 @@ Widget _buildDetailedSection(
         ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
       ),
 
-// 🔹 Stress Cutaneo (0 = rilassato → verde, 1 = stressato → rosso)
+// 🔹 Stress Cutaneo (0 = rilassato, 1 = molto stressato)
 _buildParamCard(
   "Stress Cutaneo",
   ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
@@ -777,7 +777,7 @@ _buildParamCard(
 
 // 🔹 Indice di Giovinezza Cutanea (YI)
 _buildParamCard(
-  "Indice di Giovinezza Cutanea",
+  "Indice di Giovinezza",
   etaNorm,
 ),
 
