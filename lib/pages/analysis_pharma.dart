@@ -710,12 +710,6 @@ Widget _buildDetailedSection(
   Map<String, dynamic> resultData,
   List<String> consigli,
 ) {
-  // ✅ Calcoli logici vanno qui, fuori dal Column
-  final double etaReale =
-      (resultData["marketing"]?["Età Biologica"] ?? 40).toDouble();
-  final double etaNorm =
-      (1.0 - ((etaReale - 25.0) / 50.0)).clamp(0.0, 1.0);
-
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -745,13 +739,17 @@ Widget _buildDetailedSection(
       // 🔹 Vitalità (energia e ossigenazione)
       _buildParamCard(
         "Vitalità Cutanea",
-        ((resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+        ((resultData["marketing"]?["Vitalità Cutanea"] ?? 0.0)
+                .toDouble())
+            .clamp(0.0, 1.0),
       ),
 
       // 🔹 Glow naturale (luminosità percepita)
       _buildParamCard(
         "Glow Naturale",
-        ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+        ((resultData["marketing"]?["Glow Naturale"] ?? 0.0)
+                .toDouble())
+            .clamp(0.0, 1.0),
       ),
 
       // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
@@ -759,15 +757,17 @@ Widget _buildDetailedSection(
         "Stress Cutaneo",
         (1.0 -
                 ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
-                        .toDouble())
-                    .clamp(0.0, 1.0)),
+                        .toDouble()))
+            .clamp(0.0, 1.0),
       ),
 
-      // 🔹 Età Biologica (normalizzata su base 25–75)
+      // 🔹 Indice di Giovinezza Cutanea (nuovo parametro)
       _buildParamCard(
-        "Età Biologica della Pelle",
-        etaNorm,
-        etaReale: etaReale,
+        "Indice di Giovinezza Cutanea",
+        ((resultData["marketing"]?["Indice di Giovinezza Cutanea"] ??
+                    0.0)
+                .toDouble())
+            .clamp(0.0, 1.0),
       ),
 
       const SizedBox(height: 40),
@@ -874,7 +874,7 @@ Widget _buildDetailedSection(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _showSendMailDialog, // ✅ nuovo invio email
+              onPressed: _showSendMailDialog,
               child: Text(
                 "Invia per Mail",
                 style: GoogleFonts.montserrat(
