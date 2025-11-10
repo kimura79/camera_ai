@@ -443,7 +443,7 @@ const SizedBox(height: 25),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                _giudizio(scorePercent / 100),
+                giudizio(scorePercent / 100),
                 style: GoogleFonts.montserrat(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -548,7 +548,7 @@ Builder(
 // ============================================================
 // 🎨 Giudizio e Colori dinamici (Lovable.dev)
 // ============================================================
-String _giudizio(double v) {
+String giudizio(double v) {
   if (v < 0.45) return "Scarso";
   if (v < 0.70) return "Sufficiente";
   return "Buono";
@@ -568,7 +568,7 @@ Color _coloreStress(double v) {
 }
 
 // 🧘‍♀️ Giudizio invertito solo per Stress Cutaneo
-String _giudizioStress(double v) {
+String giudizioStress(double v) {
   if (v < 0.45) return "Buono"; // basso stress = buono
   if (v < 0.70) return "Sufficiente"; // medio stress
   return "Scarso"; // alto stress = scarso
@@ -669,7 +669,7 @@ Widget _buildParamCard(
   final colore = colorePersonalizzato ?? _colore(valore);
   final giudizio = giudizioPersonalizzato != null
       ? giudizioPersonalizzato(valore) // 👈 chiama la funzione
-      : _giudizio(valore);
+      : giudizio(valore);
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -725,7 +725,7 @@ Widget _buildParamCard(
 
         const SizedBox(height: 4),
         Text(
-          _giudizio,
+          giudizio,
           style: GoogleFonts.montserrat(
             fontSize: 13,
             color: colore,
@@ -790,16 +790,14 @@ Widget _buildDetailedSection(
       ),
 
 // 🔹 Stress Cutaneo (0 = rilassato → verde, 1 = stressato → rosso)
-final double stressValue =
-    ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble())
-        .clamp(0.0, 1.0);
-
 _buildParamCard(
   "Stress Cutaneo",
-  stressValue,
-  colorePersonalizzato: _coloreStress(stressValue),
-  giudizioPersonalizzato: _giudizioStress, // 👈 passa la funzione, non la stringa
-);
+  ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+  colorePersonalizzato: _coloreStress(
+    ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+  ),
+  giudizioPersonalizzato: giudizioStress,
+),
 
 
 
