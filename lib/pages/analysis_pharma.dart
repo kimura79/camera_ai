@@ -466,43 +466,55 @@ const SizedBox(height: 25),
 
       const SizedBox(height: 25),
 
-      // ============================================================
-      // 📈 PUNTO DI FORZA / DA MIGLIORARE
-      // ============================================================
-      Builder(
-        builder: (context) {
-          if (indici.isEmpty) return const SizedBox.shrink();
+ // ============================================================
+// ============================================================
+// 📈 PUNTO DI FORZA / DA MIGLIORARE (solo 4 indici base visibili)
+// ============================================================
+Builder(
+  builder: (context) {
+    if (indici.isEmpty) return const SizedBox.shrink();
 
-          final sorted = indici.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
-          final best = sorted.first;
-          final worst = sorted.last;
+    // ✅ Usa SOLO i 4 indici clinici principali (ignora tutto il resto)
+    final Map<String, double> baseIndici = {
+      "Elasticità": (indici["Elasticità"] ?? 0.0).toDouble(),
+      "Texture": (indici["Texture"] ?? 0.0).toDouble(),
+      "Idratazione": (indici["Idratazione"] ?? 0.0).toDouble(),
+      "Chiarezza": (indici["Chiarezza"] ?? 0.0).toDouble(),
+    };
 
-          return Column(
-            children: [
-              _buildInfoCard(
-                titolo: "Punto di Forza",
-                sottotitolo: best.key,
-                descrizione:
-                    "Eccellente con ${(best.value * 100).toStringAsFixed(0)}%",
-                colore: const Color(0xFFB7EFC5),
-                icona: Icons.trending_up,
-                positivo: true,
-              ),
-              const SizedBox(height: 10),
-              _buildInfoCard(
-                titolo: "Da Migliorare",
-                sottotitolo: worst.key,
-                descrizione:
-                    "Richiede attenzione (${(worst.value * 100).toStringAsFixed(0)}%)",
-                colore: const Color(0xFFFAD0D0),
-                icona: Icons.trending_down,
-                positivo: false,
-              ),
-            ],
-          );
-        },
-      ),
+    final sorted = baseIndici.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final best = sorted.first;
+    final worst = sorted.last;
+
+    return Column(
+      children: [
+        _buildInfoCard(
+          titolo: "Punto di Forza",
+          sottotitolo: best.key,
+          descrizione:
+              "Eccellente con ${(best.value * 100).toStringAsFixed(0)}%",
+          colore: const Color(0xFFB7EFC5),
+          icona: Icons.trending_up,
+          positivo: true,
+        ),
+        const SizedBox(height: 10),
+        _buildInfoCard(
+          titolo: "Da Migliorare",
+          sottotitolo: worst.key,
+          descrizione:
+              "Richiede attenzione (${(worst.value * 100).toStringAsFixed(0)}%)",
+          colore: const Color(0xFFFAD0D0),
+          icona: Icons.trending_down,
+          positivo: false,
+        ),
+      ],
+    );
+  },
+),
+
+
 
       const SizedBox(height: 30),
 
