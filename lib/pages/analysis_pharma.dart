@@ -560,6 +560,14 @@ Color _colore(double v) {
   return const Color(0xFF43A047);
 }
 
+// 🎨 Colori invertiti solo per Stress Cutaneo (0 = rilassato → verde)
+Color _coloreStress(double v) {
+  if (v < 0.45) return const Color(0xFF43A047); // verde
+  if (v < 0.70) return const Color(0xFFFFB300); // giallo
+  return const Color(0xFFE53935); // rosso
+}
+
+
 // ============================================================
 // 🔹 CARD “Punto di Forza” e “Da Migliorare” — Stile Lovable.dev
 // ============================================================
@@ -645,8 +653,13 @@ Widget _buildInfoCard({
 // ============================================================
 // 🔹 CARD PARAMETRICA — Barre, giudizio e supporto Età Biologica
 // ============================================================
-Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
-  final colore = _colore(valore);
+Widget _buildParamCard(
+  String titolo,
+  double valore, {
+  double? etaReale,
+  Color? colorePersonalizzato,
+}) {
+  final colore = colorePersonalizzato ?? _colore(valore);
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -766,13 +779,16 @@ Widget _buildDetailedSection(
         ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
       ),
 
-// 🔹 Stress Cutaneo (0 = rilassato, 1 = molto stressato)
+// 🔹 Stress Cutaneo (0 = rilassato → verde, 1 = stressato → rosso)
+final double stressValue =
+    ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble())
+        .clamp(0.0, 1.0);
 _buildParamCard(
   "Stress Cutaneo",
-  ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
-          .toDouble())
-      .clamp(0.0, 1.0),
+  stressValue,
+  colorePersonalizzato: _coloreStress(stressValue),
 ),
+
 
 
 // 🔹 Indice di Giovinezza Cutanea (YI)
