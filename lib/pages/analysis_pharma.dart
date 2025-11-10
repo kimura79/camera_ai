@@ -688,65 +688,31 @@ Widget _buildParamCard(String titolo, double valore) {
   );
 }
 
-    // ============================================================
-    // 🔹 SEZIONE INDICI CLINICI (4 BASE) + PARAMETRI AVANZATI (4)
-    // ============================================================
-    _buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
-    _buildParamCard("Texture", indici["Texture"] ?? 0.0),
-    _buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
-    _buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
+// ============================================================
+// 🔹 SEZIONE INDICI CLINICI (4 BASE) + PARAMETRI AVANZATI (4)
+// ============================================================
+Widget _buildDetailedSection(
+  Map<String, dynamic> indici,
+  Map<String, dynamic> resultData,
+  List<String> consigli,
+) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // ============================================================
+      // 🔹 SEZIONE INDICI CLINICI BASE
+      // ============================================================
+      _buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
+      _buildParamCard("Texture", indici["Texture"] ?? 0.0),
+      _buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
+      _buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
 
-    const SizedBox(height: 30),
-
-    Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        "Parametri Avanzati",
-        style: GoogleFonts.montserrat(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ),
-    ),
-    const SizedBox(height: 14),
-
-    // 🔹 Vitalità (energia e ossigenazione)
-    _buildParamCard(
-      "Vitalità Cutanea",
-      (resultData["marketing"]?["Vitalità"] ?? 0.0),
-    ),
-
-    // 🔹 Glow naturale (luminosità percepita)
-    _buildParamCard(
-      "Glow Naturale",
-      (resultData["marketing"]?["Glow Naturale"] ?? 0.0),
-    ),
-
-    // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
-    _buildParamCard(
-      "Stress Cutaneo",
-      (1 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)),
-    ),
-
-    // 🔹 Età Biologica (normalizzata 0–1 per barra)
-    _buildParamCard(
-      "Età Biologica della Pelle",
-      1 - ((resultData["marketing"]?["Età Biologica"] ?? 60) - 25) / 75,
-    ),
-
-    const SizedBox(height: 40),
-
-
-    // ============================================================
-    // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
-    // ============================================================
-    if (resultData["aree_specifiche"] != null) ...[
       const SizedBox(height: 30),
+
       Align(
         alignment: Alignment.centerLeft,
         child: Text(
-          "Estensioni Aree Specifiche",
+          "Parametri Avanzati",
           style: GoogleFonts.montserrat(
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -754,108 +720,153 @@ Widget _buildParamCard(String titolo, double valore) {
           ),
         ),
       ),
-      const SizedBox(height: 10),
-      _buildAreaRow(
-        "Pori",
-        "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
-      ),
-      _buildAreaRow(
-        "Rughe",
-        "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
-      ),
-      _buildAreaRow(
-        "Macchie pigmentarie",
-        "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
-      ),
-      _buildAreaRow(
-        "Aree vascolari (Red Areas)",
-        "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
-      ),
-    ],
+      const SizedBox(height: 14),
 
-    const SizedBox(height: 40),
-
-    // ============================================================
-    // 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
-    // ============================================================
-    Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        "Raccomandazioni Personalizzate",
-        style: GoogleFonts.montserrat(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
+      // 🔹 Vitalità (energia e ossigenazione)
+      _buildParamCard(
+        "Vitalità Cutanea",
+        (resultData["marketing"]?["Vitalità"] ?? 0.0),
       ),
-    ),
-    const SizedBox(height: 4),
-    Text(
-      "Formula skincare suggerita per te",
-      style: GoogleFonts.montserrat(
-        fontSize: 14,
-        color: Colors.black54,
+
+      // 🔹 Glow naturale (luminosità percepita)
+      _buildParamCard(
+        "Glow Naturale",
+        (resultData["marketing"]?["Glow Naturale"] ?? 0.0),
       ),
-    ),
-    const SizedBox(height: 12),
-    _buildRefertiCard(consigli),
 
-    const SizedBox(height: 40),
+      // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
+      _buildParamCard(
+        "Stress Cutaneo",
+        (1 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)),
+      ),
 
-    // ============================================================
-    // 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
-    // ============================================================
-    Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF1A73E8)),
-              minimumSize: const Size(double.infinity, 48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () async {
-              await _cancelJob();
-              Navigator.pop(context);
-            },
-            child: Text(
-              "Nuova Analisi",
-              style: GoogleFonts.montserrat(
-                color: const Color(0xFF1A73E8),
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+      // 🔹 Età Biologica (normalizzata 0–1 per barra)
+      _buildParamCard(
+        "Età Biologica della Pelle",
+        1 - ((resultData["marketing"]?["Età Biologica"] ?? 60) - 25) / 75,
+      ),
+
+      const SizedBox(height: 40),
+
+      // ============================================================
+      // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
+      // ============================================================
+      if (resultData["aree_specifiche"] != null) ...[
+        const SizedBox(height: 30),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Estensioni Aree Specifiche",
+            style: GoogleFonts.montserrat(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A73E8),
-              minimumSize: const Size(double.infinity, 48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: _showSendMailDialog, // ✅ nuovo invio email
-            child: Text(
-              "Invia per Mail",
-              style: GoogleFonts.montserrat(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+        const SizedBox(height: 10),
+        _buildAreaRow(
+          "Pori",
+          "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
+        ),
+        _buildAreaRow(
+          "Rughe",
+          "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
+        ),
+        _buildAreaRow(
+          "Macchie pigmentarie",
+          "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
+        ),
+        _buildAreaRow(
+          "Aree vascolari (Red Areas)",
+          "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
         ),
       ],
-    ),
 
-    const SizedBox(height: 20),
-  ];
+      const SizedBox(height: 40),
+
+      // ============================================================
+      // 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
+      // ============================================================
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          "Raccomandazioni Personalizzate",
+          style: GoogleFonts.montserrat(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        "Formula skincare suggerita per te",
+        style: GoogleFonts.montserrat(
+          fontSize: 14,
+          color: Colors.black54,
+        ),
+      ),
+      const SizedBox(height: 12),
+      _buildRefertiCard(consigli),
+
+      const SizedBox(height: 40),
+
+      // ============================================================
+      // 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
+      // ============================================================
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF1A73E8)),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () async {
+                await _cancelJob();
+                Navigator.pop(context);
+              },
+              child: Text(
+                "Nuova Analisi",
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFF1A73E8),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A73E8),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _showSendMailDialog, // ✅ nuovo invio email
+              child: Text(
+                "Invia per Mail",
+                style: GoogleFonts.montserrat(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 20),
+    ],
+  );
 }
 
 
