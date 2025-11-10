@@ -523,7 +523,7 @@ const SizedBox(height: 25),
       const SizedBox(height: 14),
 
       // ✅ Contenuti completi (barre, aree, referti, pulsanti)
-      ..._buildContentSection(resultData!, indici, consigli),
+      _buildDetailedSection(indici, resultData!, consigli),
     ],
   ),
 ),
