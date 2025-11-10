@@ -688,20 +688,55 @@ Widget _buildParamCard(String titolo, double valore) {
   );
 }
 
-// ============================================================
-// 🔹 BLOCCO CONTENUTO PAGINA RISULTATI (AREE + REFERTI + PULSANTI)
-// ============================================================
-List<Widget> _buildContentSection(
-  Map<String, dynamic> resultData,
-  Map<String, dynamic> indici,
-  List<String> consigli,
-) {
-  return [
-    ...indici.entries
-        .map((e) => _buildParamCard(e.key, (e.value as num).toDouble()))
-        .toList(),
+    // ============================================================
+    // 🔹 SEZIONE INDICI CLINICI (4 BASE) + PARAMETRI AVANZATI (4)
+    // ============================================================
+    _buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
+    _buildParamCard("Texture", indici["Texture"] ?? 0.0),
+    _buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
+    _buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
+
+    const SizedBox(height: 30),
+
+    Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        "Parametri Avanzati",
+        style: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+    ),
+    const SizedBox(height: 14),
+
+    // 🔹 Vitalità (energia e ossigenazione)
+    _buildParamCard(
+      "Vitalità Cutanea",
+      (resultData["marketing"]?["Vitalità"] ?? 0.0),
+    ),
+
+    // 🔹 Glow naturale (luminosità percepita)
+    _buildParamCard(
+      "Glow Naturale",
+      (resultData["marketing"]?["Glow Naturale"] ?? 0.0),
+    ),
+
+    // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
+    _buildParamCard(
+      "Stress Cutaneo",
+      (1 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)),
+    ),
+
+    // 🔹 Età Biologica (normalizzata 0–1 per barra)
+    _buildParamCard(
+      "Età Biologica della Pelle",
+      1 - ((resultData["marketing"]?["Età Biologica"] ?? 60) - 25) / 75,
+    ),
 
     const SizedBox(height: 40),
+
 
     // ============================================================
     // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
