@@ -699,54 +699,54 @@ Widget _buildDetailedSection(
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // ============================================================
-      // 🔹 SEZIONE INDICI CLINICI BASE
-      // ============================================================
-      _buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
-      _buildParamCard("Texture", indici["Texture"] ?? 0.0),
-      _buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
-      _buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
+ // ============================================================
+// 🔹 SEZIONE INDICI CLINICI BASE
+// ============================================================
+_buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
+_buildParamCard("Texture", indici["Texture"] ?? 0.0),
+_buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
+_buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
 
-      const SizedBox(height: 30),
+const SizedBox(height: 30),
 
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          "Parametri Avanzati",
-          style: GoogleFonts.montserrat(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-      ),
-      const SizedBox(height: 14),
+Align(
+  alignment: Alignment.centerLeft,
+  child: Text(
+    "Parametri Avanzati",
+    style: GoogleFonts.montserrat(
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      color: Colors.black87,
+    ),
+  ),
+),
+const SizedBox(height: 14),
 
-      // 🔹 Vitalità (energia e ossigenazione)
-      _buildParamCard(
-        "Vitalità Cutanea",
-        (resultData["marketing"]?["Vitalità"] ?? 0.0),
-      ),
+// 🔹 Vitalità (energia e ossigenazione)
+_buildParamCard(
+  "Vitalità Cutanea",
+  (resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble(),
+),
 
-      // 🔹 Glow naturale (luminosità percepita)
-      _buildParamCard(
-        "Glow Naturale",
-        (resultData["marketing"]?["Glow Naturale"] ?? 0.0),
-      ),
+// 🔹 Glow naturale (luminosità percepita)
+_buildParamCard(
+  "Glow Naturale",
+  (resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble(),
+),
 
-      // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
-      _buildParamCard(
-        "Stress Cutaneo",
-        (1 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)),
-      ),
+// 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
+_buildParamCard(
+  "Stress Cutaneo",
+  (1.0 - (resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()),
+),
 
-      // 🔹 Età Biologica (normalizzata 0–1 per barra)
-      _buildParamCard(
-        "Età Biologica della Pelle",
-        1 - ((resultData["marketing"]?["Età Biologica"] ?? 60) - 25) / 75,
-      ),
+// 🔹 Età Biologica (normalizzata 0–1 per barra)
+_buildParamCard(
+  "Età Biologica della Pelle",
+  (1.0 - (((resultData["marketing"]?["Età Biologica"] ?? 60).toDouble() - 25.0) / 75.0)),
+),
 
-      const SizedBox(height: 40),
+const SizedBox(height: 40),
 
       // ============================================================
       // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
