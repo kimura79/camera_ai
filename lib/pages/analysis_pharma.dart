@@ -664,10 +664,12 @@ Widget _buildParamCard(
   double valore, {
   double? etaReale,
   Color? colorePersonalizzato,
-  String? giudizioPersonalizzato,
+  String Function(double)? giudizioPersonalizzato, // 👈 cambia qui
 }) {
   final colore = colorePersonalizzato ?? _colore(valore);
-  final giudizio = giudizioPersonalizzato ?? _giudizio(valore);
+  final giudizio = giudizioPersonalizzato != null
+      ? giudizioPersonalizzato(valore) // 👈 chiama la funzione
+      : _giudizio(valore);
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -791,12 +793,13 @@ Widget _buildDetailedSection(
 final double stressValue =
     ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble())
         .clamp(0.0, 1.0);
+
 _buildParamCard(
   "Stress Cutaneo",
   stressValue,
   colorePersonalizzato: _coloreStress(stressValue),
-  giudizioPersonalizzato: _giudizioStress(stressValue),
-),
+  giudizioPersonalizzato: _giudizioStress, // 👈 passa la funzione, non la stringa
+);
 
 
 
