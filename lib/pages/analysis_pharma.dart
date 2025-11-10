@@ -567,6 +567,12 @@ Color _coloreStress(double v) {
   return const Color(0xFFE53935); // rosso
 }
 
+// 🧘‍♀️ Giudizio invertito solo per Stress Cutaneo
+String _giudizioStress(double v) {
+  if (v < 0.45) return "Buono"; // basso stress = buono
+  if (v < 0.70) return "Sufficiente"; // medio stress
+  return "Scarso"; // alto stress = scarso
+}
 
 // ============================================================
 // 🔹 CARD “Punto di Forza” e “Da Migliorare” — Stile Lovable.dev
@@ -787,6 +793,7 @@ _buildParamCard(
   "Stress Cutaneo",
   stressValue,
   colorePersonalizzato: _coloreStress(stressValue),
+  giudizioPersonalizzato: _giudizioStress(stressValue),
 ),
 
 
