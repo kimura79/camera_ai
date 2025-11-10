@@ -758,11 +758,11 @@ Widget _buildDetailedSection(
   Map<String, dynamic> resultData,
   List<String> consigli,
 ) {
-  // ✅ Calcoli logici vanno qui, fuori dal Column
-  final double etaReale =
-      (resultData["marketing"]?["Età Biologica"] ?? 40).toDouble();
-  final double etaNorm =
-      (1.0 - ((etaReale - 25.0) / 50.0)).clamp(0.0, 1.0);
+  // ✅ Calcoli logici vanno qui, prima del return
+  final double etaRelativa =
+      (resultData["marketing"]?["Indice Giovinezza Relativo"] ?? 0.0).toDouble();
+  final String messaggioEta =
+      resultData["marketing"]?["Messaggio Età Pelle"] ?? "";
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,38 +807,34 @@ Widget _buildDetailedSection(
         "Stress Cutaneo",
         (1.0 -
                 ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
-                        .toDouble())
-                    .clamp(0.0, 1.0)),
+                        .toDouble()))
+            .clamp(0.0, 1.0),
       ),
 
- // 🔹 Età Biologica relativa (derivata dal server)
-final double etaRelativa = 
-    (resultData["marketing"]?["Indice Giovinezza Relativo"] ?? 0.0).toDouble();
-final String messaggioEta = 
-    resultData["marketing"]?["Messaggio Età Pelle"] ?? "";
-
-// 🔹 Mostra la barra come “pelle giovane” = verde alto, “matura” = rosso basso
-_buildParamCard(
-  "Età Biologica della Pelle",
-  (1.0 - etaRelativa).clamp(0.0, 1.0),
-),
-
-// 🔹 Mostra messaggio clinico descrittivo sotto la barra
-if (messaggioEta.isNotEmpty)
-  Padding(
-    padding: const EdgeInsets.only(top: 4, left: 4),
-    child: Text(
-      messaggioEta,
-      style: GoogleFonts.montserrat(
-        fontSize: 13,
-        color: Colors.black54,
-        fontWeight: FontWeight.w500,
+      // 🔹 Età Biologica relativa — “pelle giovane = barra lunga e verde”
+      _buildParamCard(
+        "Età Biologica della Pelle",
+        (1.0 - etaRelativa).clamp(0.0, 1.0),
       ),
-    ),
-  ),
 
+      // 🔹 Messaggio clinico descrittivo sotto la barra
+      if (messaggioEta.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: Text(
+            messaggioEta,
+            style: GoogleFonts.montserrat(
+              fontSize: 13,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
 
       const SizedBox(height: 40),
+    ],
+  );
+}
 
       // ============================================================
       // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
