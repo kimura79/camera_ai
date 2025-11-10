@@ -832,9 +832,6 @@ Widget _buildDetailedSection(
         ),
 
       const SizedBox(height: 40),
-    ],
-  );
-}
 
       // ============================================================
       // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
