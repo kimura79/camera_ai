@@ -766,14 +766,14 @@ Widget _buildDetailedSection(
         ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
       ),
 
-      // 🔹 Stress Cutaneo (valore alto = pelle più stressata → invertito)
-      _buildParamCard(
-        "Stress Cutaneo",
-        (1.0 -
-                ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
-                        .toDouble())
-                    .clamp(0.0, 1.0)),
-      ),
+// 🔹 Stress Cutaneo (0 = rilassato → verde, 1 = stressato → rosso)
+_buildParamCard(
+  "Stress Cutaneo",
+  ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0)
+          .toDouble())
+      .clamp(0.0, 1.0),
+),
+
 
       // 🔹 Età Biologica (normalizzata su base 25–75)
       _buildParamCard(
