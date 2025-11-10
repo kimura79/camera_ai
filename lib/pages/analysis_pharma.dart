@@ -664,8 +664,10 @@ Widget _buildParamCard(
   double valore, {
   double? etaReale,
   Color? colorePersonalizzato,
+  String? giudizioPersonalizzato,
 }) {
   final colore = colorePersonalizzato ?? _colore(valore);
+  final giudizio = giudizioPersonalizzato ?? _giudizio(valore);
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -721,7 +723,7 @@ Widget _buildParamCard(
 
         const SizedBox(height: 4),
         Text(
-          _giudizio(valore),
+          _giudizio,
           style: GoogleFonts.montserrat(
             fontSize: 13,
             color: colore,
