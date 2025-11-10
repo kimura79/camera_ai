@@ -634,7 +634,30 @@ Widget _buildInfoCard({
 // 🔹 CARD PARAMETRICA — Barre, giudizio e supporto Età Biologica
 // ============================================================
 Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
-  final colore = _colore(valore);
+  // 🔹 Payoff esplicativi per ogni parametro
+  final Map<String, String> payoff = {
+    "Elasticità": "Rughe e tonicità",
+    "Texture": "Grana e pori",
+    "Idratazione": "Secchezza e comfort",
+    "Chiarezza": "Macchie e rossori",
+    "Vitalità Cutanea": "Energia e ossigenazione",
+    "Glow Naturale": "Luminosità e uniformità",
+    "Stress Cutaneo": "Sensibilità e irritazioni",
+    "Età Biologica della Pelle": "Età apparente cutanea",
+  };
+
+  // 🔹 Inversione logica colore solo per Stress Cutaneo
+  final bool isStress = titolo == "Stress Cutaneo";
+
+  // Se è Stress Cutaneo → inverti il colore (alto = rosso, basso = verde)
+  final colore = isStress
+      ? (valore < 0.45
+          ? const Color(0xFF43A047) // verde buono (basso stress)
+          : valore < 0.70
+              ? const Color(0xFFFFB300) // giallo medio
+              : const Color(0xFFE53935)) // rosso alto stress
+      : _colore(valore);
+
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 14),
@@ -646,6 +669,7 @@ Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 🔹 Titolo + Valore numerico
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -667,7 +691,23 @@ Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+
+        // 🔹 Payoff esplicativo sotto il titolo
+        if (payoff.containsKey(titolo)) ...[
+          const SizedBox(height: 2),
+          Text(
+            payoff[titolo]!,
+            style: GoogleFonts.montserrat(
+              fontSize: 13,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 8),
+
+        // 🔹 Barra di progresso (inversione colore per Stress)
         LinearProgressIndicator(
           value: valore,
           minHeight: 10,
@@ -675,7 +715,7 @@ Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
           valueColor: AlwaysStoppedAnimation<Color>(colore),
         ),
 
-        // 🔹 Età Biologica: mostra gli anni sotto la barra
+        // 🔹 Età Biologica se presente
         if (etaReale != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -689,8 +729,16 @@ Widget _buildParamCard(String titolo, double valore, {double? etaReale}) {
         ],
 
         const SizedBox(height: 4),
+
+        // 🔹 Giudizio personalizzato
         Text(
-          _giudizio(valore),
+          isStress
+              ? (valore < 0.45
+                  ? "Basso stress (ottimo)"
+                  : valore < 0.70
+                      ? "Moderato stress"
+                      : "Alto stress cutaneo")
+              : _giudizio(valore),
           style: GoogleFonts.montserrat(
             fontSize: 13,
             color: colore,
@@ -763,12 +811,32 @@ Widget _buildDetailedSection(
                     .clamp(0.0, 1.0)),
       ),
 
-      // 🔹 Età Biologica (normalizzata su base 25–75)
-      _buildParamCard(
-        "Età Biologica della Pelle",
-        etaNorm,
-        etaReale: etaReale,
+ // 🔹 Età Biologica relativa (derivata dal server)
+final double etaRelativa = 
+    (resultData["marketing"]?["Indice Giovinezza Relativo"] ?? 0.0).toDouble();
+final String messaggioEta = 
+    resultData["marketing"]?["Messaggio Età Pelle"] ?? "";
+
+// 🔹 Mostra la barra come “pelle giovane” = verde alto, “matura” = rosso basso
+_buildParamCard(
+  "Età Biologica della Pelle",
+  (1.0 - etaRelativa).clamp(0.0, 1.0),
+),
+
+// 🔹 Mostra messaggio clinico descrittivo sotto la barra
+if (messaggioEta.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 4, left: 4),
+    child: Text(
+      messaggioEta,
+      style: GoogleFonts.montserrat(
+        fontSize: 13,
+        color: Colors.black54,
+        fontWeight: FontWeight.w500,
       ),
+    ),
+  ),
+
 
       const SizedBox(height: 40),
 
