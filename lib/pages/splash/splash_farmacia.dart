@@ -2,9 +2,82 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 
-/// 💊 Splash Farmacia (sfondo bianco + pulsante Fotocamera)
+/// 💊 Splash Farmacia (sfondo bianco + pulsante Fotocamera con picker)
 class SplashFarmacia extends StatelessWidget {
   const SplashFarmacia({super.key});
+
+  void _showCameraPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Scegli modalità fotocamera",
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A97F3),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 🔹 Opzione 1 — Analisi viso intero
+              ListTile(
+                leading: const Icon(Icons.face, color: Color(0xFF1A97F3), size: 28),
+                title: Text(
+                  "Analisi viso intero (Farmacia)",
+                  style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HomePageWidget(
+                        captureMode: "fullface",
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const Divider(),
+
+              // 🔹 Opzione 2 — Analisi particolare (macro)
+              ListTile(
+                leading: const Icon(Icons.zoom_in, color: Color(0xFF38BDF8), size: 28),
+                title: Text(
+                  "Analisi particolare (macro)",
+                  style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HomePageWidget(
+                        captureMode: "particolare",
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +89,7 @@ class SplashFarmacia extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 🔹 Logo Farmacia o icona
+              // 🔹 Logo Farmacia
               const Icon(
                 Icons.local_pharmacy,
                 color: Color(0xFF1A97F3),
@@ -24,12 +97,13 @@ class SplashFarmacia extends StatelessWidget {
               ),
               const SizedBox(height: 30),
 
-              // 🔹 Titolo
+              // 🔹 Titolo su due righe
               Text(
-                "Epidermys – Test Farmacie",
+                "Epidermys\nTest Farmacie",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
-                  fontSize: 24,
+                  height: 1.2,
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFF1A97F3),
                 ),
@@ -46,7 +120,7 @@ class SplashFarmacia extends StatelessWidget {
               ),
               const SizedBox(height: 60),
 
-              // 🔹 Pulsante apri fotocamera (stile Lovable)
+              // 🔹 Pulsante apri fotocamera
               SizedBox(
                 width: double.infinity,
                 height: 60,
@@ -67,14 +141,7 @@ class SplashFarmacia extends StatelessWidget {
                     ],
                   ),
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HomePageWidget(),
-                        ),
-                      );
-                    },
+                    onPressed: () => _showCameraPicker(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
