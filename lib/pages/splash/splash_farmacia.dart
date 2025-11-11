@@ -112,7 +112,7 @@ class SplashFarmacia extends StatelessWidget {
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) =>
-                                            const HomePageWidget(captureMode: "fullface"),
+                                            const HomePageWidget(),
                                       ),
                                     );
                                   },
