@@ -27,7 +27,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://colour-guidelines-burton-beginner.trycloudflare.com";
+  final String serverUrl = "https://albert-advances-browser-fragrance.trycloudflare.com";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -50,7 +50,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 // 🔹 Controlla che il server farmacia sia online 
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://colour-guidelines-burton-beginner.trycloudflare.com"; // ✅ Cloudflare Tunnel
+  const serverUrl = "https://albert-advances-browser-fragrance.trycloudflare.com"; // ✅ Cloudflare Tunnel
 
   try {
     final resp = await http
