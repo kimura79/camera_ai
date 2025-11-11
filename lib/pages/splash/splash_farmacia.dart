@@ -1,186 +1,205 @@
 // ============================================================
-// 🏠 HomePageWidget — Schermata principale fotocamera
-// Compatibile con picker nativo (imagePath) o guida statica (guideImage)
+// 💊 Splash Farmacia — schermata iniziale con selezione fotocamera/galleria
 // ============================================================
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:camera/camera.dart';
-import 'package:photo_manager/photo_manager.dart';
-import 'package:provider/provider.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 
-import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/app_state.dart';
-import '/index.dart';
-
-class HomePageWidget extends StatefulWidget {
-  final String? imagePath;   // ✅ percorso immagine passata dal picker
-  final String? guideImage;  // ✅ immagine guida opzionale
-
-  const HomePageWidget({
-    super.key,
-    this.imagePath,
-    this.guideImage,
-  });
+class SplashFarmacia extends StatefulWidget {
+  const SplashFarmacia({super.key});
 
   @override
-  State<HomePageWidget> createState() => _HomePageWidgetState();
+  State<SplashFarmacia> createState() => _SplashFarmaciaState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget> {
-  late HomePageModel _model;
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
-  bool _isPreviewVisible = false;
-  XFile? _capturedImage;
+class _SplashFarmaciaState extends State<SplashFarmacia> {
+  final ImagePicker _picker = ImagePicker();
 
-  @override
-  void initState() {
-    super.initState();
-    _model = createModel(context, () => HomePageModel());
-
-    // Se viene passata un'immagine dal picker nativo
-    if (widget.imagePath != null && widget.imagePath!.isNotEmpty) {
-      debugPrint("📸 Immagine selezionata da picker: ${widget.imagePath}");
-      setState(() {
-        _isPreviewVisible = true;
-      });
-    } else {
-      // Inizializza fotocamera se non è stata passata un’immagine
-      _initializeCamera();
+  // 🔹 Apri fotocamera
+  Future<void> _pickFromCamera() async {
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomePageWidget(imagePath: photo.path),
+        ),
+      );
     }
   }
 
-  Future<void> _initializeCamera() async {
-    try {
-      final cameras = await availableCameras();
-      final frontCamera =
-          cameras.firstWhere((cam) => cam.lensDirection == CameraLensDirection.front);
-      _cameraController = CameraController(frontCamera, ResolutionPreset.high);
-      await _cameraController!.initialize();
-      if (!mounted) return;
-      setState(() {
-        _isCameraInitialized = true;
-      });
-      debugPrint("📷 Fotocamera frontale inizializzata");
-    } catch (e) {
-      debugPrint("❌ Errore inizializzazione fotocamera: $e");
+  // 🔹 Apri galleria
+  Future<void> _pickFromGallery() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomePageWidget(imagePath: image.path),
+        ),
+      );
     }
   }
 
-  @override
-  void dispose() {
-    _cameraController?.dispose();
-    _model.dispose();
-    super.dispose();
-  }
-
-  Future<void> _takePicture() async {
-    if (!_cameraController!.value.isInitialized) return;
-    final image = await _cameraController!.takePicture();
-    setState(() {
-      _capturedImage = image;
-      _isPreviewVisible = true;
-    });
-    debugPrint("✅ Foto scattata: ${image.path}");
-  }
-
-  Widget _buildCameraPreview() {
-    if (!_isCameraInitialized) {
-      return const Center(child: CircularProgressIndicator());
+  // 🔹 Apri file (solo iOS 14+)
+  Future<void> _pickFromFiles() async {
+    final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
+    if (file != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomePageWidget(imagePath: file.path),
+        ),
+      );
     }
-    return AspectRatio(
-      aspectRatio: _cameraController!.value.aspectRatio,
-      child: CameraPreview(_cameraController!),
+  }
+
+  // 🔹 Mostra bottom sheet nativo per scelta
+  void _showPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Seleziona origine immagine",
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A97F3),
+                ),
+              ),
+              const SizedBox(height: 15),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF1A97F3)),
+                title: Text("Fotocamera", style: GoogleFonts.montserrat(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromCamera();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFF38BDF8)),
+                title: Text("Galleria", style: GoogleFonts.montserrat(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder, color: Color(0xFF60A5FA)),
+                title: Text("File", style: GoogleFonts.montserrat(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromFiles();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
     );
-  }
-
-  Widget _buildImagePreview() {
-    final path = widget.imagePath ?? _capturedImage?.path;
-    if (path == null) {
-      return const Center(child: Text("Nessuna immagine selezionata"));
-    }
-    return Image.file(File(path), fit: BoxFit.contain);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // 🔹 Mostra l'immagine selezionata o la fotocamera
-            if (_isPreviewVisible) _buildImagePreview() else _buildCameraPreview(),
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🔹 Icona principale
+              const Icon(Icons.local_pharmacy, color: Color(0xFF1A97F3), size: 90),
+              const SizedBox(height: 30),
 
-            // 🔹 Overlay guida (se presente)
-            if (widget.guideImage != null)
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.2,
-                  child: Image.asset(
-                    widget.guideImage!,
-                    fit: BoxFit.cover,
+              // 🔹 Titolo doppia riga
+              Text(
+                "Epidermys\nTest Farmacie",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                  color: const Color(0xFF1A97F3),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Versione dedicata ai test in parafarmacia",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 60),
+
+              // 🔹 Pulsante principale
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A97F3), Color(0xFF38BDF8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _showPicker,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text(
+                      "Apri Fotocamera / Galleria",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
 
-            // 🔹 Pulsante scatto / chiusura
-            Positioned(
-              bottom: 40,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (!_isPreviewVisible && _isCameraInitialized)
-                    GestureDetector(
-                      onTap: _takePicture,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.blueAccent, width: 4),
-                        ),
-                      ),
-                    ),
-                  if (_isPreviewVisible)
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isPreviewVisible = false;
-                          _capturedImage = null;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        "Riprova",
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                ],
+              Text(
+                "Scatta o seleziona una foto per l’analisi (0–1)",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
               ),
-            ),
-
-            // 🔹 Titolo o icona in alto
-            Positioned(
-              top: 10,
-              left: 10,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
