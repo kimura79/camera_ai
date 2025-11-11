@@ -15,8 +15,6 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/app_state.dart';
 import '/index.dart';
-import 'home_page_model.dart';
-export 'home_page_model.dart';
 
 class HomePageWidget extends StatefulWidget {
   final String? imagePath;   // ✅ percorso immagine passata dal picker
