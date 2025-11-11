@@ -85,8 +85,8 @@ SizedBox(
                 children: [
                   // 🔹 1️⃣ Fotocamera interna dell’app
                   ListTile(
-                    leading:
-                        const Icon(Icons.camera_alt, color: Color(0xFF1A97F3)),
+                    leading: const Icon(Icons.camera_alt,
+                        color: Color(0xFF1A97F3)),
                     title: const Text("Fotocamera (App Epidermys)"),
                     onTap: () {
                       Navigator.pop(context);
@@ -109,11 +109,14 @@ SizedBox(
                       final XFile? image =
                           await picker.pickImage(source: ImageSource.gallery);
                       if (image != null) {
-                        // Qui apri la stessa schermata fotocamera, simulando scatto
+                        // ✅ Apri direttamente la pagina di analisi
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const HomePageWidget(),
+                            builder: (_) => AnalysisPharmaPreview(
+                              imagePath: image.path,
+                              mode: "fullface",
+                            ),
                           ),
                         );
                       }
@@ -133,7 +136,10 @@ SizedBox(
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const HomePageWidget(),
+                            builder: (_) => AnalysisPharmaPreview(
+                              imagePath: file.path,
+                              mode: "fullface",
+                            ),
                           ),
                         );
                       }
@@ -164,6 +170,7 @@ SizedBox(
   ),
 ),
 const SizedBox(height: 20),
+
 
 
 
