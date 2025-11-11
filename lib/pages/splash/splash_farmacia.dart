@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
+import 'package:custom_camera_component/pages/analysis_preview.dart';
 import '/app_state.dart';
 
 /// 💊 Splash Farmacia (sfondo bianco + selettore fotocamera/galleria/file)
