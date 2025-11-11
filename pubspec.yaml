@@ -65,6 +65,12 @@ dependencies:
   photo_manager: ^3.0.0
   permission_handler: ^11.4.0
 
+  # 📸 Selettore foto da camera o galleria
+  image_picker: ^1.0.7
+
+  # 🔊 Per abilitare pulsante Bluetooth remoto (Volume+)
+  volume_controller: ^2.0.7
+
   # 🖼️ Libreria per ritaglio e resize immagini
   image: ^4.2.0
 
