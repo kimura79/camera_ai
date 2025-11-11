@@ -42,19 +42,18 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
-	<!-- 📸 Permessi iOS -->
+	<!-- 📸 Permessi per fotocamera, libreria e salvataggio -->
 	<key>NSCameraUsageDescription</key>
-	<string>Questa app utilizza la fotocamera per scattare foto.</string>
+	<string>Questa app utilizza la fotocamera per analizzare la pelle e scattare foto dermocosmetiche.</string>
+
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Il microfono è usato solo per registrare video.</string>
+	<string>Il microfono è usato solo per eventuali video o registrazioni.</string>
 
-	<!-- Lettura libreria (selezione immagini) -->
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Questa app accede alla libreria foto per selezionare immagini.</string>
+	<string>Questa app accede alla libreria foto per selezionare o importare immagini della pelle.</string>
 
-	<!-- ✅ Scrittura nel Rullino (salvataggio PNG lossless in galleria) -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Questa app salva le foto (PNG) nella tua libreria Foto.</string>
+	<string>Questa app salva le foto analizzate nella tua libreria Foto per consultarle in futuro.</string>
 
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -67,6 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
