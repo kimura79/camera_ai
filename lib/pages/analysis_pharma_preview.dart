@@ -24,11 +24,12 @@ class AnalysisPharmaPreview extends StatefulWidget {
 }
 
 class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
+late String _currentImagePath;
   bool _loading = false;
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://albert-advances-browser-fragrance.trycloudflare.com";
+  final String serverUrl = "https://colour-guidelines-burton-beginner.trycloudflare.com";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -38,6 +39,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   @override
   void initState() {
     super.initState();
+    _currentImagePath = widget.imagePath; // 👈 inizializza col valore originale
     _checkServer();
   }
 
@@ -51,7 +53,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 // 🔹 Controlla che il server farmacia sia online 
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://albert-advances-browser-fragrance.trycloudflare.com"; // ✅ Cloudflare Tunnel
+  const serverUrl = "https://colour-guidelines-burton-beginner.trycloudflare.com"; // ✅ Cloudflare Tunnel
 
   try {
     final resp = await http
@@ -282,10 +284,10 @@ Future<void> _pollJob(String jobId) async {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
-                File(widget.imagePath),
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
+                                    File(_currentImagePath),
+                                     width: double.infinity,
+                                   fit: BoxFit.cover,
+                                   ),
             ),
             const SizedBox(height: 24),
 
@@ -360,7 +362,7 @@ Future<void> _pollJob(String jobId) async {
                       setState(() {
                         _loading = true;
                       });
-                      widget.imagePath = pickedFile.path;
+                      _currentImagePath = pickedFile.path;
 
                       // Avvia analisi normalmente
                       await _uploadAndAnalyze();
