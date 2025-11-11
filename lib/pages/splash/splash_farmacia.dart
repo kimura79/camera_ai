@@ -1,32 +1,51 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
-import 'package:custom_camera_component/pages/analysis_pharma_preview.dart'; // ✅ aggiunto
+import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
+import 'package:custom_camera_component/pages/analysis_preview.dart';
+import '/app_state.dart';
 
-/// 💊 Splash Farmacia (sfondo bianco + pulsante Fotocamera / Galleria / File)
+/// 💊 Splash Farmacia (sfondo bianco + selettore fotocamera/galleria/file)
 class SplashFarmacia extends StatelessWidget {
   const SplashFarmacia({super.key});
 
+  Future<void> _apriAnalisi(
+      BuildContext context, String imagePath, String mode) async {
+    // 🔁 stessa logica dello scatto in HomePageWidget
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FFAppState().modalita == "farmacia"
+            ? AnalysisPharmaPreview(imagePath: imagePath, mode: mode)
+            : AnalysisPreview(imagePath: imagePath, mode: mode),
+      ),
+    ).then((analyzed) {
+      if (analyzed != null) {
+        Navigator.pop(context);
+        Navigator.pop(context, analyzed);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ImagePicker picker = ImagePicker();
+
     return Scaffold(
-      backgroundColor: Colors.white, // ✅ Sfondo bianco puro
+      backgroundColor: Colors.white,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 🔹 Logo Farmacia o icona
               const Icon(
                 Icons.local_pharmacy,
                 color: Color(0xFF1A97F3),
                 size: 90,
               ),
               const SizedBox(height: 30),
-
-              // 🔹 Titolo
               Text(
                 "Epidermys\nTest Farmacie",
                 textAlign: TextAlign.center,
@@ -38,7 +57,6 @@ class SplashFarmacia extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-
               Text(
                 "Versione dedicata ai test in parafarmacia",
                 textAlign: TextAlign.center,
@@ -49,7 +67,7 @@ class SplashFarmacia extends StatelessWidget {
               ),
               const SizedBox(height: 60),
 
-              // 🔹 Pulsante apri fotocamera / galleria / file
+              // 🔹 Pulsante apri selettore
               SizedBox(
                 width: double.infinity,
                 height: 60,
@@ -71,8 +89,6 @@ class SplashFarmacia extends StatelessWidget {
                   ),
                   child: ElevatedButton(
                     onPressed: () async {
-                      final ImagePicker picker = ImagePicker();
-
                       showModalBottomSheet(
                         context: context,
                         backgroundColor: Colors.white,
@@ -84,17 +100,19 @@ class SplashFarmacia extends StatelessWidget {
                           return SafeArea(
                             child: Wrap(
                               children: [
-                                // 🔹 1️⃣ Fotocamera interna dell’app
+                                // 🔹 1️⃣ Fotocamera interna Epidermys
                                 ListTile(
                                   leading: const Icon(Icons.camera_alt,
                                       color: Color(0xFF1A97F3)),
-                                  title: const Text("Fotocamera (App Epidermys)"),
+                                  title:
+                                      const Text("Fotocamera (App Epidermys)"),
                                   onTap: () {
                                     Navigator.pop(context);
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const HomePageWidget(),
+                                        builder: (_) =>
+                                            const HomePageWidget(captureMode: "fullface"),
                                       ),
                                     );
                                   },
@@ -112,16 +130,8 @@ class SplashFarmacia extends StatelessWidget {
                                       imageQuality: 100,
                                     );
                                     if (image != null) {
-                                      // ✅ Apri pagina di analisi come se fosse foto scattata
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => AnalysisPharmaPreview(
-                                            imagePath: image.path,
-                                            mode: "fullface",
-                                          ),
-                                        ),
-                                      );
+                                      await _apriAnalisi(
+                                          context, image.path, "fullface");
                                     }
                                   },
                                 ),
@@ -138,15 +148,8 @@ class SplashFarmacia extends StatelessWidget {
                                       imageQuality: 100,
                                     );
                                     if (file != null) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => AnalysisPharmaPreview(
-                                            imagePath: file.path,
-                                            mode: "fullface",
-                                          ),
-                                        ),
-                                      );
+                                      await _apriAnalisi(
+                                          context, file.path, "fullface");
                                     }
                                   },
                                 ),
@@ -176,9 +179,8 @@ class SplashFarmacia extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // 🔹 Info test
               Text(
-                "Scatta la foto o seleziona un'immagine per analizzare la pelle",
+                "Scatta o seleziona un'immagine per analizzare la pelle",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
                   fontSize: 13,
