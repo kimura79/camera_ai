@@ -83,7 +83,7 @@ SizedBox(
             return SafeArea(
               child: Wrap(
                 children: [
-                  // 🔹 1️⃣ Fotocamera interna dell’app Epidermys
+                  // 🔹 1️⃣ Fotocamera interna dell’app
                   ListTile(
                     leading:
                         const Icon(Icons.camera_alt, color: Color(0xFF1A97F3)),
@@ -99,7 +99,7 @@ SizedBox(
                     },
                   ),
 
-                  // 🔹 2️⃣ Galleria (foto già esistente)
+                  // 🔹 2️⃣ Galleria
                   ListTile(
                     leading: const Icon(Icons.photo_library,
                         color: Color(0xFF38BDF8)),
@@ -109,18 +109,18 @@ SizedBox(
                       final XFile? image =
                           await picker.pickImage(source: ImageSource.gallery);
                       if (image != null) {
+                        // Qui apri la stessa schermata fotocamera, simulando scatto
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                HomePageWidget(imagePath: image.path),
+                            builder: (_) => const HomePageWidget(),
                           ),
                         );
                       }
                     },
                   ),
 
-                  // 🔹 3️⃣ File (documenti o immagini selezionate)
+                  // 🔹 3️⃣ File
                   ListTile(
                     leading:
                         const Icon(Icons.folder, color: Color(0xFF60A5FA)),
@@ -133,8 +133,7 @@ SizedBox(
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                HomePageWidget(imagePath: file.path),
+                            builder: (_) => const HomePageWidget(),
                           ),
                         );
                       }
