@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:custom_camera_component/pages/analysis_pharma.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// ============================================================
 /// 📸 ANALISI FARMACIA (versione asincrona con job polling)
@@ -304,11 +305,67 @@ Future<void> _pollJob(String jobId) async {
 
             const SizedBox(height: 10),
 
-            // ============================================================
-            // 🔹 NUOVO PULSANTE / BARRA AVANZAMENTO
+      // ============================================================
+            // 🔹 NUOVO PULSANTE / BARRA AVANZAMENTO + PICKER CAMERA/LIBRERIA
             // ============================================================
             GestureDetector(
-              onTap: _serverReady && !_loading ? _uploadAndAnalyze : null,
+              onTap: _serverReady && !_loading
+                  ? () async {
+                      final picker = ImagePicker();
+
+                      // Mostra foglio inferiore per scelta sorgente
+                      final source = await showModalBottomSheet<ImageSource>(
+                        context: context,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                        ),
+                        builder: (ctx) => SafeArea(
+                          child: Wrap(
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.camera_alt,
+                                    color: Colors.blue),
+                                title: const Text("Scatta una foto"),
+                                onTap: () =>
+                                    Navigator.pop(ctx, ImageSource.camera),
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.photo_library,
+                                    color: Colors.green),
+                                title:
+                                    const Text("Scegli dalla libreria foto"),
+                                onTap: () =>
+                                    Navigator.pop(ctx, ImageSource.gallery),
+                              ),
+                              const Divider(),
+                              ListTile(
+                                leading: const Icon(Icons.close,
+                                    color: Colors.redAccent),
+                                title: const Text("Annulla"),
+                                onTap: () => Navigator.pop(ctx, null),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+
+                      if (source == null) return; // annullato
+                      final pickedFile =
+                          await picker.pickImage(source: source);
+                      if (pickedFile == null) return;
+
+                      // Aggiorna immagine con quella scelta
+                      setState(() {
+                        _loading = true;
+                      });
+                      widget.imagePath = pickedFile.path;
+
+                      // Avvia analisi normalmente
+                      await _uploadAndAnalyze();
+                    }
+                  : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: double.infinity,
