@@ -34,16 +34,17 @@ class SplashFarmacia extends StatelessWidget {
                 leading: const Icon(Icons.face, color: Color(0xFF1A97F3), size: 28),
                 title: Text(
                   "Analisi viso intero (Farmacia)",
-                  style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.montserrat(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const HomePageWidget(
-                        captureMode: "fullface",
-                      ),
+                      builder: (_) => const HomePageWidget(),
                     ),
                   );
                 },
@@ -56,16 +57,17 @@ class SplashFarmacia extends StatelessWidget {
                 leading: const Icon(Icons.zoom_in, color: Color(0xFF38BDF8), size: 28),
                 title: Text(
                   "Analisi particolare (macro)",
-                  style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.montserrat(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const HomePageWidget(
-                        captureMode: "particolare",
-                      ),
+                      builder: (_) => const HomePageWidget(),
                     ),
                   );
                 },
