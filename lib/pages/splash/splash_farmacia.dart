@@ -1,12 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 
-/// 💊 Splash Farmacia (sfondo bianco + pulsante Fotocamera con picker)
+/// 💊 Splash Farmacia — versione con picker nativo (iOS/Android)
 class SplashFarmacia extends StatelessWidget {
   const SplashFarmacia({super.key});
 
-  void _showCameraPicker(BuildContext context) {
+  Future<void> _openNativePicker(BuildContext context) async {
+    final picker = ImagePicker();
+
+    // Mostra un bottom sheet in stile iOS
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -14,67 +19,88 @@ class SplashFarmacia extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Scegli modalità fotocamera",
-                style: GoogleFonts.montserrat(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1A97F3),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 🔹 Opzione 1 — Analisi viso intero
-              ListTile(
-                leading: const Icon(Icons.face, color: Color(0xFF1A97F3), size: 28),
-                title: Text(
-                  "Analisi viso intero (Farmacia)",
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 25),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Scegli un'opzione",
                   style: GoogleFonts.montserrat(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1A97F3),
                   ),
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const HomePageWidget(),
-                    ),
-                  );
-                },
-              ),
+                const SizedBox(height: 20),
 
-              const Divider(),
-
-              // 🔹 Opzione 2 — Analisi particolare (macro)
-              ListTile(
-                leading: const Icon(Icons.zoom_in, color: Color(0xFF38BDF8), size: 28),
-                title: Text(
-                  "Analisi particolare (macro)",
-                  style: GoogleFonts.montserrat(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                // 🔹 Fotocamera
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: Color(0xFF1A97F3)),
+                  title: Text(
+                    "Scatta una foto",
+                    style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+                    if (photo != null && context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HomePageWidget(imagePath: photo.path),
+                        ),
+                      );
+                    }
+                  },
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const HomePageWidget(),
-                    ),
-                  );
-                },
-              ),
 
-              const SizedBox(height: 10),
-            ],
+                // 🔹 Galleria
+                ListTile(
+                  leading: const Icon(Icons.photo_library, color: Color(0xFF38BDF8)),
+                  title: Text(
+                    "Scegli dalla libreria",
+                    style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                    if (image != null && context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HomePageWidget(imagePath: image.path),
+                        ),
+                      );
+                    }
+                  },
+                ),
+
+                // 🔹 File system (solo per iOS / Android >= 13)
+                ListTile(
+                  leading: const Icon(Icons.folder_open, color: Color(0xFF1A97F3)),
+                  title: Text(
+                    "Importa da File",
+                    style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final XFile? file = await picker.pickImage(source: ImageSource.gallery);
+                    if (file != null && context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HomePageWidget(imagePath: file.path),
+                        ),
+                      );
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 10),
+              ],
+            ),
           ),
         );
       },
@@ -122,7 +148,7 @@ class SplashFarmacia extends StatelessWidget {
               ),
               const SizedBox(height: 60),
 
-              // 🔹 Pulsante apri fotocamera
+              // 🔹 Pulsante apri fotocamera (picker nativo)
               SizedBox(
                 width: double.infinity,
                 height: 60,
@@ -143,7 +169,7 @@ class SplashFarmacia extends StatelessWidget {
                     ],
                   ),
                   child: ElevatedButton(
-                    onPressed: () => _showCameraPicker(context),
+                    onPressed: () => _openNativePicker(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -152,7 +178,7 @@ class SplashFarmacia extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      "Apri Fotocamera",
+                      "Apri Fotocamera o Galleria",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -166,7 +192,7 @@ class SplashFarmacia extends StatelessWidget {
 
               // 🔹 Info test
               Text(
-                "Scatta la foto e ottieni i punteggi di analisi (0–1)",
+                "Scatta la foto o scegli un'immagine per l'analisi",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
                   fontSize: 13,
