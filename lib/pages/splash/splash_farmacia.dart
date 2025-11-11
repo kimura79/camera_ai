@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
-import 'package:custom_camera_component/pages/analysis_preview.dart';
 import '/app_state.dart';
 
 /// 💊 Splash Farmacia (sfondo bianco + selettore fotocamera/galleria/file)
@@ -68,121 +67,127 @@ class SplashFarmacia extends StatelessWidget {
               const SizedBox(height: 60),
 
               // 🔹 Pulsante apri fotocamera / galleria / file
-SizedBox(
-  width: double.infinity,
-  height: 60,
-  child: Container(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(30),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF1A97F3), Color(0xFF38BDF8)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.15),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: ElevatedButton(
-      onPressed: () async {
-        final ImagePicker picker = ImagePicker();
-
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (context) {
-            return SafeArea(
-              child: Wrap(
-                children: [
-                  // 📷 Fotocamera — apre HomePageWidget
-                  ListTile(
-                    leading: const Icon(Icons.camera_alt, color: Color(0xFF1A97F3)),
-                    title: const Text("Fotocamera"),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HomePageWidget(),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A97F3), Color(0xFF38BDF8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: Colors.white,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(20)),
                         ),
+                        builder: (context) {
+                          return SafeArea(
+                            child: Wrap(
+                              children: [
+                                // 📷 Fotocamera — apre HomePageWidget
+                                ListTile(
+                                  leading: const Icon(Icons.camera_alt,
+                                      color: Color(0xFF1A97F3)),
+                                  title: const Text("Fotocamera"),
+                                  onTap: () async {
+                                    Navigator.pop(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const HomePageWidget(),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                // 🖼 Galleria — va direttamente ad AnalysisPharmaPreview (fix Future.microtask)
+                                ListTile(
+                                  leading: const Icon(Icons.photo_library,
+                                      color: Color(0xFF38BDF8)),
+                                  title: const Text("Galleria"),
+                                  onTap: () async {
+                                    Navigator.pop(context);
+                                    final XFile? image = await picker.pickImage(
+                                        source: ImageSource.gallery);
+                                    if (image != null) {
+                                      Future.microtask(() {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                AnalysisPharmaPreview(
+                                              imagePath: image.path,
+                                              mode: "fullface",
+                                            ),
+                                          ),
+                                        );
+                                      });
+                                    }
+                                  },
+                                ),
+
+                                // 📁 File — va direttamente ad AnalysisPharmaPreview (fix Future.microtask)
+                                ListTile(
+                                  leading: const Icon(Icons.folder,
+                                      color: Color(0xFF60A5FA)),
+                                  title: const Text("File"),
+                                  onTap: () async {
+                                    Navigator.pop(context);
+                                    final XFile? file = await picker.pickImage(
+                                        source: ImageSource.gallery);
+                                    if (file != null) {
+                                      Future.microtask(() {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                AnalysisPharmaPreview(
+                                              imagePath: file.path,
+                                              mode: "fullface",
+                                            ),
+                                          ),
+                                        );
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       );
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text(
+                      "Apri Fotocamera / Galleria / File",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-
-                  // 🖼 Galleria — va direttamente ad AnalysisPharmaPreview
-                  ListTile(
-                    leading: const Icon(Icons.photo_library, color: Color(0xFF38BDF8)),
-                    title: const Text("Galleria"),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      final XFile? image =
-                          await picker.pickImage(source: ImageSource.gallery);
-                      if (image != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AnalysisPharmaPreview(
-                              imagePath: image.path,
-                              mode: "fullface",
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-
-                  // 📁 File — va direttamente ad AnalysisPharmaPreview
-                  ListTile(
-                    leading: const Icon(Icons.folder, color: Color(0xFF60A5FA)),
-                    title: const Text("File"),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      final XFile? file =
-                          await picker.pickImage(source: ImageSource.gallery);
-                      if (file != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AnalysisPharmaPreview(
-                              imagePath: file.path,
-                              mode: "fullface",
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ],
+                ),
               ),
-            );
-          },
-        );
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
-      ),
-      child: const Text(
-        "Apri Fotocamera / Galleria / File",
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-  ),
-),
               const SizedBox(height: 20),
 
               Text(
