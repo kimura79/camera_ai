@@ -391,3 +391,4 @@ Future<void> _cancelAllJobs() async {
       ),
     );
   }
+}
