@@ -27,7 +27,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://concord-fountain-getting-afterwards.trycloudflare.com";
+  final String serverUrl = "https://tales-tour-challenged-gmt.trycloudflare.com";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -50,7 +50,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
 // 🔹 Controlla che il server farmacia sia online 
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://concord-fountain-getting-afterwards.trycloudflare.com"; // ✅ Cloudflare Tunnel
+  const serverUrl = "https://tales-tour-challenged-gmt.trycloudflare.com"; // ✅ Cloudflare Tunnel
 
   try {
     final resp = await http
