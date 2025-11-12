@@ -13,7 +13,6 @@ class SplashFarmacia extends StatelessWidget {
 
   Future<void> _apriAnalisi(
       BuildContext context, String imagePath, String mode) async {
-    // 🔁 stessa logica dello scatto in HomePageWidget
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FFAppState().modalita == "farmacia"
@@ -31,6 +30,7 @@ class SplashFarmacia extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ImagePicker picker = ImagePicker();
+    final parentContext = context; // ✅ salviamo il contesto superiore
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -90,7 +90,7 @@ class SplashFarmacia extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () async {
                       showModalBottomSheet(
-                        context: context,
+                        context: parentContext,
                         backgroundColor: Colors.white,
                         shape: const RoundedRectangleBorder(
                           borderRadius:
@@ -108,7 +108,7 @@ class SplashFarmacia extends StatelessWidget {
                                   onTap: () async {
                                     Navigator.pop(context);
                                     Navigator.push(
-                                      context,
+                                      parentContext,
                                       MaterialPageRoute(
                                         builder: (_) => const HomePageWidget(),
                                       ),
@@ -116,7 +116,7 @@ class SplashFarmacia extends StatelessWidget {
                                   },
                                 ),
 
-                                // 🖼 Galleria — apre direttamente la pagina di analisi
+                                // 🖼 Galleria — ora funziona correttamente
                                 ListTile(
                                   leading: const Icon(Icons.photo_library,
                                       color: Color(0xFF38BDF8)),
@@ -125,24 +125,22 @@ class SplashFarmacia extends StatelessWidget {
                                     Navigator.pop(context);
                                     final XFile? image = await picker.pickImage(
                                         source: ImageSource.gallery);
-                                    if (image != null && context.mounted) {
-                                      Future.delayed(Duration.zero, () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                AnalysisPharmaPreview(
-                                              imagePath: image.path,
-                                              mode: "fullface",
-                                            ),
+                                    if (image != null) {
+                                      Navigator.push(
+                                        parentContext,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              AnalysisPharmaPreview(
+                                            imagePath: image.path,
+                                            mode: "fullface",
                                           ),
-                                        );
-                                      });
+                                        ),
+                                      );
                                     }
                                   },
                                 ),
 
-                                // 📁 File — apre direttamente la pagina di analisi
+                                // 📁 File — anche qui usiamo il parentContext
                                 ListTile(
                                   leading: const Icon(Icons.folder,
                                       color: Color(0xFF60A5FA)),
@@ -151,10 +149,9 @@ class SplashFarmacia extends StatelessWidget {
                                     Navigator.pop(context);
                                     final XFile? file = await picker.pickImage(
                                         source: ImageSource.gallery);
-                                    if (file != null && context.mounted) {
-                                      Future.delayed(Duration.zero, () {
+                                    if (file != null) {
                                         Navigator.push(
-                                          context,
+                                          parentContext,
                                           MaterialPageRoute(
                                             builder: (_) =>
                                                 AnalysisPharmaPreview(
@@ -163,7 +160,6 @@ class SplashFarmacia extends StatelessWidget {
                                             ),
                                           ),
                                         );
-                                      });
                                     }
                                   },
                                 ),
