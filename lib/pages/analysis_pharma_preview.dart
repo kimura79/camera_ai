@@ -40,11 +40,13 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
     _checkServer();
   }
 
-  @override
-  void dispose() {
-    _retryTimer?.cancel();
-    super.dispose();
-  }
+@override
+void dispose() {
+  _retryTimer?.cancel();
+  _cancelAllJobs(); // 🧹 cancella job anche se l’utente chiude la pagina
+  super.dispose();
+}
+
 
 // ============================================================
 // 🔹 Controlla che il server farmacia sia online 
@@ -262,93 +264,130 @@ Future<void> _pollJob(String jobId) async {
   }
 }
 
+// ============================================================
+// 🧹 CANCELLA TUTTI I JOB ATTIVI (coerente con server_farmacie16.py)
+// ============================================================
+Future<void> _cancelAllJobs() async {
+  try {
+    final resp = await http.post(
+      Uri.parse("$serverUrl/cancel_all_jobs"),
+    ).timeout(const Duration(seconds: 6));
+
+    if (resp.statusCode == 200) {
+      debugPrint("🧹 Tutti i job cancellati lato server: ${resp.body}");
+    } else {
+      debugPrint("⚠️ Errore cancellazione job (${resp.statusCode}): ${resp.body}");
+    }
+  } catch (e) {
+    debugPrint("❌ Errore cancel_all_jobs: $e");
+  }
+}
+
+
   // ============================================================
-  // 🔹 UI
+  // 🔹 UI — con gestione back e cancellazione job
   // ============================================================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FBFF),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A73E8),
-        title: const Text("Analisi Farmacia"),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(widget.imagePath),
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // ✅ Mostra messaggio solo per 1 secondo, poi scompare
-            if (_showServerStatus)
-              (_serverReady
-                  ? const Text(
-                      "✅ Server connesso e pronto",
-                      style: TextStyle(
-                          color: Colors.green, fontWeight: FontWeight.w600),
-                    )
-                  : const Text(
-                      "❌ Server non raggiungibile",
-                      style: TextStyle(
-                          color: Colors.red, fontWeight: FontWeight.w600),
-                    )),
-
-            const SizedBox(height: 10),
-
-            // ============================================================
-            // 🔹 NUOVO PULSANTE / BARRA AVANZAMENTO
-            // ============================================================
-            GestureDetector(
-              onTap: _serverReady && !_loading ? _uploadAndAnalyze : null,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: double.infinity,
-                height: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  color: _loading
-                      ? const Color(0xFFB3D5FF) // blu chiaro durante avanzamento
-                      : const Color(0xFF1A73E8), // blu pieno iniziale
+    return WillPopScope(
+      onWillPop: () async {
+        await _cancelAllJobs(); // 🧹 Cancella tutti i job quando si torna indietro
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FBFF),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF1A73E8),
+          title: const Text("Analisi Farmacia"),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              await _cancelAllJobs(); // 🧹 Cancella anche dal pulsante back
+              if (mounted) Navigator.of(context).pop();
+            },
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  File(widget.imagePath),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
                 ),
-                child: Stack(
-                  children: [
-                    if (_loading)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: MediaQuery.of(context).size.width * _progress,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A73E8), // 🔵 blu scuro identico al pulsante
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                    Center(
-                      child: Text(
-                        _loading
-                            ? "Analisi ${(_progress * 100).toInt()}%"
-                            : "Analizza Pelle",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
+              ),
+              const SizedBox(height: 24),
+
+              // ✅ Mostra messaggio solo per 1 secondo, poi scompare
+              if (_showServerStatus)
+                (_serverReady
+                    ? const Text(
+                        "✅ Server connesso e pronto",
+                        style: TextStyle(
+                          color: Colors.green,
                           fontWeight: FontWeight.w600,
                         ),
+                      )
+                    : const Text(
+                        "❌ Server non raggiungibile",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )),
+
+              const SizedBox(height: 10),
+
+              // ============================================================
+              // 🔹 PULSANTE / BARRA AVANZAMENTO
+              // ============================================================
+              GestureDetector(
+                onTap: _serverReady && !_loading ? _uploadAndAnalyze : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: double.infinity,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    color: _loading
+                        ? const Color(0xFFB3D5FF)
+                        : const Color(0xFF1A73E8),
+                  ),
+                  child: Stack(
+                    children: [
+                      if (_loading)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width:
+                              MediaQuery.of(context).size.width * _progress,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A73E8),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      Center(
+                        child: Text(
+                          _loading
+                              ? "Analisi ${(_progress * 100).toInt()}%"
+                              : "Analizza Pelle",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
