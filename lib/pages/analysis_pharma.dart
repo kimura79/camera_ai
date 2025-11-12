@@ -744,11 +744,9 @@ Widget _buildDetailedSection(
   Map<String, dynamic> resultData,
   List<String> consigli,
 ) {
-  // ✅ Calcoli logici vanno qui, fuori dal Column
-  final double etaReale =
-      (resultData["marketing"]?["Età Biologica"] ?? 40).toDouble();
-  final double etaNorm =
-      (1.0 - ((etaReale - 25.0) / 50.0)).clamp(0.0, 1.0);
+// 🔹 Usa il valore reale calcolato dal server Python
+final double indiceGiovinezza =
+    (resultData["marketing"]?["Indice Giovinezza"] ?? 0.0).toDouble();
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -801,10 +799,7 @@ _buildParamCard(
 
 
 // 🔹 Indice di Giovinezza Cutanea (YI)
-_buildParamCard(
-  "Indice di Giovinezza",
-  etaNorm,
-),
+_buildParamCard("Indice di Giovinezza", indiceGiovinezza),
 
       const SizedBox(height: 40),
 
