@@ -116,7 +116,7 @@ class SplashFarmacia extends StatelessWidget {
                                   },
                                 ),
 
-                                // 🖼 Galleria — va direttamente ad AnalysisPharmaPreview (fix Future.microtask)
+                                // 🖼 Galleria — apre direttamente la pagina di analisi
                                 ListTile(
                                   leading: const Icon(Icons.photo_library,
                                       color: Color(0xFF38BDF8)),
@@ -125,9 +125,10 @@ class SplashFarmacia extends StatelessWidget {
                                     Navigator.pop(context);
                                     final XFile? image = await picker.pickImage(
                                         source: ImageSource.gallery);
-                                    if (image != null) {
-                                      Future.microtask(() {
-                                        Navigator.of(context).push(
+                                    if (image != null && context.mounted) {
+                                      Future.delayed(Duration.zero, () {
+                                        Navigator.push(
+                                          context,
                                           MaterialPageRoute(
                                             builder: (_) =>
                                                 AnalysisPharmaPreview(
@@ -141,7 +142,7 @@ class SplashFarmacia extends StatelessWidget {
                                   },
                                 ),
 
-                                // 📁 File — va direttamente ad AnalysisPharmaPreview (fix Future.microtask)
+                                // 📁 File — apre direttamente la pagina di analisi
                                 ListTile(
                                   leading: const Icon(Icons.folder,
                                       color: Color(0xFF60A5FA)),
@@ -150,9 +151,10 @@ class SplashFarmacia extends StatelessWidget {
                                     Navigator.pop(context);
                                     final XFile? file = await picker.pickImage(
                                         source: ImageSource.gallery);
-                                    if (file != null) {
-                                      Future.microtask(() {
-                                        Navigator.of(context).push(
+                                    if (file != null && context.mounted) {
+                                      Future.delayed(Duration.zero, () {
+                                        Navigator.push(
+                                          context,
                                           MaterialPageRoute(
                                             builder: (_) =>
                                                 AnalysisPharmaPreview(
