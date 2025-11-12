@@ -33,7 +33,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   // 🔹 URL del server AI (Cloudflare Tunnel attivo)
   // puoi sostituire con ai.epidermys.com se usi DNS dedicato
   final String serverUrl =
-      "https://concord-fountain-getting-afterwards.trycloudflare.com";
+      "https://tales-tour-challenged-gmt.trycloudflare.com";
 
   @override
   void initState() {
