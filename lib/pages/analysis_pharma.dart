@@ -35,11 +35,16 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   final String serverUrl =
       "https://ray-stake-prediction-underground.trycloudflare.com";
 
-  @override
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
+
+  // 🔹 Prima pulisci i file temporanei, poi carica i nuovi risultati
+  _clearOldResults().then((_) {
     _loadResultData();
-  }
+  });
+}
+
 
   @override
   void dispose() {
@@ -81,6 +86,30 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
       debugPrint("❌ Errore cancellazione globale job: $e");
     }
   }
+
+// ============================================================
+// 🧹 PULIZIA FILE TEMPORANEI FARMACIA
+// ============================================================
+Future<void> _clearOldResults() async {
+  try {
+    final dir = await getTemporaryDirectory();
+    final jsonFile = File("${dir.path}/result_farmacia.json");
+    final overlay = File("${dir.path}/overlay_farmacia.png");
+
+    if (await jsonFile.exists()) await jsonFile.delete();
+    if (await overlay.exists()) await overlay.delete();
+
+    setState(() {
+      resultData = null;
+      overlayFile = null;
+    });
+
+    debugPrint("🧽 File temporanei farmacia rimossi correttamente.");
+  } catch (e) {
+    debugPrint("⚠️ Errore nella pulizia file temporanei: $e");
+  }
+}
+
 
   // ============================================================
   // 📂 CARICAMENTO RISULTATI ANALISI + OVERLAY
@@ -295,19 +324,9 @@ Widget build(BuildContext context) {
   final List<String> consigli =
       List<String>.from(referti["Consigli"] ?? []);
 
-return WillPopScope(
+  return WillPopScope(
     onWillPop: () async {
       await _cancelJob();
-
-      final dir = await getTemporaryDirectory();
-      File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
-      File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
-
-      setState(() {
-        resultData = null;
-        overlayFile = null;
-      });
-
       return true;
     },
     child: Scaffold(
@@ -324,23 +343,14 @@ return WillPopScope(
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () async {
-  await _cancelJob();
+  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+  onPressed: () async {
+    await _cancelJob();
+    await _clearOldResults(); // ✅ Pulisce overlay e json vecchi
+    Navigator.pop(context);
+  },
+),
 
-  final dir = await getTemporaryDirectory();
-  File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
-  File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
-
-  setState(() {
-    resultData = null;
-    overlayFile = null;
-  });
-
-  Navigator.pop(context);
-},
-
-        ),
       ),
 
  // ============================================================
@@ -910,19 +920,9 @@ _buildParamCard(
               ),
 onPressed: () async {
   await _cancelJob();
-
-  final dir = await getTemporaryDirectory();
-  File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
-  File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
-
-  setState(() {
-    resultData = null;
-    overlayFile = null;
-  });
-
+  await _clearOldResults(); // ✅ Pulisce overlay e json vecchi
   Navigator.pop(context);
 },
-
               child: Text(
                 "Nuova Analisi",
                 style: GoogleFonts.montserrat(
