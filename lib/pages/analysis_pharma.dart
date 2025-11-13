@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:camera_ai/widgets/tooltip_info.dart';
+import '../widgets/tooltip_info.dart';
 
 
 class AnalysisPharmaPage extends StatefulWidget {
@@ -628,13 +628,97 @@ if (resultData["aree_specifiche"] != null) ...[
   ),
 ],
 
-    ],
+const SizedBox(height: 40),
+
+// ============================================================
+// 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
+// ============================================================
+Align(
+  alignment: Alignment.centerLeft,
+  child: Text(
+    "Raccomandazioni Personalizzate",
+    style: GoogleFonts.montserrat(
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      color: Colors.black87,
+    ),
   ),
 ),
+const SizedBox(height: 4),
+Text(
+  "Formula skincare suggerita per te",
+  style: GoogleFonts.montserrat(
+    fontSize: 14,
+    color: Colors.black54,
+  ),
+),
+const SizedBox(height: 12),
+_buildRefertiCard(consigli),
 
-    ), // 🔹 chiude Scaffold
-  );   // 🔹 chiude WillPopScope
-}      // 🔹 chiude il metodo build()
+const SizedBox(height: 40),
+
+// ============================================================
+// 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
+// ============================================================
+Row(
+  children: [
+    Expanded(
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFF1A73E8)),
+          minimumSize: const Size(double.infinity, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: () async {
+          await _cancelJob();
+          Navigator.pop(context);
+        },
+        child: Text(
+          "Nuova Analisi",
+          style: GoogleFonts.montserrat(
+            color: const Color(0xFF1A73E8),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ),
+    const SizedBox(width: 12),
+    Expanded(
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF1A73E8),
+          minimumSize: const Size(double.infinity, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: _showSendMailDialog, // ✅ nuovo invio email
+        child: Text(
+          "Invia per Mail",
+          style: GoogleFonts.montserrat(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 20),
+
+], // 👈 chiude la Column
+),
+), // 👈 chiude SingleChildScrollView
+), // 👈 chiude Stack
+), // 👈 chiude Scaffold
+); // 👈 chiude WillPopScope
+} // 👈 chiude il metodo build()
+
 
 
 // ============================================================
@@ -1029,91 +1113,6 @@ Widget _buildDetailedSection(
     ],
   );
 }
-
-      // ============================================================
-      // 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
-      // ============================================================
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          "Raccomandazioni Personalizzate",
-          style: GoogleFonts.montserrat(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        "Formula skincare suggerita per te",
-        style: GoogleFonts.montserrat(
-          fontSize: 14,
-          color: Colors.black54,
-        ),
-      ),
-      const SizedBox(height: 12),
-      _buildRefertiCard(consigli),
-
-      const SizedBox(height: 40),
-
-      // ============================================================
-      // 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
-      // ============================================================
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF1A73E8)),
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () async {
-                await _cancelJob();
-                Navigator.pop(context);
-              },
-              child: Text(
-                "Nuova Analisi",
-                style: GoogleFonts.montserrat(
-                  color: const Color(0xFF1A73E8),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A73E8),
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: _showSendMailDialog, // ✅ nuovo invio email
-              child: Text(
-                "Invia per Mail",
-                style: GoogleFonts.montserrat(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      const SizedBox(height: 20),
-    ],
-  );
-}
-
 
 // ============================================================
 // 🔹 CARD CON I CONSIGLI (REFERTI CLINICI — ❕STILE iOS SOFT)
