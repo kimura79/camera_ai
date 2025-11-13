@@ -804,8 +804,8 @@ _buildParamCard(
 // 🔹 Indice di Giovinezza Cutanea (YI)
 _buildParamCard(
   "Indice di Giovinezza",
-  (indiceGiovinezza / 100).clamp(0.0, 1.0),
-),
+        ((resultData["marketing"]?["Indice di Giovinezza"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+      ),
 
       const SizedBox(height: 40),
 
