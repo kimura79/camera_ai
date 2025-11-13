@@ -745,8 +745,11 @@ Widget _buildDetailedSection(
   List<String> consigli,
 ) {
 // 🔹 Usa il valore reale calcolato dal server Python
-final double indiceGiovinezza =
-    (resultData["marketing"]?["Indice Giovinezza"] ?? 0.0).toDouble();
+final double indiceGiovinezza = (
+  (resultData["marketing"]?["Indice di Giovinezza"] ??
+   resultData["marketing"]?["Indice Giovinezza"] ??
+   0.0)
+).toDouble();
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -799,7 +802,10 @@ _buildParamCard(
 
 
 // 🔹 Indice di Giovinezza Cutanea (YI)
-_buildParamCard("Indice di Giovinezza", indiceGiovinezza),
+_buildParamCard(
+  "Indice di Giovinezza",
+  (indiceGiovinezza / 100).clamp(0.0, 1.0),
+),
 
       const SizedBox(height: 40),
 
