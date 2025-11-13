@@ -295,15 +295,21 @@ Widget build(BuildContext context) {
   final List<String> consigli =
       List<String>.from(referti["Consigli"] ?? []);
 
-  return WillPopScope(
+return WillPopScope(
     onWillPop: () async {
-  await _cancelJob();
-  setState(() {
-    resultData = null as Map<String, dynamic>?;
-    overlayFile = null;
-  });
-  return true;
-},
+      await _cancelJob();
+
+      final dir = await getTemporaryDirectory();
+      File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
+      File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
+
+      setState(() {
+        resultData = null;
+        overlayFile = null;
+      });
+
+      return true;
+    },
     child: Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
       appBar: AppBar(
@@ -321,10 +327,16 @@ Widget build(BuildContext context) {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () async {
   await _cancelJob();
+
+  final dir = await getTemporaryDirectory();
+  File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
+  File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
+
   setState(() {
-    resultData = null as Map<String, dynamic>?;
+    resultData = null;
     overlayFile = null;
   });
+
   Navigator.pop(context);
 },
 
@@ -352,13 +364,10 @@ GestureDetector(
     borderRadius: BorderRadius.circular(16),
     child: overlayFile != null
         ? Image.file(
-  overlayFile!,
-  width: double.infinity,
-  fit: BoxFit.cover,
-  gaplessPlayback: false,
-  key: ValueKey("${overlayFile!.path}_${DateTime.now().millisecondsSinceEpoch}"),
-)
-
+            overlayFile!,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          )
         : Container(
             height: 250,
             color: Colors.grey.shade200,
@@ -899,14 +908,21 @@ _buildParamCard(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () async {
+onPressed: () async {
   await _cancelJob();
+
+  final dir = await getTemporaryDirectory();
+  File("${dir.path}/result_farmacia.json").delete().catchError((_) {});
+  File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
+
   setState(() {
-    resultData = null as Map<String, dynamic>?;
+    resultData = null;
     overlayFile = null;
   });
+
   Navigator.pop(context);
 },
+
               child: Text(
                 "Nuova Analisi",
                 style: GoogleFonts.montserrat(
@@ -1112,29 +1128,22 @@ Widget _buildAreaRow(String label, String value) {
           body: SafeArea(
             child: Stack(
               children: [
-// 🔹 Swipe destra/sinistra
-PageView.builder(
-  controller: controller,
-  itemCount: immagini.length,
-  itemBuilder: (context, index) {
-    final current = immagini[index];
-    return Center(
-      child: InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 5.0,
-        child: Image.file(
-          current["file"],
-          fit: BoxFit.contain,
-          gaplessPlayback: false,
-          key: ValueKey(
-            "${current["file"].path}_${DateTime.now().millisecondsSinceEpoch}",
-          ),
-        ),
-      ),
-    );
-  },
-),
-
+                // 🔹 Swipe destra/sinistra
+                PageView.builder(
+                  controller: controller,
+                  itemCount: immagini.length,
+                  itemBuilder: (context, index) {
+                    final current = immagini[index];
+                    return Center(
+                      child: InteractiveViewer(
+                        minScale: 1.0,
+                        maxScale: 5.0,
+                        child:
+                            Image.file(current["file"], fit: BoxFit.contain),
+                      ),
+                    );
+                  },
+                ),
 
               // 🔹 Titolo dinamico
 Positioned(
