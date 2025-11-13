@@ -64,8 +64,17 @@ class _InfoIconState extends State<InfoIcon>
     setState(() => _visible = !_visible);
   }
 
+  void _hideTooltip() {
+    if (_visible) {
+      _animController.reverse();
+      setState(() => _visible = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
@@ -92,43 +101,55 @@ class _InfoIconState extends State<InfoIcon>
 
         // 🔹 Tooltip locale sopra la card
         if (_visible)
-          Positioned(
-            top: -70,
-            left: -120,
-            child: FadeTransition(
-              opacity: _animController,
-              child: GestureDetector(
-                onTap: _toggleTooltip, // chiude se tocchi la card
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    width: 260,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.black12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _hideTooltip, // 🔸 Tap ovunque per chiudere
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.topCenter,
+                children: [
+                  Positioned(
+                    top: -85,
+                    child: FadeTransition(
+                      opacity: _animController,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: screenWidth * 0.9, // fino al 90% dello schermo
+                            minWidth: screenWidth * 0.6, // almeno 60%
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            widget.text,
+                            textAlign: TextAlign.left,
+                            style: GoogleFonts.montserrat(
+                              fontSize: 13.5,
+                              height: 1.5,
+                              color: Colors.black87,
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      widget.text,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13.5,
-                        height: 1.4,
-                        color: Colors.black87,
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
