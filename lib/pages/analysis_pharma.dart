@@ -297,9 +297,13 @@ Widget build(BuildContext context) {
 
   return WillPopScope(
     onWillPop: () async {
-      await _cancelJob();
-      return true;
-    },
+  await _cancelJob();
+  setState(() {
+    resultData = null;
+    overlayFile = null;
+  });
+  return true;
+},
     child: Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
       appBar: AppBar(
@@ -316,9 +320,14 @@ Widget build(BuildContext context) {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () async {
-            await _cancelJob();
-            Navigator.pop(context);
-          },
+  await _cancelJob();
+  setState(() {
+    resultData = null;
+    overlayFile = null;
+  });
+  Navigator.pop(context);
+},
+
         ),
       ),
 
@@ -343,10 +352,13 @@ GestureDetector(
     borderRadius: BorderRadius.circular(16),
     child: overlayFile != null
         ? Image.file(
-            overlayFile!,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          )
+  overlayFile!,
+  width: double.infinity,
+  fit: BoxFit.cover,
+  gaplessPlayback: false,
+  key: ValueKey("${overlayFile!.path}_${DateTime.now().millisecondsSinceEpoch}"),
+)
+
         : Container(
             height: 250,
             color: Colors.grey.shade200,
@@ -888,9 +900,13 @@ _buildParamCard(
                 ),
               ),
               onPressed: () async {
-                await _cancelJob();
-                Navigator.pop(context);
-              },
+  await _cancelJob();
+  setState(() {
+    resultData = null;
+    overlayFile = null;
+  });
+  Navigator.pop(context);
+},
               child: Text(
                 "Nuova Analisi",
                 style: GoogleFonts.montserrat(
@@ -1096,22 +1112,29 @@ Widget _buildAreaRow(String label, String value) {
           body: SafeArea(
             child: Stack(
               children: [
-                // 🔹 Swipe destra/sinistra
-                PageView.builder(
-                  controller: controller,
-                  itemCount: immagini.length,
-                  itemBuilder: (context, index) {
-                    final current = immagini[index];
-                    return Center(
-                      child: InteractiveViewer(
-                        minScale: 1.0,
-                        maxScale: 5.0,
-                        child:
-                            Image.file(current["file"], fit: BoxFit.contain),
-                      ),
-                    );
-                  },
-                ),
+// 🔹 Swipe destra/sinistra
+PageView.builder(
+  controller: controller,
+  itemCount: immagini.length,
+  itemBuilder: (context, index) {
+    final current = immagini[index];
+    return Center(
+      child: InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 5.0,
+        child: Image.file(
+          current["file"],
+          fit: BoxFit.contain,
+          gaplessPlayback: false,
+          key: ValueKey(
+            "${current["file"].path}_${DateTime.now().millisecondsSinceEpoch}",
+          ),
+        ),
+      ),
+    );
+  },
+),
+
 
               // 🔹 Titolo dinamico
 Positioned(
