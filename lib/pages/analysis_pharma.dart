@@ -304,7 +304,7 @@ return WillPopScope(
       File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
 
       setState(() {
-        resultData = null;
+        resultData = null as Map<String, dynamic>?;
         overlayFile = null;
       });
 
@@ -333,7 +333,7 @@ return WillPopScope(
   File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
 
   setState(() {
-    resultData = null;
+    resultData = null as Map<String, dynamic>?;
     overlayFile = null;
   });
 
@@ -916,7 +916,7 @@ onPressed: () async {
   File("${dir.path}/overlay_farmacia.png").delete().catchError((_) {});
 
   setState(() {
-    resultData = null;
+    resultData = null as Map<String, dynamic>?;
     overlayFile = null;
   });
 
