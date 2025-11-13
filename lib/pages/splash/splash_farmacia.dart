@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '/app_state.dart';
 
-/// 💊 Splash Farmacia (sfondo bianco + selettore fotocamera/galleria/file)
+/// 💊 Splash Farmacia — reset totale a ogni apertura
 class SplashFarmacia extends StatefulWidget {
   const SplashFarmacia({super.key});
 
@@ -17,35 +17,49 @@ class SplashFarmacia extends StatefulWidget {
   State<SplashFarmacia> createState() => _SplashFarmaciaState();
 }
 
-class _SplashFarmaciaState extends State<SplashFarmacia> {
+class _SplashFarmaciaState extends State<SplashFarmacia>
+    with WidgetsBindingObserver {
   final ImagePicker picker = ImagePicker();
 
   // ============================================================
-  // 🧹 PULIZIA COMPLETA ALL'AVVIO DELLA PAGINA
+  // 🧹 PULIZIA COMPLETA (locale + remota)
   // ============================================================
   Future<void> _clearOldJobsAndFiles() async {
     try {
-      final dir = await getTemporaryDirectory();
-
-      // 🔹 Cancella file locali residui
-      final jsonFile = File("${dir.path}/result_farmacia.json");
-      final overlay = File("${dir.path}/overlay_farmacia.png");
-
-      if (await jsonFile.exists()) {
-        await jsonFile.delete();
-        debugPrint("🧹 Vecchio result_farmacia.json eliminato.");
-      }
-      if (await overlay.exists()) {
-        await overlay.delete();
-        debugPrint("🧹 Vecchio overlay_farmacia.png eliminato.");
-      }
-
-      // 🔹 Cancella eventuali job attivi sul server
+      // 🔹 1. Cancella job remoti
       const String serverUrl =
           "https://ray-stake-prediction-underground.trycloudflare.com";
       final uri = Uri.parse('$serverUrl/cancel_all_jobs');
       await http.post(uri);
-      debugPrint("🧹 Tutti i job remoti cancellati all’avvio SplashFarmacia.");
+      debugPrint("🧹 Tutti i job remoti cancellati.");
+
+      // 🔹 2. Cancella file temporanei locali
+      final tempDir = await getTemporaryDirectory();
+      final appDir = await getApplicationDocumentsDirectory();
+
+      Future<void> cleanDir(Directory dir) async {
+        if (await dir.exists()) {
+          for (final file in dir.listSync(recursive: true)) {
+            try {
+              if (file is File &&
+                  (file.path.contains('overlay_farmacia') ||
+                      file.path.contains('overlay_') ||
+                      file.path.contains('image_picker_') ||
+                      file.path.contains('result_farmacia') ||
+                      file.path.endsWith('.png') ||
+                      file.path.endsWith('.json'))) {
+                await file.delete();
+                debugPrint("🗑️ Eliminato: ${file.path}");
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      await cleanDir(tempDir);
+      await cleanDir(appDir);
+
+      debugPrint("🧹 Tutti i file temporanei locali eliminati.");
     } catch (e) {
       debugPrint("❌ Errore durante pulizia iniziale SplashFarmacia: $e");
     }
@@ -54,7 +68,31 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _clearOldJobsAndFiles(); // ✅ pulizia automatica all'apertura
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // ============================================================
+  // 🔁 RICHIAMO AUTOMATICO QUANDO SI TORNA ALLA PAGINA
+  // ============================================================
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _clearOldJobsAndFiles(); // ✅ ripulisce tutto anche al ritorno
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ✅ si richiama anche quando si torna da una pagina interna
+    WidgetsBinding.instance.addPostFrameCallback((_) => _clearOldJobsAndFiles());
   }
 
   // ============================================================
@@ -62,25 +100,23 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
   // ============================================================
   Future<void> _apriAnalisi(
       BuildContext context, String imagePath, String mode) async {
-    Navigator.of(context)
-        .push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FFAppState().modalita == "farmacia"
             ? AnalysisPharmaPreview(imagePath: imagePath, mode: mode)
             : AnalysisPreview(imagePath: imagePath, mode: mode),
       ),
-    )
-        .then((analyzed) {
-      if (analyzed != null) {
-        Navigator.pop(context);
-        Navigator.pop(context, analyzed);
-      }
-    });
+    );
+    // ✅ Quando si torna, ripulisce subito
+    await _clearOldJobsAndFiles();
   }
 
+  // ============================================================
+  // 🖼️ INTERFACCIA GRAFICA
+  // ============================================================
   @override
   Widget build(BuildContext context) {
-    final parentContext = context; // ✅ salviamo il contesto superiore
+    final parentContext = context;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -157,16 +193,17 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
                                   title: const Text("Fotocamera"),
                                   onTap: () async {
                                     Navigator.pop(context);
-                                    Navigator.push(
+                                    await Navigator.push(
                                       parentContext,
                                       MaterialPageRoute(
                                         builder: (_) => const HomePageWidget(),
                                       ),
                                     );
+                                    await _clearOldJobsAndFiles();
                                   },
                                 ),
 
-                                // 🖼 Galleria — ora funziona correttamente
+                                // 🖼 Galleria
                                 ListTile(
                                   leading: const Icon(Icons.photo_library,
                                       color: Color(0xFF38BDF8)),
@@ -176,21 +213,13 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
                                     final XFile? image = await picker.pickImage(
                                         source: ImageSource.gallery);
                                     if (image != null) {
-                                      Navigator.push(
-                                        parentContext,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              AnalysisPharmaPreview(
-                                            imagePath: image.path,
-                                            mode: "fullface",
-                                          ),
-                                        ),
-                                      );
+                                      await _apriAnalisi(
+                                          parentContext, image.path, "fullface");
                                     }
                                   },
                                 ),
 
-                                // 📁 File — anche qui usiamo il parentContext
+                                // 📁 File
                                 ListTile(
                                   leading: const Icon(Icons.folder,
                                       color: Color(0xFF60A5FA)),
@@ -200,16 +229,8 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
                                     final XFile? file = await picker.pickImage(
                                         source: ImageSource.gallery);
                                     if (file != null) {
-                                      Navigator.push(
-                                        parentContext,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              AnalysisPharmaPreview(
-                                            imagePath: file.path,
-                                            mode: "fullface",
-                                          ),
-                                        ),
-                                      );
+                                      await _apriAnalisi(
+                                          parentContext, file.path, "fullface");
                                     }
                                   },
                                 ),
@@ -238,7 +259,6 @@ class _SplashFarmaciaState extends State<SplashFarmacia> {
                 ),
               ),
               const SizedBox(height: 20),
-
               Text(
                 "Scatta o seleziona un'immagine per analizzare la pelle",
                 textAlign: TextAlign.center,
