@@ -5,21 +5,72 @@ import 'package:image_picker/image_picker.dart';
 import 'package:custom_camera_component/pages/home_page/home_page_widget.dart';
 import 'package:custom_camera_component/pages/analysis_pharma_preview.dart';
 import 'package:custom_camera_component/pages/analysis_preview.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 import '/app_state.dart';
 
 /// 💊 Splash Farmacia (sfondo bianco + selettore fotocamera/galleria/file)
-class SplashFarmacia extends StatelessWidget {
+class SplashFarmacia extends StatefulWidget {
   const SplashFarmacia({super.key});
 
+  @override
+  State<SplashFarmacia> createState() => _SplashFarmaciaState();
+}
+
+class _SplashFarmaciaState extends State<SplashFarmacia> {
+  final ImagePicker picker = ImagePicker();
+
+  // ============================================================
+  // 🧹 PULIZIA COMPLETA ALL'AVVIO DELLA PAGINA
+  // ============================================================
+  Future<void> _clearOldJobsAndFiles() async {
+    try {
+      final dir = await getTemporaryDirectory();
+
+      // 🔹 Cancella file locali residui
+      final jsonFile = File("${dir.path}/result_farmacia.json");
+      final overlay = File("${dir.path}/overlay_farmacia.png");
+
+      if (await jsonFile.exists()) {
+        await jsonFile.delete();
+        debugPrint("🧹 Vecchio result_farmacia.json eliminato.");
+      }
+      if (await overlay.exists()) {
+        await overlay.delete();
+        debugPrint("🧹 Vecchio overlay_farmacia.png eliminato.");
+      }
+
+      // 🔹 Cancella eventuali job attivi sul server
+      const String serverUrl =
+          "https://ray-stake-prediction-underground.trycloudflare.com";
+      final uri = Uri.parse('$serverUrl/cancel_all_jobs');
+      await http.post(uri);
+      debugPrint("🧹 Tutti i job remoti cancellati all’avvio SplashFarmacia.");
+    } catch (e) {
+      debugPrint("❌ Errore durante pulizia iniziale SplashFarmacia: $e");
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _clearOldJobsAndFiles(); // ✅ pulizia automatica all'apertura
+  }
+
+  // ============================================================
+  // 📤 APERTURA ANALISI FARMACIA
+  // ============================================================
   Future<void> _apriAnalisi(
       BuildContext context, String imagePath, String mode) async {
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       MaterialPageRoute(
         builder: (_) => FFAppState().modalita == "farmacia"
             ? AnalysisPharmaPreview(imagePath: imagePath, mode: mode)
             : AnalysisPreview(imagePath: imagePath, mode: mode),
       ),
-    ).then((analyzed) {
+    )
+        .then((analyzed) {
       if (analyzed != null) {
         Navigator.pop(context);
         Navigator.pop(context, analyzed);
@@ -29,7 +80,6 @@ class SplashFarmacia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ImagePicker picker = ImagePicker();
     final parentContext = context; // ✅ salviamo il contesto superiore
 
     return Scaffold(
@@ -150,16 +200,16 @@ class SplashFarmacia extends StatelessWidget {
                                     final XFile? file = await picker.pickImage(
                                         source: ImageSource.gallery);
                                     if (file != null) {
-                                        Navigator.push(
-                                          parentContext,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                AnalysisPharmaPreview(
-                                              imagePath: file.path,
-                                              mode: "fullface",
-                                            ),
+                                      Navigator.push(
+                                        parentContext,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              AnalysisPharmaPreview(
+                                            imagePath: file.path,
+                                            mode: "fullface",
                                           ),
-                                        );
+                                        ),
+                                      );
                                     }
                                   },
                                 ),
