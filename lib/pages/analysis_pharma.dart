@@ -46,11 +46,10 @@ void initState() {
 }
 
 
-  @override
-  void dispose() {
-    _cancelAllJobs();
-    super.dispose();
-  }
+@override
+void dispose() {
+  super.dispose();
+}
 
   // ============================================================
   // ❌ CANCELLAZIONE JOB SINGOLO
