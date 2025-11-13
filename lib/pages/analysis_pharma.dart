@@ -299,7 +299,7 @@ Widget build(BuildContext context) {
     onWillPop: () async {
   await _cancelJob();
   setState(() {
-    resultData = null;
+    resultData = null as Map<String, dynamic>?;
     overlayFile = null;
   });
   return true;
@@ -322,7 +322,7 @@ Widget build(BuildContext context) {
           onPressed: () async {
   await _cancelJob();
   setState(() {
-    resultData = null;
+    resultData = null as Map<String, dynamic>?;
     overlayFile = null;
   });
   Navigator.pop(context);
@@ -902,7 +902,7 @@ _buildParamCard(
               onPressed: () async {
   await _cancelJob();
   setState(() {
-    resultData = null;
+    resultData = null as Map<String, dynamic>?;
     overlayFile = null;
   });
   Navigator.pop(context);
