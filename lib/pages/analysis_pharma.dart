@@ -35,39 +35,18 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   final String serverUrl =
       "https://ray-stake-prediction-underground.trycloudflare.com";
 
-@override
-void initState() {
-  super.initState();
-
-  // 🔹 Prima pulisci i file temporanei, poi carica i nuovi risultati
-  _clearOldResults().then((_) {
+  @override
+  void initState() {
+    super.initState();
     _loadResultData();
-  });
-}
-
+  }
 
 @override
 void dispose() {
+  _clearOldResults(); // ✅ cancella file locali ma NON tocca il server
   super.dispose();
 }
 
-  // ============================================================
-  // ❌ CANCELLAZIONE JOB SINGOLO
-  // ============================================================
-  Future<void> _cancelJob() async {
-    if (widget.jobId == null) return;
-    try {
-      final uri = Uri.parse('$serverUrl/cancel_job/${widget.jobId}');
-      final res = await http.post(uri);
-      if (res.statusCode == 200) {
-        debugPrint("🧹 Job ${widget.jobId} annullato correttamente.");
-      } else {
-        debugPrint("⚠️ Errore durante cancellazione job (${res.statusCode})");
-      }
-    } catch (e) {
-      debugPrint("❌ Errore cancellazione job: $e");
-    }
-  }
 
   // ============================================================
   // ❌ CANCELLAZIONE DI TUTTI I JOB ATTIVI
@@ -85,30 +64,6 @@ void dispose() {
       debugPrint("❌ Errore cancellazione globale job: $e");
     }
   }
-
-// ============================================================
-// 🧹 PULIZIA FILE TEMPORANEI FARMACIA
-// ============================================================
-Future<void> _clearOldResults() async {
-  try {
-    final dir = await getTemporaryDirectory();
-    final jsonFile = File("${dir.path}/result_farmacia.json");
-    final overlay = File("${dir.path}/overlay_farmacia.png");
-
-    if (await jsonFile.exists()) await jsonFile.delete();
-    if (await overlay.exists()) await overlay.delete();
-
-    setState(() {
-      resultData = null;
-      overlayFile = null;
-    });
-
-    debugPrint("🧽 File temporanei farmacia rimossi correttamente.");
-  } catch (e) {
-    debugPrint("⚠️ Errore nella pulizia file temporanei: $e");
-  }
-}
-
 
   // ============================================================
   // 📂 CARICAMENTO RISULTATI ANALISI + OVERLAY
@@ -342,14 +297,13 @@ Widget build(BuildContext context) {
           ),
         ),
         leading: IconButton(
-  icon: const Icon(Icons.arrow_back, color: Colors.black87),
-  onPressed: () async {
-    await _cancelJob();
-    await _clearOldResults(); // ✅ Pulisce overlay e json vecchi
-    Navigator.pop(context);
-  },
-),
-
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () async {
+            await _cancelJob();
+            await _clearOldResults();
+            Navigator.pop(context);
+          },
+        ),
       ),
 
  // ============================================================
@@ -917,11 +871,10 @@ _buildParamCard(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-onPressed: () async {
-  await _cancelJob();
-  await _clearOldResults(); // ✅ Pulisce overlay e json vecchi
-  Navigator.pop(context);
-},
+              onPressed: () async {
+                await _cancelJob();
+                Navigator.pop(context);
+              },
               child: Text(
                 "Nuova Analisi",
                 style: GoogleFonts.montserrat(
