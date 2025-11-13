@@ -13,12 +13,12 @@ class TooltipController extends ChangeNotifier {
 }
 
 /// ============================================================
-/// ℹ️ InfoIcon — Tooltip che si apre verso sinistra (visivamente)
+/// ℹ️ InfoIcon — Tooltip a schermo intero, centrato e chiudibile
 /// ============================================================
 class InfoIcon extends StatefulWidget {
   final GlobalKey targetKey;
   final String text;
-  final TooltipController controller; // compatibilità
+  final TooltipController controller; // mantenuto per compatibilità
 
   const InfoIcon({
     super.key,
@@ -41,7 +41,7 @@ class _InfoIconState extends State<InfoIcon>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 200),
     );
   }
 
@@ -53,23 +53,26 @@ class _InfoIconState extends State<InfoIcon>
 
   void _toggleTooltip() {
     if (_visible) {
-      _animController.reverse();
+      _hideTooltip();
     } else {
-      _animController.forward();
+      _showTooltip();
     }
-    setState(() => _visible = !_visible);
+  }
+
+  void _showTooltip() {
+    _animController.forward();
+    setState(() => _visible = true);
   }
 
   void _hideTooltip() {
-    if (_visible) {
-      _animController.reverse();
-      setState(() => _visible = false);
-    }
+    _animController.reverse();
+    setState(() => _visible = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -94,62 +97,85 @@ class _InfoIconState extends State<InfoIcon>
           ),
         ),
 
-        // 🔹 Tooltip visibile + overlay per chiudere con tap ovunque
+        // 🔹 Tooltip fullscreen sopra tutto
         if (_visible)
           Positioned.fill(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // 🔸 Overlay cliccabile (chiude il tooltip ovunque tocchi)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _hideTooltip,
-                  child: Container(color: Colors.transparent),
-                ),
+            child: FadeTransition(
+              opacity: _animController,
+              child: Stack(
+                children: [
+                  // 🔸 Sfondo semi-trasparente (chiude se tocchi ovunque)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _hideTooltip,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.35),
+                    ),
+                  ),
 
-                // 🔹 Tooltip che si apre a sinistra della "i"
-                Positioned(
-                  top: -20, // leggero rialzo verticale
-                  right: 40, // spostamento verso sinistra
-                  child: FadeTransition(
-                    opacity: _animController,
+                  // 🔹 Tooltip centrato
+                  Center(
                     child: Material(
                       color: Colors.transparent,
                       child: Container(
                         constraints: BoxConstraints(
-                          maxWidth: screenWidth * 0.85,
-                          minWidth: screenWidth * 0.7,
+                          maxWidth: screenWidth * 0.9,
+                          minWidth: screenWidth * 0.8,
+                          maxHeight: screenHeight * 0.5,
                         ),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
+                          horizontal: 20,
+                          vertical: 16,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.black12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
-                        child: Text(
-                          widget.text,
-                          style: GoogleFonts.montserrat(
-                            fontSize: 13.5,
-                            height: 1.5,
-                            color: Colors.black87,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                widget.text,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 15,
+                                  height: 1.6,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              TextButton(
+                                onPressed: _hideTooltip,
+                                style: TextButton.styleFrom(
+                                  foregroundColor:
+                                      const Color(0xFF1A73E8),
+                                ),
+                                child: const Text(
+                                  "Chiudi",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          textAlign: TextAlign.left,
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],
