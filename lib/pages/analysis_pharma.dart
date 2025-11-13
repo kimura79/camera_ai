@@ -41,12 +41,29 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
     _loadResultData();
   }
 
-@override
-void dispose() {
-  _clearOldResults(); // ✅ cancella file locali ma NON tocca il server
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _cancelAllJobs();
+    super.dispose();
+  }
 
+  // ============================================================
+  // ❌ CANCELLAZIONE JOB SINGOLO
+  // ============================================================
+  Future<void> _cancelJob() async {
+    if (widget.jobId == null) return;
+    try {
+      final uri = Uri.parse('$serverUrl/cancel_job/${widget.jobId}');
+      final res = await http.post(uri);
+      if (res.statusCode == 200) {
+        debugPrint("🧹 Job ${widget.jobId} annullato correttamente.");
+      } else {
+        debugPrint("⚠️ Errore durante cancellazione job (${res.statusCode})");
+      }
+    } catch (e) {
+      debugPrint("❌ Errore cancellazione job: $e");
+    }
+  }
 
   // ============================================================
   // ❌ CANCELLAZIONE DI TUTTI I JOB ATTIVI
@@ -64,6 +81,34 @@ void dispose() {
       debugPrint("❌ Errore cancellazione globale job: $e");
     }
   }
+
+// ============================================================
+// 🧹 CANCELLA SOLO FILE LOCALI (overlay e JSON in RAM)
+// ============================================================
+Future<void> _clearOldResults() async {
+  try {
+    final dir = await getTemporaryDirectory();
+    final jsonFile = File("${dir.path}/result_farmacia.json");
+    final overlay = File("${dir.path}/overlay_farmacia.png");
+
+    if (await jsonFile.exists()) {
+      await jsonFile.delete();
+      debugPrint("🗑️ File result_farmacia.json eliminato.");
+    }
+    if (await overlay.exists()) {
+      await overlay.delete();
+      debugPrint("🗑️ File overlay_farmacia.png eliminato.");
+    }
+
+    setState(() {
+      overlayFile = null;
+      resultData = null;
+    });
+  } catch (e) {
+    debugPrint("❌ Errore cancellazione file locali: $e");
+  }
+}
+
 
   // ============================================================
   // 📂 CARICAMENTO RISULTATI ANALISI + OVERLAY
@@ -296,14 +341,14 @@ Widget build(BuildContext context) {
             fontWeight: FontWeight.w600,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () async {
-            await _cancelJob();
-            await _clearOldResults();
-            Navigator.pop(context);
-          },
-        ),
+leading: IconButton(
+  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+  onPressed: () async {
+    await _cancelJob();
+    await _clearOldResults(); // ✅ cancella overlay in RAM solo qui
+    Navigator.pop(context);
+  },
+),
       ),
 
  // ============================================================
