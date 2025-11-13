@@ -553,6 +553,143 @@ body: GestureDetector(
                 );
               },
             ),
+
+            const SizedBox(height: 30),
+
+            // ============================================================
+            // 📊 ANALISI DETTAGLIATA + PARAMETRI
+            // ============================================================
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Analisi Dettagliata per Parametro",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildDetailedSection(indici, resultData!, consigli),
+
+            // ============================================================
+            // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
+            // ============================================================
+            if (resultData["aree_specifiche"] != null) ...[
+              const SizedBox(height: 30),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Estensioni Aree Specifiche",
+                  style: GoogleFonts.montserrat(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildAreaRow(
+                "Pori",
+                "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
+              ),
+              _buildAreaRow(
+                "Rughe",
+                "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
+              ),
+              _buildAreaRow(
+                "Macchie pigmentarie",
+                "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
+              ),
+              _buildAreaRow(
+                "Aree vascolari (Red Areas)",
+                "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
+              ),
+            ],
+
+            const SizedBox(height: 40),
+
+            // ============================================================
+            // 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
+            // ============================================================
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Raccomandazioni Personalizzate",
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Formula skincare suggerita per te",
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildRefertiCard(consigli),
+
+            const SizedBox(height: 40),
+
+            // ============================================================
+            // 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
+            // ============================================================
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF1A73E8)),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () async {
+                      await _cancelJob();
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      "Nuova Analisi",
+                      style: GoogleFonts.montserrat(
+                        color: const Color(0xFF1A73E8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A73E8),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _showSendMailDialog,
+                    child: Text(
+                      "Invia per Mail",
+                      style: GoogleFonts.montserrat(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -568,156 +705,12 @@ body: GestureDetector(
     ],
   ),
 ),
-
-
-
-
-      const SizedBox(height: 30),
-
-      // ============================================================
-      // 📊 ANALISI DETTAGLIATA + AREE SPECIFICHE + REFERTI
-      // ============================================================
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          "Analisi Dettagliata per Parametro",
-          style: GoogleFonts.montserrat(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-      ),
-      const SizedBox(height: 14),
-
-      // ✅ Contenuti completi (barre, aree, referti, pulsanti)
-      _buildDetailedSection(indici, resultData!, consigli),
-
-// ============================================================
-// 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
-// ============================================================
-if (resultData["aree_specifiche"] != null) ...[
-  const SizedBox(height: 30),
-  Align(
-    alignment: Alignment.centerLeft,
-    child: Text(
-      "Estensioni Aree Specifiche",
-      style: GoogleFonts.montserrat(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: Colors.black87,
-      ),
-    ),
-  ),
-  const SizedBox(height: 10),
-  _buildAreaRow(
-    "Pori",
-    "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
-  ),
-  _buildAreaRow(
-    "Rughe",
-    "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
-  ),
-  _buildAreaRow(
-    "Macchie pigmentarie",
-    "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
-  ),
-  _buildAreaRow(
-    "Aree vascolari (Red Areas)",
-    "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
-  ),
-],
-
-const SizedBox(height: 40),
-
-// ============================================================
-// 💊 RACCOMANDAZIONI PERSONALIZZATE + REFERTI
-// ============================================================
-Align(
-  alignment: Alignment.centerLeft,
-  child: Text(
-    "Raccomandazioni Personalizzate",
-    style: GoogleFonts.montserrat(
-      fontSize: 20,
-      fontWeight: FontWeight.w600,
-      color: Colors.black87,
-    ),
-  ),
-),
-const SizedBox(height: 4),
-Text(
-  "Formula skincare suggerita per te",
-  style: GoogleFonts.montserrat(
-    fontSize: 14,
-    color: Colors.black54,
-  ),
-),
-const SizedBox(height: 12),
-_buildRefertiCard(consigli),
-
-const SizedBox(height: 40),
-
-// ============================================================
-// 🔹 PULSANTI FINALI — Nuova analisi / Invia per mail
-// ============================================================
-Row(
-  children: [
-    Expanded(
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFF1A73E8)),
-          minimumSize: const Size(double.infinity, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: () async {
-          await _cancelJob();
-          Navigator.pop(context);
-        },
-        child: Text(
-          "Nuova Analisi",
-          style: GoogleFonts.montserrat(
-            color: const Color(0xFF1A73E8),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    ),
-    const SizedBox(width: 12),
-    Expanded(
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A73E8),
-          minimumSize: const Size(double.infinity, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: _showSendMailDialog, // ✅ nuovo invio email
-        child: Text(
-          "Invia per Mail",
-          style: GoogleFonts.montserrat(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    ),
-  ],
-),
-
-const SizedBox(height: 20),
-
-], // 👈 chiude la Column
-),
-), // 👈 chiude SingleChildScrollView
-), // 👈 chiude Stack
 ), // 👈 chiude Scaffold
 ); // 👈 chiude WillPopScope
-} // 👈 chiude il metodo build()
+} // 👈 chiude build()
+
+
+
 
 
 
