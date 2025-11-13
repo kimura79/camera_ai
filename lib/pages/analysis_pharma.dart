@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'tooltip_info.dart';
+
 
 class AnalysisPharmaPage extends StatefulWidget {
   final String imagePath;
@@ -29,6 +31,7 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   // ============================================================
   Map<String, dynamic>? resultData;
   File? overlayFile;
+  final TooltipController tooltip = TooltipController();
 
   // 🔹 URL del server AI (Cloudflare Tunnel attivo)
   // puoi sostituire con ai.epidermys.com se usi DNS dedicato
@@ -351,197 +354,221 @@ leading: IconButton(
 ),
       ),
 
- // ============================================================
-// 🩵 BODY — Layout Lovable.dev
 // ============================================================
-body: SingleChildScrollView(
-  padding: const EdgeInsets.all(20),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.center,
+// 🩵 BODY — Layout Lovable.dev + Tooltip Flottante
+// ============================================================
+body: GestureDetector(
+  onTap: () => tooltip.hide(),
+  child: Stack(
     children: [
-      // ============================================================
-// 🖼️ OVERLAY ANALISI — Anteprima tappabile (Lovable style)
-// ============================================================
-GestureDetector(
-  onTap: () {
-    if (overlayFile != null) {
-      _showFullScreenImage(overlayFile!, "Overlay analisi");
-    }
-  },
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(16),
-    child: overlayFile != null
-        ? Image.file(
-            overlayFile!,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          )
-        : Container(
-            height: 250,
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: Text(
-                "Nessun overlay disponibile",
-                style: TextStyle(color: Colors.black54, fontSize: 16),
-              ),
-            ),
-          ),
-  ),
-),
-const SizedBox(height: 25),
-
-      // ============================================================
-      // 🟢 RISULTATO COMPLESSIVO — Gauge circolare
-      // ============================================================
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
+      SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              "Risultato Complessivo",
-              style: GoogleFonts.montserrat(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
+            // ============================================================
+            // 🖼️ OVERLAY ANALISI — Anteprima tappabile (Lovable style)
+            // ============================================================
+            GestureDetector(
+              onTap: () {
+                if (overlayFile != null) {
+                  _showFullScreenImage(overlayFile!, "Overlay analisi");
+                }
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: overlayFile != null
+                    ? Image.file(
+                        overlayFile!,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        height: 250,
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: Text(
+                            "Nessun overlay disponibile",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
               ),
             ),
-            const SizedBox(height: 20),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 160,
-                  height: 160,
-                  child: CircularProgressIndicator(
-                    value: scorePercent / 100,
-                    strokeWidth: 12,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        _colore(scorePercent / 100)),
+            const SizedBox(height: 25),
+
+            // ============================================================
+            // 🟢 RISULTATO COMPLESSIVO — Gauge circolare
+            // ============================================================
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
-                ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      scorePercent.toStringAsFixed(0),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Risultato Complessivo",
+                    style: GoogleFonts.montserrat(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 160,
+                        height: 160,
+                        child: CircularProgressIndicator(
+                          value: scorePercent / 100,
+                          strokeWidth: 12,
+                          backgroundColor: Colors.grey.shade200,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _colore(scorePercent / 100),
+                          ),
+                        ),
+                      ),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            scorePercent.toStringAsFixed(0),
+                            style: GoogleFonts.montserrat(
+                              fontSize: 44,
+                              fontWeight: FontWeight.w800,
+                              color: _colore(scorePercent / 100),
+                            ),
+                          ),
+                          Text(
+                            "/ 100",
+                            style: GoogleFonts.montserrat(
+                              fontSize: 16,
+                              color: Colors.black45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Salute della Pelle",
+                    style: GoogleFonts.montserrat(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _colore(scorePercent / 100).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      giudizio(scorePercent / 100),
                       style: GoogleFonts.montserrat(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                         color: _colore(scorePercent / 100),
                       ),
                     ),
-                    Text(
-                      "/ 100",
-                      style: GoogleFonts.montserrat(
-                        fontSize: 16,
-                        color: Colors.black45,
-                      ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    tipoPelle,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            // ============================================================
+            // 📈 PUNTO DI FORZA / DA MIGLIORARE
+            // ============================================================
+            Builder(
+              builder: (context) {
+                if (indici.isEmpty) return const SizedBox.shrink();
+
+                final Map<String, double> baseIndici = {
+                  "Elasticità": (indici["Elasticità"] ?? 0.0).toDouble(),
+                  "Texture": (indici["Texture"] ?? 0.0).toDouble(),
+                  "Idratazione": (indici["Idratazione"] ?? 0.0).toDouble(),
+                  "Chiarezza": (indici["Chiarezza"] ?? 0.0).toDouble(),
+                };
+
+                final sorted = baseIndici.entries.toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+
+                final best = sorted.first;
+                final worst = sorted.last;
+
+                return Column(
+                  children: [
+                    _buildInfoCard(
+                      titolo: "Punto di Forza",
+                      sottotitolo: best.key,
+                      descrizione:
+                          "Eccellente con ${(best.value * 100).toStringAsFixed(0)}%",
+                      colore: const Color(0xFFB7EFC5),
+                      icona: Icons.trending_up,
+                      positivo: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildInfoCard(
+                      titolo: "Da Migliorare",
+                      sottotitolo: worst.key,
+                      descrizione:
+                          "Richiede attenzione (${(worst.value * 100).toStringAsFixed(0)}%)",
+                      colore: const Color(0xFFFAD0D0),
+                      icona: Icons.trending_down,
+                      positivo: false,
                     ),
                   ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Salute della Pelle",
-              style: GoogleFonts.montserrat(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-              decoration: BoxDecoration(
-                color: _colore(scorePercent / 100).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                giudizio(scorePercent / 100),
-                style: GoogleFonts.montserrat(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: _colore(scorePercent / 100),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              tipoPelle,
-              style: GoogleFonts.montserrat(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
-              ),
+                );
+              },
             ),
           ],
         ),
       ),
 
-      const SizedBox(height: 25),
-
- // ============================================================
-// ============================================================
-// 📈 PUNTO DI FORZA / DA MIGLIORARE (solo 4 indici base visibili)
-// ============================================================
-Builder(
-  builder: (context) {
-    if (indici.isEmpty) return const SizedBox.shrink();
-
-    // ✅ Usa SOLO i 4 indici clinici principali (ignora tutto il resto)
-    final Map<String, double> baseIndici = {
-      "Elasticità": (indici["Elasticità"] ?? 0.0).toDouble(),
-      "Texture": (indici["Texture"] ?? 0.0).toDouble(),
-      "Idratazione": (indici["Idratazione"] ?? 0.0).toDouble(),
-      "Chiarezza": (indici["Chiarezza"] ?? 0.0).toDouble(),
-    };
-
-    final sorted = baseIndici.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    final best = sorted.first;
-    final worst = sorted.last;
-
-    return Column(
-      children: [
-        _buildInfoCard(
-          titolo: "Punto di Forza",
-          sottotitolo: best.key,
-          descrizione:
-              "Eccellente con ${(best.value * 100).toStringAsFixed(0)}%",
-          colore: const Color(0xFFB7EFC5),
-          icona: Icons.trending_up,
-          positivo: true,
+      // ============================================================
+      // 🟦 TOOLTIP FLOTTANTE
+      // ============================================================
+      if (tooltip.visible)
+        TooltipCard(
+          position: tooltip.position!,
+          text: tooltip.text!,
         ),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          titolo: "Da Migliorare",
-          sottotitolo: worst.key,
-          descrizione:
-              "Richiede attenzione (${(worst.value * 100).toStringAsFixed(0)}%)",
-          colore: const Color(0xFFFAD0D0),
-          icona: Icons.trending_down,
-          positivo: false,
-        ),
-      ],
-    );
-  },
+    ],
+  ),
 ),
+
 
 
 
@@ -764,6 +791,85 @@ Widget _buildParamCard(
   );
 }
 
+// ============================================================
+// 🔹 CARD PARAMETRICA con ICONA INFO + Tooltip
+// ============================================================
+Widget _buildParamCardWithInfo({
+  required GlobalKey key,
+  required String titolo,
+  required double valore,
+  required String tooltipText,
+  Color? colorePersonalizzato,
+  String Function(double)? giudizioPersonalizzato,
+}) {
+  final colore = colorePersonalizzato ?? _colore(valore);
+  final testoGiudizio = giudizioPersonalizzato != null
+      ? giudizioPersonalizzato(valore)
+      : giudizio(valore);
+
+  return Container(
+    key: key,
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: colore.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              titolo,
+              style: GoogleFonts.montserrat(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  "${(valore * 100).toStringAsFixed(0)} / 100",
+                  style: GoogleFonts.montserrat(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: colore,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InfoIcon(
+                  targetKey: key,
+                  controller: tooltip,
+                  text: tooltipText,
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: valore,
+          minHeight: 10,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(colore),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          testoGiudizio,
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: colore,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 // ============================================================
 // 🔹 SEZIONE INDICI CLINICI (4 BASE) + PARAMETRI AVANZATI (4)
@@ -773,25 +879,64 @@ Widget _buildDetailedSection(
   Map<String, dynamic> resultData,
   List<String> consigli,
 ) {
-// 🔹 Usa il valore reale calcolato dal server Python
-final double indiceGiovinezza = (
-  (resultData["marketing"]?["Indice di Giovinezza"] ??
-   resultData["marketing"]?["Indice Giovinezza"] ??
-   0.0)
-).toDouble();
+  // 🔹 Marketing + avanzati
+  final double vitalita = ((resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble()).clamp(0.0, 1.0);
+  final double glow = ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0);
+  final double stress = ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0);
+  final double giovinezza = ((resultData["marketing"]?["Indice di Giovinezza"] ?? 0.0).toDouble()).clamp(0.0, 1.0);
+
+  // CHIAVI PER TOOLTIP
+  final keyElasticita = GlobalKey();
+  final keyTexture = GlobalKey();
+  final keyIdratazione = GlobalKey();
+  final keyChiarezza = GlobalKey();
+
+  final keyVitalita = GlobalKey();
+  final keyGlow = GlobalKey();
+  final keyStress = GlobalKey();
+  final keyGiovinezza = GlobalKey();
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // ============================================================
-      // 🔹 SEZIONE INDICI CLINICI BASE
-      // ============================================================
-      _buildParamCard("Elasticità", indici["Elasticità"] ?? 0.0),
-      _buildParamCard("Texture", indici["Texture"] ?? 0.0),
-      _buildParamCard("Idratazione", indici["Idratazione"] ?? 0.0),
-      _buildParamCard("Chiarezza", indici["Chiarezza"] ?? 0.0),
 
-      const SizedBox(height: 30),
+      // ============================================================
+      // 🔹 4 INDICI CLINICI BASE
+      // ============================================================
+
+      _buildParamCardWithInfo(
+        key: keyElasticita,
+        titolo: "Elasticità",
+        valore: indici["Elasticità"] ?? 0.0,
+        tooltipText:
+            "Indica quanto la pelle resiste alla formazione di rughe e microrughe.",
+      ),
+
+      _buildParamCardWithInfo(
+        key: keyTexture,
+        titolo: "Texture",
+        valore: indici["Texture"] ?? 0.0,
+        tooltipText:
+            "Misura la regolarità della grana della pelle e la presenza di microrilievi.",
+      ),
+
+      _buildParamCardWithInfo(
+        key: keyIdratazione,
+        titolo: "Idratazione",
+        valore: indici["Idratazione"] ?? 0.0,
+        tooltipText:
+            "Indica quanta acqua e luminosità naturale trattiene la pelle.",
+      ),
+
+      _buildParamCardWithInfo(
+        key: keyChiarezza,
+        titolo: "Chiarezza",
+        valore: indici["Chiarezza"] ?? 0.0,
+        tooltipText:
+            "Misura quanto il colore della pelle è uniforme (macchie, rossori, discromie).",
+      ),
+
+      const SizedBox(height: 35),
 
       Align(
         alignment: Alignment.centerLeft,
@@ -806,37 +951,48 @@ final double indiceGiovinezza = (
       ),
       const SizedBox(height: 14),
 
-      // 🔹 Vitalità (energia e ossigenazione)
-      _buildParamCard(
-        "Vitalità Cutanea",
-        ((resultData["marketing"]?["Vitalità"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+      // ============================================================
+      // 🔹 4 INDICI AVANZATI
+      // ============================================================
+
+      _buildParamCardWithInfo(
+        key: keyVitalita,
+        titolo: "Vitalità Cutanea",
+        valore: vitalita,
+        tooltipText:
+            "Indica la vitalità generale della pelle: energia, ossigenazione e freschezza.",
       ),
 
-      // 🔹 Glow naturale (luminosità percepita)
-      _buildParamCard(
-        "Glow Naturale",
-        ((resultData["marketing"]?["Glow Naturale"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+      _buildParamCardWithInfo(
+        key: keyGlow,
+        titolo: "Glow Naturale",
+        valore: glow,
+        tooltipText:
+            "Misura la luminosità naturale e il riflesso sano della pelle.",
       ),
 
-// 🔹 Stress Cutaneo (0 = rilassato → verde, 1 = stressato → rosso)
-_buildParamCard(
-  "Stress Cutaneo",
-  ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
-  colorePersonalizzato: _coloreStress(
-    ((resultData["marketing"]?["Stress Cutaneo"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
-  ),
-  giudizioPersonalizzato: giudizioStress,
-),
-
-
-
-// 🔹 Indice di Giovinezza Cutanea (YI)
-_buildParamCard(
-  "Indice di Giovinezza",
-        ((resultData["marketing"]?["Indice di Giovinezza"] ?? 0.0).toDouble()).clamp(0.0, 1.0),
+      _buildParamCardWithInfo(
+        key: keyStress,
+        titolo: "Stress Cutaneo",
+        valore: stress,
+        colorePersonalizzato: _coloreStress(stress),
+        giudizioPersonalizzato: giudizioStress,
+        tooltipText:
+            "Valuta quanto la pelle è stressata (rossori, infiammazione, sensibilità).",
       ),
 
-      const SizedBox(height: 40),
+      _buildParamCardWithInfo(
+        key: keyGiovinezza,
+        titolo: "Indice di Giovinezza",
+        valore: giovinezza,
+        tooltipText:
+            "Indica quanto la pelle appare giovane rispetto alla sua età biologica.",
+      ),
+
+      const SizedBox(height: 30),
+    ],
+  );
+}
 
       // ============================================================
       // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
