@@ -574,39 +574,40 @@ body: GestureDetector(
             _buildDetailedSection(indici, resultData!, consigli),
 
             // ============================================================
-            // 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
-            // ============================================================
-            if (resultData["aree_specifiche"] != null) ...[
-              const SizedBox(height: 30),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Estensioni Aree Specifiche",
-                  style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              _buildAreaRow(
-                "Pori",
-                "${(resultData["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
-              ),
-              _buildAreaRow(
-                "Rughe",
-                "${(resultData["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
-              ),
-              _buildAreaRow(
-                "Macchie pigmentarie",
-                "${(resultData["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
-              ),
-              _buildAreaRow(
-                "Aree vascolari (Red Areas)",
-                "${(resultData["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
-              ),
-            ],
+// 🔹 SEZIONE ESTENSIONI AREE SPECIFICHE
+// ============================================================
+if (resultData!["aree_specifiche"] != null) ...[
+  const SizedBox(height: 30),
+  Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      "Estensioni Aree Specifiche",
+      style: GoogleFonts.montserrat(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.black87,
+      ),
+    ),
+  ),
+  const SizedBox(height: 10),
+  _buildAreaRow(
+    "Pori",
+    "${(resultData!["aree_specifiche"]["pori_area_percent"] ?? 0).toStringAsFixed(1)} %",
+  ),
+  _buildAreaRow(
+    "Rughe",
+    "${(resultData!["aree_specifiche"]["rughe_lunghezza_mm"] ?? 0).toStringAsFixed(1)} mm",
+  ),
+  _buildAreaRow(
+    "Macchie pigmentarie",
+    "${(resultData!["aree_specifiche"]["macchie_area_percent"] ?? 0).toStringAsFixed(1)} %",
+  ),
+  _buildAreaRow(
+    "Aree vascolari (Red Areas)",
+    "${(resultData!["aree_specifiche"]["red_area_percent"] ?? 0).toStringAsFixed(1)} %",
+  ),
+],
+
 
             const SizedBox(height: 40),
 
