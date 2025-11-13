@@ -4,8 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 /// ============================================================
 /// 🧭 TooltipController (Compatibilità retroattiva)
 /// ============================================================
-/// Rimane definito per compatibilità ma non fa più nulla.
-/// Ogni InfoIcon ora gestisce il proprio stato localmente.
 class TooltipController extends ChangeNotifier {
   void show(Offset pos, String msg) {}
   void hide() {}
@@ -15,12 +13,12 @@ class TooltipController extends ChangeNotifier {
 }
 
 /// ============================================================
-/// ℹ️ InfoIcon — Icona cliccabile che mostra il proprio tooltip
+/// ℹ️ InfoIcon — Tooltip che si apre verso sinistra (visivamente)
 /// ============================================================
 class InfoIcon extends StatefulWidget {
   final GlobalKey targetKey;
   final String text;
-  final TooltipController controller; // mantenuto per compatibilità
+  final TooltipController controller; // compatibilità
 
   const InfoIcon({
     super.key,
@@ -44,8 +42,6 @@ class _InfoIconState extends State<InfoIcon>
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 180),
-      lowerBound: 0,
-      upperBound: 1,
     );
   }
 
@@ -77,9 +73,8 @@ class _InfoIconState extends State<InfoIcon>
 
     return Stack(
       clipBehavior: Clip.none,
-      alignment: Alignment.center,
       children: [
-        // 🔹 Icona cliccabile
+        // 🔹 Icona "i" cliccabile
         InkWell(
           borderRadius: BorderRadius.circular(20),
           splashColor: Colors.transparent,
@@ -99,58 +94,62 @@ class _InfoIconState extends State<InfoIcon>
           ),
         ),
 
-        // 🔹 Tooltip locale sopra la card
+        // 🔹 Tooltip visibile + overlay per chiudere con tap ovunque
         if (_visible)
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _hideTooltip, // 🔸 Tap ovunque per chiudere
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.topCenter,
-                children: [
-                  Positioned(
-                    top: -85,
-                    child: FadeTransition(
-                      opacity: _animController,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: screenWidth * 0.9, // fino al 90% dello schermo
-                            minWidth: screenWidth * 0.6, // almeno 60%
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            widget.text,
-                            textAlign: TextAlign.left,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 13.5,
-                              height: 1.5,
-                              color: Colors.black87,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // 🔸 Overlay cliccabile (chiude il tooltip ovunque tocchi)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _hideTooltip,
+                  child: Container(color: Colors.transparent),
+                ),
+
+                // 🔹 Tooltip che si apre a sinistra della "i"
+                Positioned(
+                  top: -20, // leggero rialzo verticale
+                  right: 40, // spostamento verso sinistra
+                  child: FadeTransition(
+                    opacity: _animController,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: screenWidth * 0.85,
+                          minWidth: screenWidth * 0.7,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.black12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
                             ),
+                          ],
+                        ),
+                        child: Text(
+                          widget.text,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 13.5,
+                            height: 1.5,
+                            color: Colors.black87,
                           ),
+                          textAlign: TextAlign.left,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
       ],
@@ -172,7 +171,5 @@ class TooltipCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink(); // non serve più
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
