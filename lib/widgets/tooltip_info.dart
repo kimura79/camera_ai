@@ -2,34 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// ============================================================
-/// 🎯 TooltipController — Gestisce visibilità, testo e posizione
+/// 🧭 TooltipController (Compatibilità retroattiva)
 /// ============================================================
+/// Rimane definito per compatibilità ma non fa più nulla.
+/// Ogni InfoIcon ora gestisce il proprio stato localmente.
 class TooltipController extends ChangeNotifier {
-  Offset? position;
-  String? text;
-
-  void show(Offset pos, String msg) {
-    position = pos;
-    text = msg;
-    notifyListeners();
-  }
-
-  void hide() {
-    position = null;
-    text = null;
-    notifyListeners();
-  }
-
-  bool get visible => position != null && text != null;
+  void show(Offset pos, String msg) {}
+  void hide() {}
+  bool get visible => false;
+  Offset? get position => null;
+  String? get text => null;
 }
 
 /// ============================================================
-/// ℹ️ InfoIcon — Icona cliccabile che mostra un tooltip
+/// ℹ️ InfoIcon — Icona cliccabile che mostra il proprio tooltip
 /// ============================================================
-class InfoIcon extends StatelessWidget {
+class InfoIcon extends StatefulWidget {
   final GlobalKey targetKey;
   final String text;
-  final TooltipController controller;
+  final TooltipController controller; // mantenuto per compatibilità
 
   const InfoIcon({
     super.key,
@@ -39,47 +30,115 @@ class InfoIcon extends StatelessWidget {
   });
 
   @override
+  State<InfoIcon> createState() => _InfoIconState();
+}
+
+class _InfoIconState extends State<InfoIcon>
+    with SingleTickerProviderStateMixin {
+  bool _visible = false;
+  late final AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      lowerBound: 0,
+      upperBound: 1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _toggleTooltip() {
+    if (_visible) {
+      _animController.reverse();
+    } else {
+      _animController.forward();
+    }
+    setState(() => _visible = !_visible);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      onTap: () {
-        final renderBox = targetKey.currentContext?.findRenderObject() as RenderBox?;
-        if (renderBox != null) {
-          final position = renderBox.localToGlobal(Offset.zero);
-          final size = renderBox.size;
-
-          // 🔹 Tooltip centrato orizzontalmente sopra la card
-          final offset = Offset(
-            position.dx + size.width / 2 - 130, // centrato per width=260
-            position.dy - 70, // sopra la card
-          );
-
-          controller.show(offset, text);
-          debugPrint("ℹ️ Tooltip aperto per '$text'");
-        } else {
-          debugPrint("❌ targetKey non trovato per InfoIcon");
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A73E8).withOpacity(0.15),
-          shape: BoxShape.circle,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        // 🔹 Icona cliccabile
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          onTap: _toggleTooltip,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A73E8).withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.info_outline,
+              size: 18,
+              color: Color(0xFF1A73E8),
+            ),
+          ),
         ),
-        child: const Icon(
-          Icons.info_outline,
-          size: 18,
-          color: Color(0xFF1A73E8),
-        ),
-      ),
+
+        // 🔹 Tooltip locale sopra la card
+        if (_visible)
+          Positioned(
+            top: -70,
+            left: -120,
+            child: FadeTransition(
+              opacity: _animController,
+              child: GestureDetector(
+                onTap: _toggleTooltip, // chiude se tocchi la card
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 260,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      widget.text,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13.5,
+                        height: 1.4,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
 
 /// ============================================================
-/// 💬 TooltipCard — Card flottante elegante con ombra
+/// 💬 TooltipCard (Compatibilità visiva, non più usata direttamente)
 /// ============================================================
 class TooltipCard extends StatelessWidget {
   final Offset position;
@@ -93,40 +152,6 @@ class TooltipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: position.dx,
-      top: position.dy,
-      child: AnimatedOpacity(
-        opacity: 1.0,
-        duration: const Duration(milliseconds: 150),
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: 260,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Text(
-              text,
-              style: GoogleFonts.montserrat(
-                fontSize: 13.5,
-                height: 1.4,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return const SizedBox.shrink(); // non serve più
   }
 }
