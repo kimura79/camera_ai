@@ -377,15 +377,19 @@ body: GestureDetector(
               },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: overlayFile != null
-    ? Image.file(
-        overlayFile!,
+child: resultData?["overlay_full_url"] != null
+    ? Image.network(
+        // 👇 Aggiunge timestamp univoco per forzare reload
+        '${resultData!["overlay_full_url"]}?t=${DateTime.now().millisecondsSinceEpoch}',
         key: ValueKey(DateTime.now().millisecondsSinceEpoch),
         width: double.infinity,
         fit: BoxFit.cover,
-        cacheWidth: null,
-        cacheHeight: null,
         gaplessPlayback: false,
+        headers: const {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
       )
 
                     : Container(
