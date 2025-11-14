@@ -27,7 +27,7 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://selected-award-aqua-mount.trycloudflare.com";
+  final String serverUrl = "https://omissions-attorney-vary-notified.trycloudflare.com";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -52,7 +52,7 @@ void dispose() {
 // 🔹 Controlla che il server farmacia sia online 
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://selected-award-aqua-mount.trycloudflare.com"; // ✅ Cloudflare Tunnel
+  const serverUrl = "https://omissions-attorney-vary-notified.trycloudflare.com"; // ✅ Cloudflare Tunnel
 
   try {
     final resp = await http
