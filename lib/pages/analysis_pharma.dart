@@ -378,11 +378,16 @@ body: GestureDetector(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: overlayFile != null
-                    ? Image.file(
-                        overlayFile!,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      )
+    ? Image.file(
+        overlayFile!,
+        key: ValueKey(DateTime.now().millisecondsSinceEpoch),
+        width: double.infinity,
+        fit: BoxFit.cover,
+        cacheWidth: null,
+        cacheHeight: null,
+        gaplessPlayback: false,
+      )
+
                     : Container(
                         height: 250,
                         color: Colors.grey.shade200,
