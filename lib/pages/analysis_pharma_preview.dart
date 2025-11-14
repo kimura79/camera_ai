@@ -27,7 +27,8 @@ class _AnalysisPharmaPreviewState extends State<AnalysisPharmaPreview> {
   bool _serverReady = false;
   bool _showServerStatus = true;
   Timer? _retryTimer;
-  final String serverUrl = "https://selected-award-aqua-mount.trycloudflare.com";
+  // 🔹 URL del server AI (Ngrok) — da aggiornare manualmente quando cambia
+  final String serverUrl = "https://729dca2f419a.ngrok-free.app";
   String _activeServer = "";
 
   // 🔹 per la barra di avanzamento
@@ -49,11 +50,9 @@ void dispose() {
 
 
 // ============================================================
-// 🔹 Controlla che il server farmacia sia online 
+// 🔹 Controlla che il server farmacia (Ngrok) sia online
 // ============================================================
 Future<void> _checkServer() async {
-  const serverUrl = "https://selected-award-aqua-mount.trycloudflare.com"; // ✅ Cloudflare Tunnel
-
   try {
     final resp = await http
         .get(Uri.parse("$serverUrl/status"))
@@ -73,7 +72,6 @@ Future<void> _checkServer() async {
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) setState(() => _showServerStatus = false);
       });
-      return;
     } else {
       debugPrint("⚠️ Server risponde ma non OK: ${resp.statusCode}");
     }
@@ -93,9 +91,9 @@ Future<void> _checkServer() async {
     if (mounted) setState(() => _showServerStatus = false);
   });
 
-  // Ritenta dopo 5 secondi
   _retryTimer = Timer(const Duration(seconds: 5), _checkServer);
 }
+
 
 // ============================================================
 // 🔹 Invia immagine al server (endpoint asincrono con retry)
