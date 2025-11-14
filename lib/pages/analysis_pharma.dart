@@ -33,10 +33,10 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   File? overlayFile;
   final TooltipController tooltip = TooltipController();
 
-  // 🌍 URL del server AI (Ngrok attivo)
-// ⚠️ Aggiorna manualmente questo URL ogni volta che riavvii Ngrok
-final String serverUrl = "https://729dca2f419a.ngrok-free.app";
-
+  // 🔹 URL del server AI (Cloudflare Tunnel attivo)
+  // puoi sostituire con ai.epidermys.com se usi DNS dedicato
+  final String serverUrl =
+      "https://selected-award-aqua-mount.trycloudflare.com";
 
   @override
   void initState() {
