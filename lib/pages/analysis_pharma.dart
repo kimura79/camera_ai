@@ -33,38 +33,9 @@ class _AnalysisPharmaPageState extends State<AnalysisPharmaPage> {
   File? overlayFile;
   final TooltipController tooltip = TooltipController();
 
-// 🔹 URL del server AI (Ngrok dinamico)
-late String serverUrl;
-
-@override
-void initState() {
-  super.initState();
-  _impostaServerUrl();
-  _loadResultData();
-}
-
-// ============================================================
-// 🌍 Lettura dinamica URL Ngrok (da file locale scritto da Python)
-// ============================================================
-Future<void> _impostaServerUrl() async {
-  try {
-    final dir = await getTemporaryDirectory();
-    final ngrokFile = File("${dir.path}/ngrok_url.txt");
-
-    if (await ngrokFile.exists()) {
-      // ✅ Legge l’URL attuale del tunnel Ngrok (es. https://xxxx.ngrok-free.app)
-      serverUrl = await ngrokFile.readAsString();
-      debugPrint("🌍 URL Ngrok caricato: $serverUrl");
-    } else {
-      // ⚠️ Fallback locale in caso di assenza file
-      serverUrl = "http://localhost:5005";
-      debugPrint("⚠️ File ngrok_url.txt non trovato, uso localhost");
-    }
-  } catch (e) {
-    serverUrl = "http://localhost:5005";
-    debugPrint("❌ Errore lettura URL Ngrok: $e");
-  }
-}
+  // 🌍 URL del server AI (Ngrok attivo)
+// ⚠️ Aggiorna manualmente questo URL ogni volta che riavvii Ngrok
+final String serverUrl = "https://729dca2f419a.ngrok-free.app";
 
 
   @override
